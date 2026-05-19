@@ -1,0 +1,23 @@
+{
+  "name": "ludeo-core-sdk-integration-skill",
+  "version": "0.0.0-managed-by-semantic-release",
+  "private": true,
+  "description": "Ludeo Core SDK integration Agent Skill — installable via `npx skills add ludeo-labs/core-integration-skill`.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ludeo-labs/core-integration-skill.git"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "validate": "node scripts/validate-skill.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^23.0.0"
+  }
+}

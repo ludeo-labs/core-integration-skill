@@ -1,0 +1,94 @@
+name: Release
+
+run-name: ${{ github.actor }} is releasing ${{ github.event.repository.name }}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      VERSION:
+        description: 'Optional explicit version tag (e.g. v1.2.3). Leave empty to let semantic-release decide.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  semantic-release:
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      new_release_git_tag: ${{ steps.semantic.outputs.new_release_git_tag }}
+      new_release_git_head: ${{ steps.semantic.outputs.new_release_git_head }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.REPO_TOKEN || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Utilize the explicit version when supplied
+        if: inputs.VERSION != ''
+        run: |
+          set -euo pipefail
+          if ! git rev-parse "${{ inputs.VERSION }}" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${{ inputs.VERSION }}" -m "Release ${{ inputs.VERSION }}"
+            git push origin "${{ inputs.VERSION }}"
+            echo "Created and pushed tag ${{ inputs.VERSION }}"
+          else
+            echo "Tag ${{ inputs.VERSION }} already exists"
+          fi
+
+      - name: Semantic release
+        if: inputs.VERSION == ''
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v5
+        with:
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/exec@6
+            @semantic-release/git@10
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN || secrets.GITHUB_TOKEN }}
+
+  release-summary:
+    runs-on: ubuntu-latest
+    needs: semantic-release
+    if: always()
+    steps:
+      - name: Release Summary
+        run: |
+          {
+            echo "## Release Summary"
+            echo ""
+            NEW_RELEASE_PUBLISHED="${{ needs.semantic-release.outputs.new_release_published }}"
+            VERSION_PROVIDED="${{ inputs.VERSION }}"
+
+            if [ "$NEW_RELEASE_PUBLISHED" = "true" ] || [ -n "$VERSION_PROVIDED" ]; then
+              echo "**New Release Published:** true"
+              echo ""
+              echo "| Field | Value |"
+              echo "|-------|-------|"
+              echo "| Git Head | \`${{ needs.semantic-release.outputs.new_release_git_head }}\` |"
+              echo "| Git Tag | \`${{ needs.semantic-release.outputs.new_release_git_tag || inputs.VERSION }}\` |"
+              echo "| Release Version | \`${{ needs.semantic-release.outputs.new_release_version || inputs.VERSION }}\` |"
+            else
+              echo "**New Release Published:** false"
+              echo ""
+              echo "No new release was published (no Conventional Commits since last release, or no qualifying changes)."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
