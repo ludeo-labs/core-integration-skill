@@ -2,7 +2,7 @@
 name: ludeo-integration
 description: Integrate the Ludeo SDK into a C++, Unity, or Unreal game. Sets up the build with conditional compilation, wires the SDK lifecycle, maps and implements game actions, maps and tracks game objects, and verifies the integration. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into their game.
 metadata:
-  version: 0.0.0
+  version: 1.0.0
 ---
 
 # Ludeo SDK Integration
