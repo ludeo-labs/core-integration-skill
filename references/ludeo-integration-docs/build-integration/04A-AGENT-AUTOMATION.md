@@ -57,18 +57,28 @@ def detect_build_system():
 
 ---
 
-## 3. SDK Discovery
+## 3. SDK Acquisition
 
-**Goal:** Locate Ludeo SDK files or prompt user.
+**Goal:** Clone the latest Ludeo SDK release. On failure, prompt the user to clone it manually and provide the path.
 
 ```python
-# Standard locations to check
-standard_paths = [
-    "external/ludeo/LudeoCoreSDK_*",
-    "third_party/ludeo/LudeoCoreSDK_*",
-    "vendor/ludeo/LudeoCoreSDK_*",
-    "libs/ludeo/LudeoCoreSDK_*"
-]
+SDK_REPO = "https://github.com/EdgeGamingGG/ludeo-sdk-releases"
+
+# Clone the latest release of the SDK
+try:
+    run(f"git clone {SDK_REPO}.git")
+    sdk_path = "ludeo-sdk-releases"
+    # If the repo uses tagged releases, check out the latest tag
+    run("git -C ludeo-sdk-releases fetch --tags")
+    latest_tag = run("git -C ludeo-sdk-releases describe --tags --abbrev=0").strip()
+    if latest_tag:
+        run(f"git -C ludeo-sdk-releases checkout {latest_tag}")
+except CloneError:
+    # No network / no access / git error → hand off to the user
+    sdk_path = prompt_user(
+        f"Could not clone the Ludeo SDK from {SDK_REPO}. "
+        "Please clone it manually and provide the local SDK path."
+    )
 
 # Extract version from directory name (format: LudeoCoreSDK_X_X_X)
 import re
@@ -76,6 +86,8 @@ match = re.search(r'LudeoCoreSDK_(\d+)_(\d+)_(\d+)', sdk_path)
 if match:
     version = f"{match.group(1)}.{match.group(2)}.{match.group(3)}"
 ```
+
+> **Note:** Verify cloned DLL/SO files are real binaries (> 1MB), not Git LFS pointer files (~130 bytes). If pointer-sized, run `git lfs pull` inside the SDK repo.
 
 **Platform-Specific Required Files:**
 
@@ -155,7 +167,7 @@ for pattern in source_patterns:
 |------|--------|--------|
 | 1 | Select OS | `target_os`, `platform` |
 | 2 | Detect build system | `build_system`, `primary_file` |
-| 3 | Discover SDK | `sdk_path`, `version` |
+| 3 | Clone SDK (latest release) | `sdk_path`, `version` |
 | 4 | Detect target name | `target_name` |
 | 5 | Detect logging | `logging_system`, `macros` |
 | 6 | Detect source structure | `source_root`, `ludeo_path` |
@@ -189,7 +201,7 @@ while retry_count < max_retries:
 
 | Error | Fix | Action |
 |-------|-----|--------|
-| SDK Not Found | Update SDK path | Verify path, prompt user if missing |
+| SDK Clone Failed | Ask user to clone manually | Verify clone of `EdgeGamingGG/ludeo-sdk-releases`; prompt user for path on failure |
 | Target Not Found | Re-parse build file | List available targets, prompt selection |
 | Missing Include | Add include directory | Update `target_include_directories()` |
 | Linker Error | Fix library linking | Verify lib path and filename |

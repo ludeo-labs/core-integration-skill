@@ -24,7 +24,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 **Action Required:** Read the following files. Do not assume they are in context.
 
-- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §3 (lifecycle), §4 (identity/mapping), §5 (manager integration), §6 (batch registration). All canonical code patterns live here.
+- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §1.4 (attributes-vs-blobs — default to attributes), §3 (lifecycle), §4 (identity/mapping), §5 (manager integration), §6 (batch registration). All canonical code patterns live here.
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` — CR-001 (`#if LUDEO_SDK_ENABLED` guards), CR-002 (Enter/Leave pairing via `ObjectScope`)
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — per-entity reconciliation vs manual
 
@@ -91,6 +91,8 @@ For each property in the plan, insert the capture macro at the location dictated
 - **reference** — capture the target's **stable game ID**, never the pointer (per `06 §4.4`)
 - **debounced** — use a per-property timestamp check; don't introduce new timers
 
+Emit each property as a **discrete typed `LUDEO_CAPTURE_*` attribute** — the default for every property. Do not serialize an object into one blob string and capture that, and do not ask the user which approach to use. The only exceptions are entities the plan explicitly flagged for blob storage (because the user asked, or the state is genuinely opaque/unmappable per `06 §1.4`); for those, follow the plan. If you hit a property that seems to need a blob but the plan didn't flag it, capture what you can as attributes and note it for review rather than silently switching approaches.
+
 Critical discipline:
 - All `LUDEO_CAPTURE_*` calls go *after* the game-state mutation, not before.
 - Reference fields capture `target ? target->GetEntityId() : 0`, never `(uintptr_t)target`.
@@ -135,6 +137,7 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 - **Propose-confirm-execute** for every change. The two new files (`LudeoCaptureMacros.h`, `LudeoStateAdapter`) are project-wide infrastructure — get explicit approval before creating.
 - Every SDK call wrapped in `#if LUDEO_SDK_ENABLED` (CR-001).
 - `EnterObject` / `LeaveObject` paired only via `ObjectScope` (CR-002) — the macros enforce this; don't hand-pair.
+- **Attributes by default, not blobs** — emit discrete typed `LUDEO_CAPTURE_*` calls (06 §1.4). Use blob/serialized storage only for entities the plan explicitly flagged; don't ask the user per property.
 - Track stable game IDs for references, never pointers (06 §4).
 - Update game state first, then track.
 - Do not modify game logic — only add SDK calls. If a hook site doesn't exist, propose adding it as a separate, named change first.

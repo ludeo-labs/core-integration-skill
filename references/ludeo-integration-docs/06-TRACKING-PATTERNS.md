@@ -77,6 +77,23 @@ The goal is **complete state capture** for faithful restoration. When in doubt, 
 
 **Both are required** for a complete Ludeo integration.
 
+### 1.4 Attributes vs Blobs — default to attributes
+
+The SDK can store and reconstruct state two ways:
+
+- **Attribute integration** — capture each property as a named, typed attribute (`ludeo_DataWriter_Set*` → `ludeo_DataReader_Get*`). This is what every pattern in this document uses.
+- **Blob integration** — serialize an object's (or the world's) state into one opaque buffer and stuff it into a single string/byte attribute, then deserialize it on restoration.
+
+**Ludeo strongly prefers attribute integrations. Default to attributes — do not ask the user which to use.** Attributes are the default for good reason: the platform can read individual values, so objectives, scoring, and highlights can key off real state (`health`, `kills`, `position`); restoration can be partial and version-tolerant; captures are inspectable and debuggable; and a field added or removed on one side doesn't corrupt everything else. A blob is opaque to the platform — it can only be handed back verbatim, defeats per-attribute objectives/scoring, and breaks the moment the game's serialization format shifts.
+
+**Only deviate to a blob when one of these is true:**
+1. **The user explicitly asks for blob/serialized storage** for an entity or the whole game.
+2. **The integration genuinely calls for it** — e.g. an entity's state is an already-opaque, large, or deeply-nested structure with no stable field-level schema (a procedural world buffer, a third-party physics state blob, a scripting VM heap) where mapping individual attributes is infeasible or would be wildly more complex than round-tripping the existing serialized form.
+
+When neither holds, use attributes and move on — do **not** prompt the user per entity. When a blob *is* warranted under (2), note the entity and the specific reason in the plan's Open Questions / Notes so the human reviewer sees the rationale; you don't need a live answer to proceed. Prefer the narrowest blob possible (one sub-object), never a whole-world blob, when a blob is unavoidable.
+
+> Note: this is distinct from how the *game's own* save system serializes state (see `02F-RESEARCH-SAVE-SYSTEM.md`). A game that saves itself as a JSON/binary blob can — and by default should — still be tracked into Ludeo as discrete attributes.
+
 ---
 
 ## 2. Object Handling Patterns in the Codebase

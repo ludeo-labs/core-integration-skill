@@ -26,7 +26,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 **Action Required:** Read the following files. Do not assume they are in context.
 
-- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §2 (codebase pattern classification), §4 (identity & references), §9 (what-to-track decision flow). These are the core inputs to this command.
+- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §1.4 (attributes-vs-blobs — default to attributes), §2 (codebase pattern classification), §4 (identity & references), §9 (what-to-track decision flow). These are the core inputs to this command.
 - `ludeo-integration-docs/research-context/02B-RESEARCH-OBJECTS.md` — entity inventory template
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — per-entity reconciliation vs manual matrix
 - `ludeo-integration-docs/game-patterns/INDEX.md` — genre tracking checklists (§3 of each genre file)
@@ -74,6 +74,8 @@ Record the ID field + file:line of assignment. If a class lacks a stable ID, fla
 ### Step 6: Inventory Properties per Entity
 
 For each entity, list properties and classify each kind: `identity | static | dynamic-continuous | dynamic-discrete | event-driven | reference`. Apply `06 §9.3` to decide what to keep.
+
+Capture each property as a **discrete typed attribute by default** — this is the assumed approach for every entity. Do **not** plan blob/serialized-buffer storage, and do not ask the user which to use, unless the user explicitly requested blobs or an entity genuinely warrants one (opaque/large/no stable field schema). See `06-TRACKING-PATTERNS.md §1.4` for the rule and the narrow exceptions; if an exception applies, record the entity + the specific reason under that entity's Open Questions rather than pausing for an answer.
 
 For each kept property pick the write strategy: `one-shot | per-tick | per-change | event-driven | debounced`. Default rules:
 - Identity / static → one-shot at registration
@@ -185,6 +187,7 @@ May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 
 ## Important Notes
 
+- **Attributes by default, not blobs** — plan discrete typed attributes for every entity (06 §1.4). Reach for a serialized blob only if the user asked or an entity is genuinely opaque/unmappable; record the reason in Open Questions and keep going — don't ask the user per entity.
 - **Pattern classification is foundational** — get §2 right or every downstream hook decision is wrong.
 - **Stable game IDs only** — restoration cannot resolve pointers across sessions.
 - **When in doubt, track it** — over-tracking is cheap; under-tracking produces silently broken replays (06 §9.1).
