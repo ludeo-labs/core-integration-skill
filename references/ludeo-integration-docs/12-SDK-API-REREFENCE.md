@@ -107,7 +107,7 @@
 - NOT for continuous state (use Set functions for that)
 - Actions enable Ludeo objectives and scoring
 
-**Our Docs:** [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md#85-ludeo-actions-critical-for-experience)
+**Our Docs:** [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md#7-ludeo-actions-discrete-events)
 
 ---
 

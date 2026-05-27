@@ -13,6 +13,8 @@ Analyze the game codebase to identify where Ludeo actions (`LUDEO_ACTION()`) sho
 
 > ⚠️ **REQUIRED:** Run `phase 1` first.
 > This command reads `ludeo-integration-plan/CODE_MAP.json` for the game name and codebase structure.
+>
+> **Recommended:** If `ludeo-integration-plan/TDD_<GameName>.md` exists, read its **Actions Capture** section — it defines the capture strategy and attribution approach already agreed upon.
 
 ## 📚 Context Files
 

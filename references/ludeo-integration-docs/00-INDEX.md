@@ -227,8 +227,8 @@ Use these tags to find relevant files quickly:
 - `#build` → 04-BUILD-INTEGRATION, 08-CODE-PATTERNS
 - `#tracking` → 06-TRACKING-PATTERNS, 08-CODE-PATTERNS
 - `#restoration` → 07-RESTORATION-PATTERNS
-- `#actions` → 06-TRACKING-PATTERNS (Section 8.5)
-- `#pause` → 06-TRACKING-PATTERNS (Section 8.6)
+- `#actions` → 06-TRACKING-PATTERNS (Section 7)
+- `#pause` → 06-TRACKING-PATTERNS (Section 8)
 - `#testing` → 10-TESTING-VALIDATION
 - `#errors` → 11-TROUBLESHOOTING
 - `#unity` → 09-PLATFORM-SPECIFIC

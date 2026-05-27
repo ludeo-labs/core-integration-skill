@@ -1,4 +1,4 @@
-# Implement SDK Lifecycle - Create Implementation Plan
+# Plan SDK Lifecycle - Create Implementation Plan
 
 Creates a detailed SDK lifecycle implementation plan from the outputs of previous commands. This command does NOT search the game codebase - it reads from `SDK_INTEGRATION_POINTS.json` and `CODE_MAP.json` produced by `phase 1` and `phase 2`.
 
@@ -19,11 +19,15 @@ Creates a detailed SDK lifecycle implementation plan from the outputs of previou
 
 ## Prerequisites
 
-> ⚠️ **REQUIRED:** Run these commands first:
+> ⚠️ **REQUIRED:** Run these phases first:
 > 1. `phase 1` → produces `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 2` → produces `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`
+> 3. `phase 2b` → produces `ludeo-integration-plan/TDD_<GameName>.md`
 >
-> This command reads those files. It does **NOT** analyze game code directly.
+> This phase reads those files. It does **NOT** analyze game code directly.
+>
+> **If no TDD exists:** Check for `ludeo-integration-plan/TDD_*.md`. If not found, prompt the user:
+> > "No TDD found. Run `phase 2b` first to create one, or continue without?"
 
 ## Description
 
@@ -47,6 +51,7 @@ The output is a detailed implementation plan that guides the actual code integra
 1. **Read Input Files:**
    - `ludeo-integration-plan/CODE_MAP.json` (from `phase 1`)
    - `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json` (from `phase 2`)
+   - `ludeo-integration-plan/TDD_*.md` (from `phase 2b`, if exists) — use its risk assessment and concept mapping to inform the plan
 
 2. **Planning Phase:** Transforms the integration points into a detailed implementation plan:
    - **LudeoManager class design** with 🎮 hook methods and 📞 callback handlers
@@ -58,12 +63,13 @@ The output is a detailed implementation plan that guides the actual code integra
 
 All files are read from and written to the `ludeo-integration-plan/` folder in the game's root directory.
 
-**Inputs (REQUIRED - from previous commands):**
+**Inputs (REQUIRED - from previous phases):**
 - `ludeo-integration-plan/CODE_MAP.json` - From `phase 1`
 - `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json` - From `phase 2`
+- `ludeo-integration-plan/TDD_*.md` - From `phase 2b` (if exists)
 
 **Outputs:**
-- `ludeo-integration-plan/PHASE0_PLAN_<GameName>.md` - Detailed implementation guide including:
+- `ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md` - Detailed implementation guide including:
   - **LudeoManager class structure** (header and implementation) - singleton wrapper for all SDK operations
   - File paths and content for LudeoConfig.h
   - Integration code snippets for each hook point
@@ -92,12 +98,13 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 
 - `phase 1` - Creates structural code map (run FIRST)
 - `phase 2` - Finds integration points (run SECOND)
-- `phase 4` - Implements the plan created by this command
+- `phase 2b` - Creates Technical Design Document (run THIRD)
+- `phase 4` - Implements the plan created by this phase
 
 ## Next Steps
 
 After running this command:
-1. Review the implementation plan (`ludeo-integration-plan/PHASE0_PLAN_<GameName>.md`)
+1. Review the implementation plan (`ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md`)
 2. Create `LudeoConfig.h` as specified in the plan
 3. Create `LudeoManager` class (header and implementation) as specified
 4. Integrate SDK lifecycle calls at the identified hook points

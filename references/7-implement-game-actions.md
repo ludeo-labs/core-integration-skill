@@ -20,7 +20,7 @@ Read the action map produced by `phase 6` and implement `SendAction` calls at ea
 
 **Action Required:** Read the following files. Do not assume they are in context. The docs live inside this skill at `ludeo-integration-docs/` (relative to this workflow file).
 
-- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` Section 6 — Action implementation patterns and `SendAction` method
+- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` Section 7 — Action implementation patterns and `SendAction` method
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` — Mandatory rules (macro guards, error handling)
 
 ## Your Task
@@ -39,28 +39,7 @@ Skip actions marked `low` confidence — flag them for the user to review manual
 
 Find the LudeoManager class in the game codebase (check `ludeo-integration-plan/CODE_MAP.json` or search for `LudeoManager`).
 
-**Check if `SendAction` method already exists.** If not, propose adding it:
-
-**Header addition** (in LudeoManager class declaration):
-```cpp
-#if LUDEO_SDK_ENABLED
-    void SendAction(const char* actionName);
-#endif
-```
-
-**Implementation:**
-```cpp
-#if LUDEO_SDK_ENABLED
-void LudeoManager::SendAction(const char* actionName)
-{
-    if (!m_gameplay_session_active || m_data_writer == nullptr)
-        return;
-
-    ludeo_DataWriter_SetCurrent(m_data_writer);
-    ludeo_DataWriter_SendAction(actionName);
-}
-#endif
-```
+**Check if `SendAction` method already exists.** If not, propose adding it using the canonical header and implementation defined in `ludeo-integration-docs/06-TRACKING-PATTERNS.md` §7.1. Use that version verbatim — do not drop the session-state guard (`m_gameplay_session_active && m_data_writer != nullptr`); it's load-bearing and lets callers invoke the API without per-call-site session checks.
 
 This is a one-time prerequisite. Propose it first, get user confirmation, then proceed to action insertions.
 

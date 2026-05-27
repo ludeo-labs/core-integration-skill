@@ -41,6 +41,8 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 
 **⚠️ IMPORTANT:** Build for **Current operating system only**. Do not attempt to build for multiple platforms.
 
+**⚠️ IMPORTANT:** Focus on **Debug / Development** build configurations first. Release builds come later — do not attempt Release until Debug/Development is working end-to-end.
+
 ## Reference Documentation
 
 **Primary Guide:** `ludeo-integration-docs/04-BUILD-INTEGRATION.md`
@@ -58,7 +60,16 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 
 ## Workflow
 
-### Step 0: Select Operating System ⭐ **FIRST STEP**
+### Step 0a: Create Integration Branch ⭐ **VERY FIRST STEP**
+Before making any changes to the game project, create a dedicated branch:
+```bash
+git checkout -b feature/ludeosdk-integration-#1
+```
+- If a branch with that name already exists, increment the number (`#2`, `#3`, etc.)
+- This lets the user easily discard the integration attempt by deleting the branch
+- **All subsequent steps happen on this branch**
+
+### Step 0b: Select Operating System
 Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:
 - Prompt user to choose target OS: Windows, Linux, or macOS
 - Store selected OS for all subsequent steps
@@ -75,6 +86,7 @@ Follow **Section 2.2** of `04-BUILD-INTEGRATION.md`:
 - **THEN:** Check standard locations within game root (`external/ludeo/`, `third_party/ludeo/`, etc.)
 - Extract version from directory name
 - Verify SDK structure **for selected OS only** (Include/, Lib/, Bin/)
+- Verify DLL/SO files are real binaries (> 1MB), not Git LFS pointer files (~130 bytes) — if pointer-sized, the SDK was copied from an LFS checkout without its binaries; ask the user to re-provide a complete SDK
 - If not found, prompt user for SDK path
 
 ### Step 3: Detect Target Name and Source Structure
@@ -116,7 +128,7 @@ Follow the appropriate section based on build system:
 
 **IMPORTANT:** 
 - Create backups of original build files before modifying!
-- Configure **only** for the OS selected in Step 0
+- Configure **only** for the OS selected in Step 0b
 
 ### Step 8: Build Game WITHOUT SDK First (Baseline Verification)
 Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
@@ -144,6 +156,7 @@ Follow **Section 10.2** of `04-BUILD-INTEGRATION.md`:
 
 ## Success Criteria
 
+- [ ] Integration branch created (`feature/ludeosdk-integration-#N`)
 - [ ] Build system detected correctly
 - [ ] SDK located and verified (checked parent folder first)
 - [ ] Directory structure created
@@ -167,7 +180,9 @@ If any step fails:
 
 ## Important Notes
 
-- **Build for ONE OS only** - Prompt user to select OS first (Step 0)
+- **Always create the integration branch first** - All work happens on `feature/ludeosdk-integration-#N`
+- **Build for ONE OS only** - Prompt user to select OS first (Step 0b)
+- **Debug/Development first** - Target Debug/Development build configs only; defer Release builds until Debug/Development is verified working
 - **SDK Discovery Priority:** Check parent folder of game root FIRST, then standard locations
 - **Build Order is Critical:** Always build WITHOUT SDK first to establish baseline, then build WITH SDK
 - **Always create backups** before modifying build files

@@ -246,11 +246,11 @@ Before moving to implementation:
 
 ## 🔗 **Related Documentation**
 
-- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Action implementation (Section 8.5)
+- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Action implementation (Section 7)
 - [../08-CODE-PATTERNS.md](../08-CODE-PATTERNS.md) - LUDEO_ACTION macro
 - [../00-CRITICAL-REQUIREMENTS.md](../00-CRITICAL-REQUIREMENTS.md) - Mandatory rules
 
 ---
 
-**Next:** After completing actions research, implement using guidance in [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) Section 8.5
+**Next:** After completing actions research, implement using guidance in [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) Section 7
 

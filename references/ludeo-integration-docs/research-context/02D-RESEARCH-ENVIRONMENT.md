@@ -243,7 +243,7 @@ Before moving to implementation:
 ## 🔗 **Related Documentation**
 
 - [../07-RESTORATION-PATTERNS.md](../07-RESTORATION-PATTERNS.md) - Restoration implementation
-- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Pause tracking (Section 8.6)
+- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Pause tracking (Section 8)
 - [../00-CRITICAL-REQUIREMENTS.md](../00-CRITICAL-REQUIREMENTS.md) - Mandatory rules
 
 ---

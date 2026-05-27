@@ -1,25 +1,47 @@
 # 06 - Object Tracking Patterns
 
-> **Purpose:** Comprehensive guide to tracking game object state for Ludeo SDK  
-> **Audience:** AI agents implementing object tracking during active gameplay  
-> **Prerequisites:** [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md), [00-CRITICAL-REQUIREMENTS.md](00-CRITICAL-REQUIREMENTS.md)  
+> **Purpose:** Comprehensive guide to tracking game object state for Ludeo SDK
+> **Audience:** AI agents implementing object tracking during active gameplay
+> **Scope:** Proprietary C++ engines. Unity and Unreal have dedicated integration guides — if the game uses either, stop and use the engine-specific doc instead of this one.
+> **Prerequisites:** [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md), [00-CRITICAL-REQUIREMENTS.md](00-CRITICAL-REQUIREMENTS.md)
 > **Related:** [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md), [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
+
+---
+
+## How to use this document
+
+This file covers the full object-tracking surface. You rarely need to read it end-to-end — most skills point you at a specific section. Jump to the one that matches your current task:
+
+- **Classifying the game's object-handling style before writing code?** → §2 Object Handling Patterns in the Codebase
+- **Writing the register / update / unregister SDK calls?** → §3 Object Lifecycle Pattern
+- **Handling relationships (owner, parent, target) across capture/restore?** → §4 Identity and Reference Mapping
+- **Plugging into a central manager or factory?** → §5 Manager and Factory Integration
+- **Registering everything that already exists when gameplay begins?** → §6 Batch Registration
+- **Discrete events (kills, pickups, jumps, objectives)?** → §7 Ludeo Actions
+- **Suspending tracking during cutscenes / menus / tutorials?** → §8 Tracking State Management
+- **Deciding what to track at all?** → §9 What to Track — Decision Guide
+- **Per-object-type reference snippets (player, enemy, weapon, door, projectile)?** → §10 Common Patterns by Object Type
+- **Performance cost or tuning?** → §11 Performance Considerations
+- **Self-check before moving on?** → §12 Validation Checklist
+
+A skill asking for "object tracking implementation" typically needs §2, §3, §4, §5, §6. A skill asking for "actions" typically needs §7. A skill asking for "tracking pause during cutscenes" typically needs §8. Load only what the current step actually requires.
 
 ---
 
 ## Table of Contents
 
 1. [Tracking Strategy Overview](#1-tracking-strategy-overview)
-2. [Object Lifecycle Pattern](#2-object-lifecycle-pattern)
-3. [Identity and Reference Mapping](#3-identity-and-reference-mapping)
-4. [Manager and Factory Integration](#4-manager-and-factory-integration)
-5. [Batch Registration](#5-batch-registration)
-6. [Ludeo Actions (Discrete Events)](#6-ludeo-actions-discrete-events)
-7. [Tracking State Management](#7-tracking-state-management)
-8. [What to Track - Decision Guide](#8-what-to-track---decision-guide)
-9. [Common Patterns by Object Type](#9-common-patterns-by-object-type)
-10. [Performance Considerations](#10-performance-considerations)
-11. [Validation Checklist](#11-validation-checklist)
+2. [Object Handling Patterns in the Codebase](#2-object-handling-patterns-in-the-codebase)
+3. [Object Lifecycle Pattern](#3-object-lifecycle-pattern)
+4. [Identity and Reference Mapping](#4-identity-and-reference-mapping)
+5. [Manager and Factory Integration](#5-manager-and-factory-integration)
+6. [Batch Registration](#6-batch-registration)
+7. [Ludeo Actions (Discrete Events)](#7-ludeo-actions-discrete-events)
+8. [Tracking State Management](#8-tracking-state-management)
+9. [What to Track — Decision Guide](#9-what-to-track--decision-guide)
+10. [Common Patterns by Object Type](#10-common-patterns-by-object-type)
+11. [Performance Considerations](#11-performance-considerations)
+12. [Validation Checklist](#12-validation-checklist)
 
 ---
 
@@ -35,13 +57,13 @@ The goal is **complete state capture** for faithful restoration. When in doubt, 
 
 | Category | Examples | Priority |
 |----------|----------|----------|
-| **Player Entities** | Player character, stats, inventory, position | 🔴 CRITICAL |
-| **NPCs/Enemies** | AI entities, health, state, position | 🔴 CRITICAL |
-| **Interactive Objects** | Pickups, doors, switches, vehicles | 🔴 CRITICAL |
-| **Projectiles** | Bullets, grenades, spells (if persistent) | 🟡 IMPORTANT |
-| **Environment State** | Destructible objects, lighting, weather | 🟡 IMPORTANT |
-| **UI State** | HUD mode, active overlays (if affects experience) | 🟢 OPTIONAL |
-| **Audio State** | Music state, combat intensity (if affects experience) | 🟢 OPTIONAL |
+| **Player Entities** | Player character, stats, inventory, position | CRITICAL |
+| **NPCs/Enemies** | AI entities, health, state, position | CRITICAL |
+| **Interactive Objects** | Pickups, doors, switches, vehicles | CRITICAL |
+| **Projectiles** | Bullets, grenades, spells (if persistent) | IMPORTANT |
+| **Environment State** | Destructible objects, lighting, weather | IMPORTANT |
+| **UI State** | HUD mode, active overlays (if affects experience) | OPTIONAL |
+| **Audio State** | Music state, combat intensity (if affects experience) | OPTIONAL |
 
 ### 1.3 Tracking vs Actions
 
@@ -57,9 +79,289 @@ The goal is **complete state capture** for faithful restoration. When in doubt, 
 
 ---
 
-## 2. Object Lifecycle Pattern
+## 2. Object Handling Patterns in the Codebase
 
-### 2.1 Three-Phase Lifecycle
+Before writing any tracking code, read enough of the game to **classify how it handles objects**. §3 describes *what SDK calls to make*; this section describes *where those calls go*. They are independent decisions — the same `RegisterWithLudeo()` body plugs into very different hook sites depending on the pattern.
+
+Large games mix 2–3 patterns; classify per subsystem. If the game is Unity or Unreal, stop — use the engine-specific integration guide instead.
+
+For each pattern below you get: **recognition signs**, **grep starting points**, **creation hook**, **destruction hook**, **property-change hook**, **batch enumeration path**, and **pitfalls** specific to that pattern.
+
+### 2.1 Inheritance-based root class
+
+Common in proprietary C++ engines derived from Source, id Tech, CryEngine, or any engine where every trackable entity derives from a shared root (`BaseEntity`, `CEntity`, `GameObject`, `Actor`).
+
+**Recognition signs:**
+- A root class with virtual lifecycle hooks: `OnSpawn`, `OnCreate`, `OnInit`, `OnDestroy`, `OnRemove`, `Shutdown`, `Tick`, `Update`
+- Subclasses override virtuals to add type-specific behavior
+- Creation via `new Derived(...)` or a typed helper like `CreateEntity<Derived>(...)`
+
+**Grep starting points:**
+```
+class\s+\w+\s*:\s*public\s+(BaseEntity|Entity|GameObject|Actor)
+virtual\s+void\s+(On(Spawn|Create|Init|Destroy|Remove)|Shutdown|Tick)
+```
+
+**Creation hook:** Add `RegisterWithLudeo()` to the root class's `OnSpawn` / `OnCreate` / `PostInitialize`, called *after* the object is fully constructed. Do not hook the constructor — `this` may still be mid-initialization, and virtual dispatch from constructors is a well-known trap.
+
+**Destruction hook:** The root class's `OnDestroy` / `OnRemove`, called before subclass cleanup.
+
+**Property-change hook:** Setter methods (`SetHealth`, `SetPosition`). If the game lacks setters (direct field mutation from friend code), fall back to a per-tick diff (see §2.8).
+
+**Batch enumeration:** The engine's global entity list (`g_entityList`, `EntityManager::GetAll()`, a scene node tree).
+
+**Pitfalls:**
+- **Diamond / multiple inheritance** — pick the common ancestor that covers *every* trackable type. If no single ancestor does, you're actually in §2.2 territory.
+- **Constructor-body hooks** — if `OnSpawn` is invoked from the constructor body, `this` may not be fully constructed. Defer to a post-construction phase.
+- **Partial construction failure** — if `OnSpawn` runs before the engine commits the object as live, you may register objects that are then discarded. Hook after the engine's "this object is now real" barrier.
+
+### 2.2 Manager / factory centralization
+
+Objects are never created with `new` in game code; a central manager or factory owns all creation. Usually combined with §2.1.
+
+**Recognition signs:**
+- `Entity* EntityManager::Create(...)`, `GameObject* ObjectFactory::Spawn(...)`, `World::SpawnActor(...)`
+- Game code calls the manager, not constructors directly
+- Manager owns an internal collection and handles destruction
+
+**Grep starting points:**
+```
+\w+Manager::(Create|Spawn|Make|Add)
+\w+Factory::(Create|Build|Produce)
+World::(Spawn|Create)
+```
+
+**Creation hook:** Inside the manager's `Create` / `Spawn`, after construction completes and before returning to the caller. This is typically the cleanest integration point the codebase offers.
+
+**Destruction hook:** Inside the manager's `Destroy` / `Remove`, before deletion.
+
+**Property-change hook:** Delegated to the objects themselves (§2.1) or to manager-level "update all" passes.
+
+**Batch enumeration:** The manager already owns the list — expose a `ForEach` or `GetAll` if it isn't already there.
+
+**Pitfalls:**
+- **Multiple managers** — games often have `PlayerManager` + `EntityManager` + `ProjectileManager` + `LevelManager`. Instrument each.
+- **Fast-path bypasses** — some games skip the manager for performance-critical spawning (pool pullouts, bulk loads). Search for direct `new`, pool `acquire`, or `emplace_back` calls that bypass the manager.
+- **Manager-side vs engine-side ordering** — manager hooks may fire after engine-side state is already committed; if the SDK needs earlier visibility, use §2.1.
+
+**If this pattern is available, prefer it over patching individual classes.** See §5 for the full integration pattern.
+
+### 2.3 Entity-Component-System (ECS)
+
+Objects are opaque entity IDs; state lives in arrays of components, processed by systems each tick. Common via **entt**, **flecs**, or a hand-rolled custom registry.
+
+**Recognition signs:**
+- `entt::registry`, `flecs::world`, or a custom `Registry` / `World` type
+- `registry.create()`, `registry.emplace<Component>(entity, ...)`, `registry.destroy(entity)`
+- Systems iterate via `view<>`, `group<>`, `each`, or component queries
+- No single "class" per entity type — types are defined by component composition
+
+**Grep starting points:**
+```
+entt::|flecs::
+registry\.(create|emplace|destroy|view|group)
+class\s+\w+System\b
+```
+
+**Creation hook:** The registry's creation signal. For entt: `registry.on_construct<T>().connect<...>()` where `T` is the component whose presence marks "this entity is trackable" — usually `Transform` or a dedicated `Tracked` tag component. For custom ECS: instrument the `CreateEntity` method directly.
+
+**Destruction hook:** `registry.on_destroy<T>()` in entt, or the equivalent in the custom registry. Fire before the components are actually destroyed so the data is still readable.
+
+**Property-change hook:** This is ECS's hardest problem — components rarely have setters. Three options, in descending order of reliability:
+
+1. **Capture system each tick** — add a Ludeo system that iterates tracked entities, diffs components against the previous frame's snapshot, emits captures for changes. Always correct; does a diff every tick.
+2. **Wrapped mutations** — replace direct `registry.get<Component>(e).field = x` with helpers that also emit captures. Requires discipline, touches many call sites, easy to bypass.
+3. **`patch<>` / `replace<>` hooks** — some ECS libraries (entt) emit `on_update<T>` when mutations go through `registry.patch<T>`. Only works if mutations actually use that API; direct field writes won't fire the signal.
+
+**Batch enumeration:** Iterate the registry with the tagging-component view — `registry.view<Tracked, Transform>().each(...)`.
+
+**Pitfalls:**
+- **Type isn't fixed** — an entity's component set can change mid-gameplay. Pick a tagging component whose presence is stable for the entity's whole life.
+- **Parallel systems** — many ECS frameworks run systems on worker threads. SDK capture calls may need to be on a single thread; defer into a command buffer consumed by one single-threaded capture system.
+- **Group caching** — entt caches group membership until invalidated by component adds/removes. Don't hold view/group references across structural changes.
+- **Component removal ≠ entity death** — an entity can shed a component without being destroyed. Decide whether that counts as "unregister" or "property change to absent."
+
+**ECS is the hardest pattern to integrate.** Budget extra time; prototype the capture-system approach early to confirm it actually sees every change.
+
+### 2.4 Handle / pool-based objects
+
+Objects live in contiguous arrays; handles (index + generation) stand in for pointers. "Destruction" bumps the slot's generation; "creation" acquires a slot. Common in Bitsquid / Stingray-lineage engines and custom data-oriented engines.
+
+**Recognition signs:**
+- `struct Handle { uint32_t index; uint32_t generation; };` or equivalent
+- `Pool<T>`, `ObjectPool<T>`, `FreeList`, `SlotMap`, slab allocators
+- `acquire()` / `release()` methods; no raw `new` / `delete`
+- Defensive generation checks at every access: `if (slot.generation != handle.generation) return nullptr;`
+
+**Grep starting points:**
+```
+Pool<|FreeList|SlotMap
+struct\s+\w*Handle\s*\{
+acquire\(|release\(
+generation
+```
+
+**Creation hook:** The pool's `acquire` / `allocate` path, **but only after the game has initialized the slot's payload.** A freshly acquired slot is raw memory — registering before the game writes meaningful data produces garbage captures. Most pool-based codebases have an explicit commit or `OnInit` step post-acquire; that is the real hook.
+
+**Destruction hook:** The pool's `release` / `free` path, before the generation bump. After the bump the slot's data is invalid.
+
+**Property-change hook:** Pools rarely expose setters. Use the capture-system approach from §2.3 — iterate the active-slot list each tick and diff.
+
+**Batch enumeration:** The pool's active-slot iterator (`pool.ForEachActive(...)`). If none exists, iterate indices and validate generations.
+
+**Pitfalls:**
+- **Slot reuse race** — during a reuse cycle, an old slot's memory may briefly match a stale handle's generation. Always use the current handle's generation to validate.
+- **Silent pool reset** — some pools are "cleared" by zeroing a count and reusing memory without invoking destructors. You need an explicit release hook; if none exists, add one.
+- **Raw slot capture is tempting and wrong** — pools include metadata (handle, generation, flags) that isn't gameplay state. Capture fields deliberately.
+
+### 2.5 Event-driven / observer-bus
+
+Lifecycle changes are broadcast as events on a central bus. No single class is the authority; subscribers listen.
+
+**Recognition signs:**
+- `EventBus`, `Dispatcher`, `Broadcaster`, `MessageBus` classes
+- `Subscribe<Event>(...)`, `Publish(Event{...})`, `Dispatch<Event>(...)`
+- Events named `EntityCreatedEvent`, `ObjectSpawnedEvent`, `PlayerDiedEvent`
+
+**Grep starting points:**
+```
+EventBus|Dispatcher|MessageBus|Broadcaster
+Subscribe<|Publish<|Dispatch<
+class\s+\w+Event\b
+```
+
+**Creation hook:** Subscribe to the creation event for each trackable type. `LudeoStateAdapter` (or equivalent) owns the subscriptions.
+
+**Destruction hook:** Subscribe to the destruction event.
+
+**Property-change hook:** Property-change events if emitted. If not, pair this pattern with a per-tick capture system (§2.3 / §2.8) for the property side.
+
+**Batch enumeration:** The event bus doesn't know the current set. Find the underlying store (whatever the events describe) and iterate that for the initial batch.
+
+**Pitfalls:**
+- **Events fire on worker threads** — marshal capture calls to the SDK's expected thread. Never call SDK from an arbitrary subscriber.
+- **Mid-construction / mid-destruction events** — data may be only partially valid. Document which attributes may be unreliable at event time.
+- **Forgetting to unsubscribe** — event-bus subscriptions outlive callers unless explicitly released. Disconnect on `LudeoManager::Shutdown` to avoid dangling callbacks.
+- **Event ordering** — if creation/destruction events can arrive out of order across threads, serialize subscription handling.
+
+### 2.6 Data-driven / prefab spawn
+
+Objects are spawned from data definitions (prefab IDs, blueprint names, archetypes). A single `Spawn(prefabId, transform)` can produce any object type.
+
+**Recognition signs:**
+- `Spawn(const char* prefabId, ...)`, `Instantiate(BlueprintId, ...)`, `LoadArchetype(...)`
+- Entity definitions live in data files (JSON, YAML, custom binary)
+- No one-class-per-type; the runtime composes types from prefab definitions
+
+**Grep starting points:**
+```
+Spawn\s*\(|Instantiate\s*\(
+Prefab|Blueprint|Archetype|Template
+LoadDefinition|EntityDef
+```
+
+**Creation hook:** The central `Spawn` / `Instantiate` function, after the instance is fully constructed.
+
+**Destruction hook:** The corresponding `Despawn` / `Destroy` function.
+
+**Object-type naming:** Use the prefab / blueprint ID as Ludeo's `objectType` string. This is the most faithful mapping — restoration can look up the same prefab ID to recreate the object.
+
+**Property-change hook:** Usually paired with §2.1, §2.3, or §2.4 for the actual object representation — follow that pattern for properties.
+
+**Batch enumeration:** The spawn system maintains a registry of live instances; iterate it.
+
+**Pitfalls:**
+- **Multiple spawn paths** — editor-placed objects, runtime-spawned objects, and save-restored objects often go through different code paths. Instrument all of them.
+- **Prefab composition** — a prefab may be a tree of sub-objects (weapon with attachments, character with equipment). Decide which levels to track as independent Ludeo objects and which as attributes of the root.
+- **Hot-reloaded prefabs** — if the game hot-reloads definitions, `objectType` strings may diverge from what restoration expects. Pin the `objectType` string to the ID at spawn time, not to a pointer into live definitions.
+
+### 2.7 Save-system-driven discovery (planning technique, not a hook)
+
+If the game has a save / load system, **its serializer is a ready-made inventory of what the game considers state.** Read it before writing any tracking code. This is not a hook pattern — it is a planning input you combine with whichever actual pattern (2.1–2.6, 2.8) the game uses to own lifecycles.
+
+**Recognition signs:**
+- `Serialize(Archive&)`, `Save(Writer&)`, `Load(Reader&)` methods
+- Classes named `SaveGame`, `GameSnapshot`, `SaveFile`, `Checkpoint`
+- Versioned data files (`.sav`, `.dat`)
+
+**Grep starting points:**
+```
+Serialize\s*\(|Save\s*\(Writer|Load\s*\(Reader
+class\s+(SaveGame|Snapshot|Checkpoint)
+```
+
+**What to extract before writing any tracking code:**
+- Object types to track — the full set the serializer iterates
+- Properties per type — every field `Serialize` writes
+- Relationships — every reference the serializer resolves (and how — this often reveals the game's stable-ID strategy)
+- Batch-enumeration path — the serializer already walks the world at save time; that walk is your initial-registration template
+
+**Why this matters:** For custom engines, the save system often encodes years of "what state actually matters" knowledge. Recreating that analysis from scratch is expensive and error-prone. Treat the save system as a first draft of the tracking scope.
+
+**Pitfalls:**
+- **Save systems often skip transient state** (current velocity, AI perception, in-flight projectiles) that Ludeo *does* need. Treat save scope as a floor, not a ceiling.
+- **Save systems may include meta state** (user settings, menu preferences, cheat codes used) that Ludeo *should not* capture.
+- **Save systems may serialize at checkpoints only** — if the game saves every few minutes, the serializer won't show you anything that changes faster than that. "Not in save" ≠ "not gameplay state."
+
+**Note:** A separate forthcoming doc will cover reusing save-system code at runtime. This section is purely about reading the save system as a specification.
+
+### 2.8 Scene-graph / frame iteration (fallback)
+
+Some engines expose no creation / destruction callbacks at all; game code observes the world only by walking it. Use this as a fallback — prefer any real hook from §2.1–§2.6 if one exists.
+
+**Recognition signs:**
+- No `OnSpawn` / `OnDestroy`-style methods anywhere
+- World access is `GetScene()->ForEachNode(...)` or similar tree walk
+- Object lifetime is opaque to gameplay code
+
+**Strategy:** Run a Ludeo capture system each frame:
+
+1. Iterate all objects in the world.
+2. Build the current-frame snapshot: `(stable_id, type, property values)`.
+3. Diff against the previous frame's snapshot.
+4. Register newcomers, unregister vanished ones, emit captures for changed properties.
+
+**Hook points:** None external — the capture system itself is the hook. Call it from `LudeoManager::Tick`, which is already on the per-frame path.
+
+**Pitfalls:**
+- **Diff cost** — scales with world size × property count. For large worlds this is the most expensive pattern. Throttle less-important objects (§11) or apply §2.7 to narrow scope before using this.
+- **Stable identity** — pointer identity isn't stable across frames if objects are pooled. The game must expose a stable ID (entity handle, GUID). If it doesn't, you'll need to synthesize one — and that usually requires enough engine visibility to use §2.4 instead.
+- **Last resort** — if you're reaching for this pattern, read the codebase once more. Real engines usually have *some* hook, just named non-obviously.
+
+### 2.9 How to classify the game in front of you
+
+Run this diagnosis in order. Apply the first match, then check for combinations:
+
+1. **Is there a central `Spawn` / `Create` function every object goes through?**
+   → Primary pattern: **§2.2 Manager / Factory.** Check if §2.6 (data-driven) also applies.
+
+2. **Do you find ECS headers (`entt::`, `flecs::`) or a `Registry` class with component views?**
+   → Primary pattern: **§2.3 ECS.**
+
+3. **Are object references handles (index + generation) rather than pointers?**
+   → Primary pattern: **§2.4 Handle / Pool.**
+
+4. **Does lifecycle broadcast through an event bus?**
+   → Primary pattern: **§2.5 Event bus.**
+
+5. **Is there a root class with virtual `OnSpawn` / `OnDestroy`?**
+   → Primary pattern: **§2.1 Inheritance.**
+
+6. **Does a save system exist?**
+   → Apply **§2.7** *in addition to* whichever pattern above matched.
+
+7. **None of the above found any hook?**
+   → Re-check once more (hooks are often named non-obviously). If truly none: **§2.8 Frame iteration.**
+
+**Most common combination:** §2.2 (Manager) + §2.1 (Inheritance) + §2.7 (save-system input). If that is what you're looking at, you're on the happy path.
+
+Once classified, proceed to §3 for the SDK calls themselves. The classification tells you *where* the calls go; §3 tells you *what* those calls are.
+
+---
+
+## 3. Object Lifecycle Pattern
+
+### 3.1 Three-Phase Lifecycle
 
 Every tracked object follows this pattern:
 
@@ -69,7 +371,7 @@ Every tracked object follows this pattern:
 3. DESTROY → Unregister from SDK, cleanup
 ```
 
-### 2.2 Phase 1: Object Creation & Registration
+### 3.2 Phase 1: Object Creation & Registration
 
 #### When to Register
 - **During object creation** (constructor or initialization function)
@@ -138,14 +440,14 @@ private:
 
 #### Critical Requirements
 
-✅ **Store LudeoObjectId** in the object (for later updates)  
-✅ **Check DataWriter validity** before registration  
-✅ **Set initial values immediately** after registration  
-✅ **Handle registration failure gracefully** (game must continue)
+- **Store LudeoObjectId** in the object (for later updates)
+- **Check DataWriter validity** before registration
+- **Set initial values immediately** after registration
+- **Handle registration failure gracefully** (game must continue)
 
 ---
 
-### 2.3 Phase 2: Property Updates
+### 3.3 Phase 2: Property Updates
 
 #### When to Update
 - **Immediately after property changes** in game code
@@ -192,8 +494,8 @@ public:
 
 #### Update Best Practices
 
-| ✅ DO | ❌ DON'T |
-|-------|----------|
+| DO | DON'T |
+|----|-------|
 | Update game state first, then track | Track before updating game state |
 | Use capture macros (handles errors) | Call SDK directly from game code |
 | Track stable IDs (entity_id) | Track pointers or memory addresses |
@@ -202,7 +504,7 @@ public:
 
 ---
 
-### 2.4 Phase 3: Object Destruction
+### 3.4 Phase 3: Object Destruction
 
 #### When to Unregister
 - **During object destruction** (destructor or cleanup function)
@@ -252,31 +554,31 @@ private:
 
 #### Destruction Best Practices
 
-✅ **Always clear LudeoObjectId** after destruction  
-✅ **Handle nullptr DataWriter** (may be already shut down)  
-✅ **Log failures but continue** (don't crash game)  
-✅ **Call before game object is deleted**
+- **Always clear LudeoObjectId** after destruction
+- **Handle nullptr DataWriter** (may be already shut down)
+- **Log failures but continue** (don't crash game)
+- **Call before game object is deleted**
 
 ---
 
-## 3. Identity and Reference Mapping
+## 4. Identity and Reference Mapping
 
-### 3.1 The Identity Problem
+### 4.1 The Identity Problem
 
 **Problem:** Game objects reference each other (owner, parent, target, etc.). During restoration, these relationships must be recreated.
 
 **Solution:** Use stable, deterministic game IDs + maintain bidirectional maps.
 
-### 3.2 Stable ID Requirements
+### 4.2 Stable ID Requirements
 
-| ✅ Good ID Types | ❌ Bad ID Types |
-|------------------|-----------------|
+| Good ID Types | Bad ID Types |
+|---------------|--------------|
 | `uint64_t entity_id` (generated deterministically) | `GameObject* pointer` (memory address) |
 | `uint32_t blueprint_id` (content ID) | `LudeoObjectId` (SDK internal ID) |
 | `std::string unique_name` (if stable) | `int array_index` (changes) |
 | Steam user ID, player profile ID | `void* handle` (opaque pointer) |
 
-### 3.3 Bidirectional Mapping Pattern
+### 4.3 Bidirectional Mapping Pattern
 
 #### Maintain Maps in Manager or Adapter
 
@@ -332,7 +634,7 @@ public:
 };
 ```
 
-### 3.4 Tracking Relationships
+### 4.4 Tracking Relationships
 
 #### Always Track Game IDs for Relationships
 
@@ -383,16 +685,16 @@ void RestoreWeapon(LudeoHDataReader reader, LudeoObjectId weaponLudeoId)
 
 ---
 
-## 4. Manager and Factory Integration
+## 5. Manager and Factory Integration
 
-### 4.1 When to Use Manager Integration
+### 5.1 When to Use Manager Integration
 
 Use manager/factory integration when:
-- ✅ Game has centralized object creation (EntityManager, ObjectFactory, etc.)
-- ✅ Multiple places create objects (avoids duplication)
-- ✅ Object lifecycle managed by a system
+- Game has centralized object creation (EntityManager, ObjectFactory, etc.)
+- Multiple places create objects (avoids duplication)
+- Object lifecycle managed by a system
 
-### 4.2 Manager Pattern
+### 5.2 Manager Pattern
 
 ```cpp
 class EntityManager
@@ -448,7 +750,7 @@ private:
 };
 ```
 
-### 4.3 Factory Pattern
+### 5.3 Factory Pattern
 
 ```cpp
 class ObjectFactory
@@ -482,16 +784,16 @@ public:
 
 ---
 
-## 5. Batch Registration
+## 6. Batch Registration
 
-### 5.1 When to Batch Register
+### 6.1 When to Batch Register
 
 Batch registration happens when:
 - **Level loads** (register all pre-existing objects)
 - **Gameplay session begins** (after Room/Player/GameplaySession ready)
 - **Restoration completes** (register all restored objects)
 
-### 5.2 Batch Registration Pattern
+### 6.2 Batch Registration Pattern
 
 ```cpp
 class LudeoStateAdapter
@@ -585,7 +887,7 @@ private:
 };
 ```
 
-### 5.3 When to Call Batch Registration
+### 6.3 When to Call Batch Registration
 
 ```cpp
 // In level load completion handler
@@ -607,53 +909,53 @@ void OnLevelLoadComplete()
 
 ---
 
-## 6. Ludeo Actions (Discrete Events)
+## 7. Ludeo Actions (Discrete Events)
 
-### 6.1 What Are Actions?
+Actions are discrete gameplay events (`"Kill"`, `"CollectCoin"`, `"ObjectiveComplete"`) sent at a single moment in time, as opposed to the continuous state that §3 tracks.
 
-**Actions are discrete gameplay EVENTS** that happen at a specific moment in time.
+**Ownership of action work is split across three places — this section owns only the SDK surface:**
 
-| Aspect | Details |
-|--------|---------|
-| **Purpose** | Define exciting/meaningful gameplay moments |
-| **Use Cases** | Objectives ("Get 3 headshots"), Scoring (100 points per kill), Highlights |
-| **Frequency** | Fired once when event occurs |
-| **API** | `ludeo_DataWriter_SendAction(actionName)` |
-| **Examples** | `"Kill"`, `"Headshot"`, `"CollectCoin"`, `"LevelUp"`, `"ObjectiveComplete"` |
+| Concern | Owned by |
+|---|---|
+| Which events should become Actions (discovery, genre catalogs, categories, naming conventions) | `/6-map-game-actions` + `research-context/02C-RESEARCH-ACTIONS.md` + `game-patterns/*.md` |
+| Inserting action calls at discovered sites (propose-confirm-execute flow, insertion rules, edge cases) | `/7-implement-game-actions` |
+| The `SendAction` method and `LUDEO_ACTION` macro (below) | This section |
 
-### 6.2 Why Actions Are Critical
+If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `/6` or `02C`. This section is only for the SDK call definitions.
 
-🔴 **CRITICAL:** Every game integration **MUST** identify and implement key gameplay Actions.
+### 7.1 `SendAction` on LudeoManager — canonical definition
 
-Without Actions:
-- ❌ No Ludeo objectives possible
-- ❌ No scoring system
-- ❌ No highlights or exciting moments marked
-- ❌ Poor player engagement with Ludeos
-
-### 6.3 Action Implementation Pattern
-
-#### LudeoManager Action Support
+Header declaration inside the `LudeoManager` class:
 
 ```cpp
-class LudeoManager
-{
-public:
-    void SendAction(const char* actionName)
-    {
-        if (!m_gameplay_session_active || m_data_writer == nullptr) {
-            return;  // Not ready for actions
-        }
-        
-        ludeo_DataWriter_SetCurrent(m_data_writer);
-        ludeo_DataWriter_SendAction(actionName);
-        
-        LogDebug("[LUDEO] Action: %s", actionName);
-    }
-};
+#if LUDEO_SDK_ENABLED
+    void SendAction(const char* actionName);
+#endif
 ```
 
-#### Action Macro (in LudeoCaptureMacros.h)
+Implementation:
+
+```cpp
+#if LUDEO_SDK_ENABLED
+void LudeoManager::SendAction(const char* actionName)
+{
+    if (!m_gameplay_session_active || m_data_writer == nullptr) {
+        return;  // Not ready for actions — silently drop
+    }
+
+    ludeo_DataWriter_SetCurrent(m_data_writer);
+    ludeo_DataWriter_SendAction(actionName);
+
+    LogDebug("[LUDEO] Action: %s", actionName);
+}
+#endif
+```
+
+Actions sent before `BeginGameplaySession` or after `EndGameplaySession` are silently dropped, not errors. This lets callers invoke the action API freely without guarding every call site against session state.
+
+### 7.2 `LUDEO_ACTION` macro
+
+Defined in `LudeoCaptureMacros.h`:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
@@ -664,136 +966,24 @@ public:
 #endif
 ```
 
-### 6.4 Common Action Categories
+The macro compiles to nothing when `LUDEO_SDK_ENABLED=0`. Callers do not need to wrap `LUDEO_ACTION(...)` in their own `#if` guards.
 
-#### Combat Actions
-
-```cpp
-void CombatSystem::OnEnemyKilled(Entity* killer, Entity* victim, WeaponType weapon, bool isHeadshot)
-{
-    // Game logic...
-    
-    LUDEO_ACTION("Kill");
-    
-    if (isHeadshot) {
-        LUDEO_ACTION("Headshot");
-    }
-    
-    switch (weapon) {
-        case WeaponType::Sniper:
-            LUDEO_ACTION("SniperKill");
-            break;
-        case WeaponType::Explosive:
-            LUDEO_ACTION("ExplosiveKill");
-            break;
-        case WeaponType::Melee:
-            LUDEO_ACTION("MeleeKill");
-            break;
-    }
-}
-
-void Player::OnDeath(Entity* killer)
-{
-    // Game logic...
-    
-    LUDEO_ACTION("PlayerDeath");
-}
-```
-
-#### Collection Actions
-
-```cpp
-void ItemSystem::OnItemCollected(Entity* collector, ItemType item)
-{
-    // Game logic...
-    
-    switch (item) {
-        case ItemType::Coin:
-            LUDEO_ACTION("CollectCoin");
-            break;
-        case ItemType::HealthPack:
-            LUDEO_ACTION("CollectHealth");
-            break;
-        case ItemType::Ammo:
-            LUDEO_ACTION("CollectAmmo");
-            break;
-        case ItemType::PowerUp:
-            LUDEO_ACTION("CollectPowerUp");
-            break;
-    }
-}
-```
-
-#### Movement Actions
-
-```cpp
-void PlayerController::OnJump()
-{
-    // Game logic...
-    
-    LUDEO_ACTION("Jump");
-    
-    if (IsDoubleJump()) {
-        LUDEO_ACTION("DoubleJump");
-    }
-}
-
-void PlayerController::OnDash()
-{
-    // Game logic...
-    
-    LUDEO_ACTION("Dash");
-}
-```
-
-#### Progression Actions
-
-```cpp
-void ObjectiveSystem::OnObjectiveComplete(const char* objectiveId)
-{
-    // Game logic...
-    
-    LUDEO_ACTION("ObjectiveComplete");
-}
-
-void ProgressionSystem::OnLevelUp(int newLevel)
-{
-    // Game logic...
-    
-    LUDEO_ACTION("LevelUp");
-}
-```
-
-### 6.5 Action Naming Best Practices
-
-| ✅ Good Names | ❌ Bad Names | Why |
-|--------------|--------------|-----|
-| `"Kill"` | `"enemy_killed"` | Simple, clean |
-| `"Headshot"` | `"HeadShotKill"` | Consistent capitalization |
-| `"CollectCoin"` | `"coin"` | Verb + Noun pattern |
-| `"ObjectiveComplete"` | `"obj_complete_1234"` | Readable, no IDs |
-| `"LevelUp"` | `"level_up_event"` | Concise, no redundancy |
-
-**Naming Convention:**
-- Use PascalCase (e.g., `"CollectCoin"`)
-- Start with verb when possible (`"Collect"`, `"Kill"`, `"Complete"`)
-- Keep names short but descriptive
-- Avoid IDs, timestamps, or dynamic data in names
+**Note:** `/7-implement-game-actions` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
 
 ---
 
-## 7. Tracking State Management
+## 8. Tracking State Management
 
-### 7.1 When to Pause Tracking
+### 8.1 When to Pause Tracking
 
 Tracking should be paused during:
-- ❌ Game pause menu open
-- ❌ Cutscenes or cinematics playing
-- ❌ Tutorial sections (non-ludeoable areas)
-- ❌ Loading screens or transitions
-- ❌ Menu overlays (inventory, shop, etc.)
+- Game pause menu open
+- Cutscenes or cinematics playing
+- Tutorial sections (non-ludeoable areas)
+- Loading screens or transitions
+- Menu overlays (inventory, shop, etc.)
 
-### 7.2 Tracking State Manager
+### 8.2 Tracking State Manager
 
 ```cpp
 class LudeoManager
@@ -856,7 +1046,7 @@ public:
 };
 ```
 
-### 7.3 Integrating State Checks
+### 8.3 Integrating State Checks
 
 #### Option 1: Check in Capture Macros
 
@@ -885,7 +1075,7 @@ static void CaptureFloat(T* obj, LudeoObjectId objId, const char* attrName, floa
 }
 ```
 
-### 7.4 Game Integration Points
+### 8.4 Game Integration Points
 
 ```cpp
 // In game pause handler
@@ -946,7 +1136,7 @@ void AreaTrigger::OnPlayerExit(Player* player)
 }
 ```
 
-### 7.5 Non-Ludeoable Areas
+### 8.5 Non-Ludeoable Areas
 
 | Area Type | Reason | Detection Method |
 |-----------|--------|------------------|
@@ -960,59 +1150,106 @@ void AreaTrigger::OnPlayerExit(Player* player)
 
 ---
 
-## 8. What to Track - Decision Guide
+## 9. What to Track — Decision Guide
 
-### 8.1 Decision Flowchart
+### 9.1 The principle behind the rule
+
+**Rule of thumb: track every object whose state change a viewer would notice, or that another tracked object depends on.**
+
+The goal of a Ludeo replay is that the viewer sees the same gameplay the capturing player saw. If something visible changed (a door opened, an enemy died, a crate exploded), the replay must reflect it. If an invisible thing changed but influenced a visible thing — say, an AI's targeting state decides which player it shoots at — that change matters too. Anything that satisfies neither criterion can be skipped.
+
+This rule has three failure modes you should recognize:
+
+1. **Over-tracking** is cheap. The worst case is a slightly larger capture and some SDK overhead. It does not break the replay.
+2. **Under-tracking visible state** produces a loudly broken replay: objects missing, doors stuck closed, enemies in the wrong place. Easy to catch in QA.
+3. **Under-tracking derived state** produces a subtly broken replay: an enemy seems to target the wrong player, physics drifts, AI state resets feel arbitrary. These are the ones that slip through testing.
+
+**When in doubt, track. The cost of over-tracking is measurable; the cost of under-tracking is a silently wrong replay.**
+
+### 9.2 Decision flow for a single object type
 
 ```
-Is the object visible to the player?
-├─ YES → Track it
-└─ NO → Does it affect gameplay or experience?
-    ├─ YES → Track it
-    └─ NO → Does it affect other tracked objects?
-        ├─ YES → Track it
-        └─ NO → Skip it (optional)
+1. Is any instance of this object type visible during gameplay?
+   ├─ Yes → Track
+   └─ No → continue to 2
+
+2. Does its state influence a tracked object's behavior?
+   ├─ Yes → Track (at minimum, track the state that matters)
+   └─ No → continue to 3
+
+3. Is it referenced by a tracked object (owner, parent, attachment, target)?
+   ├─ Yes → Track as a reference target, even if not otherwise interesting
+   └─ No → Skip
+
+If you're unsure which branch applies, track it. The cost is small.
 ```
 
-### 8.2 Object Type Decision Matrix
+### 9.3 Decision flow for a single property on a tracked object
 
-| Object Type | Track? | Reason |
-|-------------|--------|--------|
-| Player character | ✅ YES | Core gameplay entity |
-| Enemy AI | ✅ YES | Affects gameplay directly |
-| Bullet (instant hit) | ❌ NO | Not visible/persistent |
-| Projectile (grenade) | ✅ YES | Visible, affects gameplay |
-| Health pickup | ✅ YES | Player can interact |
-| Background decoration | ❌ NO | No gameplay impact |
-| Destructible crate | ✅ YES | Can be destroyed, affects gameplay |
-| Static wall | ❌ NO | Never changes |
-| Door (can open) | ✅ YES | State changes affect gameplay |
-| Particle effect | ❌ NO | Visual only, not gameplay |
-| Light source (dynamic) | 🟡 MAYBE | If affects visibility/gameplay |
-| Audio source | 🟡 MAYBE | If affects experience significantly |
-| UI element | ❌ NO | Not part of game world |
-| HUD mode | 🟡 MAYBE | If affects experience |
+For each candidate property, evaluate in order:
 
-### 8.3 Property Decision Matrix
+1. **Does its value change during gameplay?** If not, skip — it's a constant, no capture needed.
+2. **Can a viewer or another tracked object's logic notice the change?** If not, skip.
+3. **Is it derivable from other tracked state?** If yes (e.g., world position is `parent.position + local_offset`), skip — but only if restoration code will actually do the derivation.
+4. **Does the value carry meaning across sessions?** A raw pointer, memory address, or allocator slot index does not — use a stable game ID instead (see §4).
 
-For each object, decide which properties to track:
+**Track if (1) AND (2 OR 3-not-derivable) AND (4-has-meaning).**
 
-| Property Type | Track? | Examples |
-|---------------|--------|----------|
-| **Transform** | ✅ YES | Position, rotation, scale |
-| **Health/Stats** | ✅ YES | HP, armor, stamina, mana |
-| **State Enum** | ✅ YES | Alive/dead, active/inactive, AI state |
-| **Relationships** | ✅ YES | Owner ID, parent ID, squad ID |
-| **Gameplay Data** | ✅ YES | Ammo count, score, level, inventory |
-| **Visual-Only** | ❌ NO | Animation frame, particle color |
-| **Audio-Only** | ❌ NO | Sound volume, pitch |
-| **Debug Data** | ❌ NO | Frame render time, debug flags |
+### 9.4 Starting heuristics — common cases, not rules
+
+These tables are *examples of the decision applied to typical games*, not a rubber stamp. For any game that differs from the typical case, go back to §9.1–§9.3 and apply the reasoning directly. The caveats column exists because the binary answer is almost always wrong somewhere.
+
+#### Object types
+
+| Object type | Typical answer | Why | Caveats — when the typical answer is wrong |
+|---|---|---|---|
+| Player character | Track | Visible, central | Split-screen / multi-player games must track all players |
+| AI enemy / NPC | Track | Visible, affects gameplay | Pooled enemies: register on pool pullout, not pool construction (§2.4) |
+| AI perception / target state (property) | Track | Drives visible behavior | Debug tools may mutate it — suppress tracking in dev builds |
+| Bullet (hitscan, no tracer) | Skip | Instant, invisible | Kill-cam, time-to-live damage, or tracer rendering all flip this to Track |
+| Bullet (tracer / ballistic) | Track | Visible trajectory | Very short lifetime — weigh registration overhead vs capture value |
+| Grenade / travel-time projectile | Track | Visible, affects gameplay | Track owner reference to attribute kills |
+| Health / ammo pickup (respawning) | Track | Visible, affects gameplay | Respawn timer matters — track "available" or "consumed at T" state |
+| Static decorative prop | Skip | Never changes | Check for hidden physics / destructibility before assuming "static" |
+| Destructible crate | Track | Can be destroyed | "Destroyed" is a state, not a destruction event — set a flag, don't unregister |
+| Door / switch / lever | Track | State changes affect gameplay | Mid-animation state matters if replay can pause between frames |
+| Particle / VFX | Skip | Visual only | Track if the VFX *is* the gameplay signal (e.g., charge-attack indicator) |
+| Dynamic light source | Depends | Skip if decorative | Stealth games often make lights gameplay-critical → Track |
+| Audio source | Skip | Audio-only | Track if audio carries gameplay state (alarm triggered, boss theme) |
+| UI / HUD element | Skip | Not part of world | Track the *underlying state* the UI shows, not the UI itself |
+| Cutscene state | No captures, set pause flag | Captured differently | See §8 — tracking pauses, not tracks, cutscene content |
+
+#### Property kinds
+
+| Property kind | Typical answer | Why | Caveats |
+|---|---|---|---|
+| Position / rotation / scale | Track | Visible | For attached objects, track the attachment relationship instead |
+| Velocity / acceleration | Usually track | Motion looks wrong without it | Skip only if restoration reconstructs motion from position-over-time |
+| Health / mana / ammo | Track | Visible via HUD and behavior | Track current, not max (max is usually static) |
+| Enum state (alive/dead, AI mode, door open) | Track | Drives visible behavior | Serialize as integer + document meaning; don't send strings |
+| Inventory contents | Track | Affects what player can do | Track as array of item IDs; never as pointers to item objects |
+| Cooldown / timer | Track | Affects gameplay timing | Track *remaining* time, not elapsed — restoration sets "time until" |
+| Animation frame / blend weight | Usually skip | Derivable from state + time | Track if a stuck animation would be visibly wrong |
+| Pointer / reference to another object | Never as pointer | Meaningless across sessions | Track the target's stable ID (see §4) |
+| Random seed | Track if gameplay-deterministic | Needed for exact replay | Most games don't rely on seeds for visible outcomes |
+| Visual-only transient (animation, particle color) | Skip | No gameplay impact | If the value encodes gameplay state (red = hostile), track |
+
+### 9.5 When the table is wrong for your game
+
+The tables are typical cases, not rules. Clear examples of them being wrong:
+
+- A game with **kill-cams** shows bullet trajectories after the fact. Hitscan bullets become visible-in-replay → track them, despite the default answer.
+- A **rhythm game** has no meaningful position on most objects; the important state is hit-timing. Most "track position" rows don't apply.
+- An **RTS** has hundreds or thousands of units — over-tracking has real bandwidth cost. Evaluate granularity (track squads rather than individuals if that preserves the experience).
+- A **stealth game** elevates lighting and AI-perception state from "usually skip" to gameplay-critical.
+
+When your game differs from the examples, don't patch the table — re-apply §9.1–§9.3 from scratch.
 
 ---
 
-## 9. Common Patterns by Object Type
+## 10. Common Patterns by Object Type
 
-### 9.1 Player Entity
+### 10.1 Player Entity
 
 ```cpp
 class Player
@@ -1041,7 +1278,7 @@ public:
 };
 ```
 
-### 9.2 Enemy/NPC Entity
+### 10.2 Enemy/NPC Entity
 
 ```cpp
 class Enemy
@@ -1064,7 +1301,7 @@ public:
 };
 ```
 
-### 9.3 Weapon/Item
+### 10.3 Weapon/Item
 
 ```cpp
 class Weapon
@@ -1086,7 +1323,7 @@ public:
 };
 ```
 
-### 9.4 Interactive Object (Door, Switch, etc.)
+### 10.4 Interactive Object (Door, Switch, etc.)
 
 ```cpp
 class Door
@@ -1107,7 +1344,7 @@ public:
 };
 ```
 
-### 9.5 Projectile
+### 10.5 Projectile
 
 ```cpp
 class Projectile
@@ -1130,86 +1367,58 @@ public:
 
 ---
 
-## 10. Performance Considerations
+## 11. Performance Considerations
 
-### 10.1 Update Frequency Guidelines
+Performance is game-specific. **Measure, don't trust this document.** Actual overhead varies with SDK version, object count, properties per object, throttling policy, CPU, and compiler. What follows is *what to pay attention to*, not *what values to expect*.
 
-| Object Type | Update Frequency | Reason |
-|-------------|------------------|--------|
-| **Player** | Every change | Critical, low count |
-| **Nearby Enemies** | Every change | Visible, affects gameplay |
-| **Distant Enemies** | Throttled (every 5 frames) | Less important |
-| **Projectiles** | Every change | Fast-moving, critical |
-| **Static Objects** | On change only | Rarely changes |
-| **UI Elements** | On change only | State-based |
+### 11.1 What causes overhead (ordered from largest to smallest, typically)
 
-### 10.2 Tracking Overhead
+1. **Number of property captures per frame.** Every `LUDEO_CAPTURE_*` call crosses the SDK boundary, performs an attribute-name lookup, and writes to a data buffer. Thousands per frame add up.
+2. **Batch registration at gameplay start.** All existing objects register at once; with large worlds this is a visible one-time hitch unless amortized.
+3. **Object creation / destruction churn.** Steady-state count matters less than the rate of adds/removes.
+4. **Walking the tracked-object list** for diff-based discovery (see §2.3 ECS, §2.4 Pool, §2.8 Frame iteration). Cache-unfriendly data layouts make this worse.
+5. **`ludeo_Tick` itself.** Per-frame SDK work — typically small, but not zero.
 
-**Expected Overhead:**
-- SDK Tick: <0.1ms per frame
-- Object Registration: ~0.01ms per object
-- Property Update: ~0.001-0.005ms per update
-- Network: Bandwidth depends on update frequency
+### 11.2 Levers, ordered by impact
 
-**Scalability Guidelines:**
-- ✅ 100-500 tracked objects: No issues
-- 🟡 500-1000 objects: Monitor performance
-- 🔴 1000+ objects: Optimize (throttle updates, reduce tracked objects)
+Apply in order until measured overhead is acceptable:
 
-### 10.3 Optimization Tips
+1. **Skip unchanged values.** `if (m_health == newHealth) return;` before the capture call. Almost free and typically eliminates most redundant traffic.
+2. **Throttle distant or off-screen objects.** A far enemy updating position every few frames instead of every frame is visually indistinguishable in replay; capture cost drops proportionally.
+3. **Batch via `EnterObject` / `LeaveObject`.** Multiple captures to the same object inside a single `EnterObject` scope share context setup; the SDK skips re-resolving the object ID each time.
+4. **Shrink the tracked set.** Re-apply §9 ruthlessly. It is common to find a meaningful fraction of tracked objects contribute nothing visible.
+5. **Defer non-critical captures.** UI/HUD state and environmental metadata usually change less often than per-frame; capture on change rather than on tick.
+6. **Move discovery off the hot path.** For pool / ECS / scene-graph patterns (§2.3, §2.4, §2.8), run the tracking sweep less often than the game tick when you can get away with it.
 
-1. **Throttle distant objects:**
-```cpp
-void Enemy::Update()
-{
-    // Update game logic every frame
-    UpdateAI();
-    
-    // Track Ludeo state at reduced frequency if far from player
-    if (m_frames_since_last_track++ >= GetTrackingInterval()) {
-        m_frames_since_last_track = 0;
-        UpdateLudeoTracking();
-    }
-}
+### 11.3 Red flags to watch for
 
-int Enemy::GetTrackingInterval() const
-{
-    float distance = DistanceToPlayer();
-    if (distance < 50.0f) return 1;      // Every frame
-    if (distance < 100.0f) return 5;     // Every 5 frames
-    return 10;                            // Every 10 frames
-}
-```
+These patterns reliably indicate a problem — investigate rather than explain away:
 
-2. **Batch property updates:**
-```cpp
-// Instead of calling capture macro for each property individually,
-// batch them in a single function
-void UpdateAllLudeoProperties()
-{
-    LUDEO_CAPTURE_VEC3(this, "enemy", "position", m_position);
-    LUDEO_CAPTURE_FLOAT(this, "enemy", "health", m_health);
-    LUDEO_CAPTURE_INT32(this, "enemy", "ai_state", m_ai_state);
-    // ... all properties
-}
-```
+- **Frame time regresses only when `LUDEO_SDK_ENABLED=ON`.** Isolates the cost to SDK activity. Profile per-call to find the hottest capture.
+- **Memory grows across a session with no new objects spawning.** Suggests `UnregisterFromLudeo` is being skipped on destruction — objects accumulate in the SDK's registry.
+- **Hitch at gameplay start scales with object count.** Batch registration is blocking; consider amortizing across multiple frames (§6.3).
+- **Hitch at level transition.** Many destructions in one burst — unregister progressively or pool-destroy in smaller batches.
+- **Replay data rate spikes.** Over-tracking produces large data volumes; check the SDK's reported capture size per frame against the game's budget.
 
-3. **Skip redundant updates:**
-```cpp
-void SetHealth(float newHealth)
-{
-    if (m_health == newHealth) return;  // No change, skip update
-    
-    m_health = newHealth;
-    LUDEO_CAPTURE_FLOAT(this, "enemy", "health", newHealth);
-}
-```
+### 11.4 How to measure
+
+Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REREFENCE.md`) for capture volume, combined with the game's existing frame profiler:
+
+- **Per-frame cost** — wrap SDK Tick + captures with a timer for a fixed scenario; compare SDK ON vs OFF.
+- **Per-scenario cost** — run representative scenarios (combat peak, traversal, scripted events) with and without SDK. Differences that exceed the game's budget flag candidates for the levers in §11.2.
+- **Stress test** — artificially spawn the worst-case scenario (max concurrent enemies + projectiles). If the budget is blown here, apply throttling before shipping.
+
+### 11.5 Scalability considerations
+
+- **Object count alone is misleading.** Update frequency and properties-per-object multiply the cost. 100 objects captured heavily can cost more than 1000 captured sparsely.
+- **Multiplayer multiplies replay data** if tracking is per-player. Shared world state should be captured once, not N times.
+- **Long sessions accumulate** handle counts and capture volume. Ensure cleanup paths run on level change, not only on shutdown.
 
 ---
 
-## 11. Validation Checklist
+## 12. Validation Checklist
 
-### ✅ Implementation Checklist
+### Implementation Checklist
 
 **Object Lifecycle:**
 - [ ] All game objects have `LudeoObjectId` member
@@ -1243,12 +1452,12 @@ void SetHealth(float newHealth)
 - [ ] Tutorial/menu areas don't capture Ludeos
 
 **Performance:**
-- [ ] Object count reasonable (<1000 tracked objects)
-- [ ] Update frequency throttled for distant objects
-- [ ] No redundant updates (check for value changes)
-- [ ] Tracking overhead measured (<0.1ms per frame)
+- [ ] Measured frame-time impact against the game's budget
+- [ ] Throttling applied to distant / off-screen objects where overhead demanded it
+- [ ] Redundant updates skipped (value-change guards in setters)
+- [ ] No memory growth across a long play session
 
-### ✅ Testing Checklist
+### Testing Checklist
 
 **Basic Tracking:**
 - [ ] Objects register successfully (check logs)
@@ -1274,9 +1483,9 @@ void SetHealth(float newHealth)
 - [ ] State consistency after resume
 
 **Performance:**
-- [ ] Frame time impact <0.1ms
-- [ ] Memory usage reasonable (<50MB overhead)
+- [ ] Frame-time impact within the game's budget (measured, not assumed)
 - [ ] No stutters or hitches during tracking
+- [ ] Memory usage stable across a representative session
 
 ---
 
@@ -1337,13 +1546,11 @@ LudeoManager::Get().ResumeTracking();
 ---
 
 **Next Steps:**
-- ✅ Tracking patterns implemented → Proceed to [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
-- ⚠️ Need capture macros → See [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md)
-- ⚠️ Need lifecycle setup → See [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md)
+- Tracking patterns implemented → Proceed to [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
+- Need capture macros → See [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md)
+- Need lifecycle setup → See [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md)
 
 **Related Documentation:**
 - [00-CRITICAL-REQUIREMENTS.md](00-CRITICAL-REQUIREMENTS.md) - Non-negotiable rules
 - [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md) - How to restore tracked state
 - [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md) - Macro implementations and helpers
-
-

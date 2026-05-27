@@ -55,12 +55,12 @@ Build for **ONE operating system only**. Do not configure for multiple platforms
 
 ### Use SDK Files As-Is
 Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/build-specific names provided:
-- Windows: `LudeoSDK-Win64-Debug.dll`, `LudeoSDK-Win64-Release.dll`
-- Linux: `libLudeoSDK-Linux-Debug.so`, `libLudeoSDK-Linux-Release.so`
-- macOS: `libLudeoSDK-macOS-Debug.dylib`, `libLudeoSDK-macOS-Release.dylib`
+- Windows: `LudeoSDK-Win64-Development.dll`, `LudeoSDK-Win64-Release.dll`
+- Linux: `libLudeoSDK-Linux-Development.so`, `libLudeoSDK-Linux-Release.so`
+- macOS: `libLudeoSDK-macOS-Development.dylib`, `libLudeoSDK-macOS-Release.dylib`
 
 ### Development vs Release
-- **Development/Debug builds:** For testing only, NOT for shipping (larger, slower, extra logging)
+- **Development builds:** For testing only, NOT for shipping (larger, slower, extra logging)
 - **Release builds:** Required for shipping to customers
 
 ---
@@ -72,8 +72,8 @@ Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/buil
 <project_root>/
 ├── external/ludeo/LudeoCoreSDK_X_X_X/    # SDK location
 │   ├── Include/Ludeo/                     # Headers
-│   ├── Lib/<platform>/{Debug|Release}/    # Static libraries
-│   └── Bin/<platform>/{Debug|Release}/    # Dynamic libraries
+│   ├── Lib/<platform>/{Development|Release}/  # Static libraries
+│   └── Bin/<platform>/{Development|Release}/  # Dynamic libraries
 │
 ├── src/core/ludeo/                        # Integration files
 │   ├── LudeoConfig.h                      # ⭐ CREATE THIS
@@ -88,10 +88,10 @@ Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/buil
 | Platform | Static Library | Dynamic Library |
 |----------|---------------|-----------------|
 | Win64 | `Lib/Win64/{Config}/LudeoSDK-Win64-{Config}.lib` | `Bin/Win64/{Config}/LudeoSDK-Win64-{Config}.dll` |
-| Linux | `Lib/Linux/{Config}/libLudeoSDK-Linux-{Config}.a` | `Bin/Linux/{Config}/libLudeoSDK-Linux-{Config}.so` |
+| Linux | `Lib/Linux/{Config}/libLudeoSDK-Linux-{Config}.so` | `Bin/Linux/{Config}/libLudeoSDK-Linux-{Config}.so` |
 | macOS | `Lib/macOS/{Config}/libLudeoSDK-macOS-{Config}.a` | `Bin/macOS/{Config}/libLudeoSDK-macOS-{Config}.dylib` |
 
-*{Config} = Debug or Release*
+*{Config} = Development or Release*
 
 ---
 
@@ -210,11 +210,11 @@ if(LUDEO_SDK_ENABLED)
     
     # Platform configuration
     if(WIN32)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Debug")
-            set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Debug")
-            set(LUDEO_LIB_FILE "LudeoSDK-Win64-Debug.lib")
-            set(LUDEO_DLL_FILE "LudeoSDK-Win64-Debug.dll")
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
+            set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Development")
+            set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Development")
+            set(LUDEO_LIB_FILE "LudeoSDK-Win64-Development.lib")
+            set(LUDEO_DLL_FILE "LudeoSDK-Win64-Development.dll")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Release")
@@ -222,15 +222,15 @@ if(LUDEO_SDK_ENABLED)
             set(LUDEO_DLL_FILE "LudeoSDK-Win64-Release.dll")
         endif()
     elseif(UNIX AND NOT APPLE)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Debug")
-            set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Debug")
-            set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Debug.a")
-            set(LUDEO_SO_FILE "libLudeoSDK-Linux-Debug.so")
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
+            set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Development")
+            set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Development")
+            set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Development.so")
+            set(LUDEO_SO_FILE "libLudeoSDK-Linux-Development.so")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Release")
-            set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Release.a")
+            set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Release.so")
             set(LUDEO_SO_FILE "libLudeoSDK-Linux-Release.so")
         endif()
     endif()
@@ -296,8 +296,8 @@ Create `Ludeo.props`:
   
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <Link>
-      <AdditionalLibraryDirectories>$(LudeoSDKPath)\Lib\Win64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LudeoSDK-Win64-Debug.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LudeoSDKPath)\Lib\Win64\Development;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>LudeoSDK-Win64-Development.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   
@@ -312,7 +312,9 @@ Create `Ludeo.props`:
 
 **Post-Build Event** (copy DLL):
 ```
-xcopy /Y /D "$(SolutionDir)external\ludeo\LudeoCoreSDK_1_2_3\Bin\Win64\$(Configuration)\*.dll" "$(OutDir)"
+rem Map VS Configuration names to SDK folder names (Debug→Development)
+if "$(Configuration)"=="Debug" (set LUDEO_CONFIG=Development) else (set LUDEO_CONFIG=$(Configuration))
+xcopy /Y /D "$(SolutionDir)external\ludeo\LudeoCoreSDK_1_2_3\Bin\Win64\%LUDEO_CONFIG%\*.dll" "$(OutDir)"
 ```
 
 ---
@@ -327,8 +329,8 @@ ifeq ($(LUDEO_SDK_ENABLED), 1)
     CXXFLAGS += -I$(LUDEO_SDK_PATH)/Include -DLUDEO_SDK_ENABLED=1
     
     ifeq ($(BUILD_TYPE), Debug)
-        LDFLAGS += -L$(LUDEO_SDK_PATH)/Lib/Linux/Debug -lLudeoSDK-Linux-Debug
-        LUDEO_SO_PATH = $(LUDEO_SDK_PATH)/Bin/Linux/Debug
+        LDFLAGS += -L$(LUDEO_SDK_PATH)/Lib/Linux/Development -lLudeoSDK-Linux-Development
+        LUDEO_SO_PATH = $(LUDEO_SDK_PATH)/Bin/Linux/Development
     else
         LDFLAGS += -L$(LUDEO_SDK_PATH)/Lib/Linux/Release -lLudeoSDK-Linux-Release
         LUDEO_SO_PATH = $(LUDEO_SDK_PATH)/Bin/Linux/Release
@@ -355,7 +357,7 @@ endif
 Assets/Plugins/
 ├── Ludeo/
 │   ├── x86_64/
-│   │   ├── LudeoSDK-Win64-Debug.dll
+│   │   ├── LudeoSDK-Win64-Development.dll
 │   │   └── LudeoSDK-Win64-Release.dll
 │   └── Android/
 │       └── libLudeoSDK-Android-Release.so
@@ -419,8 +421,9 @@ public class Ludeo : ModuleRules
             string SDKPath = Path.Combine(ModuleDirectory, "../../ThirdParty/LudeoSDK");
             PublicIncludePaths.Add(Path.Combine(SDKPath, "Include"));
             
-            string LibName = Target.Configuration == UnrealTargetConfiguration.Debug 
-                ? "LudeoSDK-Win64-Debug.lib" 
+            string LibName = (Target.Configuration == UnrealTargetConfiguration.Debug
+                          || Target.Configuration == UnrealTargetConfiguration.Development)
+                ? "LudeoSDK-Win64-Development.lib" 
                 : "LudeoSDK-Win64-Release.lib";
             
             PublicAdditionalLibraries.Add(Path.Combine(SDKPath, "Lib/Win64", LibName));

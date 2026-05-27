@@ -1,6 +1,6 @@
 ---
 name: ludeo-integration
-description: Integrate the Ludeo SDK into a C++, Unity, or Unreal game. Sets up the build with conditional compilation, wires the SDK lifecycle, maps and implements game actions, and verifies the integration. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into their game.
+description: Integrate the Ludeo SDK into a C++, Unity, or Unreal game. Sets up the build with conditional compilation, wires the SDK lifecycle, maps and implements game actions, maps and tracks game objects, and verifies the integration. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into their game.
 metadata:
   version: 0.0.0
 ---
@@ -21,18 +21,21 @@ Activate this skill when the user says any of:
 
 ## Workflow
 
-The integration is a sequential 8-phase workflow. Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
+The integration is a sequential 11-phase workflow (phase 0 through phase 9, including phase 2b). Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
 | 0 | `references/0-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
 | 1 | `references/1-map-game-code.md` | Produce CODE_MAP of game architecture |
 | 2 | `references/2-find-sdk-integration-points.md` | Identify where SDK calls go |
-| 3 | `references/3-implement-sdk-lifecycle.md` | Plan lifecycle wiring |
-| 4 | `references/4-implement-phase0-plan.md` | Implement lifecycle wiring |
+| 2b | `references/2b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
+| 3 | `references/3-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
+| 4 | `references/4-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
 | 5 | `references/5-compile-and-fix.md` | Compile, fix, verify |
 | 6 | `references/6-map-game-actions.md` | Find action points in game code |
 | 7 | `references/7-implement-game-actions.md` | Insert action calls |
+| 8 | `references/8-map-game-objects.md` | Discover trackable objects & properties |
+| 9 | `references/9-implement-object-tracking.md` | Wire object registration & capture |
 
 ## Important rules
 

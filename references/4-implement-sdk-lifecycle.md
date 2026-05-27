@@ -1,6 +1,6 @@
-﻿# Implement Phase 0 Plan - Create Files and Modify Hooks
+﻿# Implement SDK Lifecycle - Create Files and Modify Hooks
 
-Execute the Phase 0 implementation plan: create all Ludeo files and modify game hook points. Does NOT compile - that's `phase 5`.
+Execute the SDK lifecycle implementation plan: create all Ludeo files and modify game hook points. Does NOT compile - that's `phase 5`.
 
 ## 🚦 Fresh Context Check
 
@@ -19,18 +19,21 @@ Execute the Phase 0 implementation plan: create all Ludeo files and modify game 
 ## Prerequisites
 
 - `phase 0` completed (build system configured)
-- `phase 3` completed (plan exists at `ludeo-integration-plan/PHASE0_PLAN_<GameName>.md`)
+- `phase 2b` completed (TDD exists at `ludeo-integration-plan/TDD_<GameName>.md`)
+- `phase 3` completed (plan exists at `ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md`)
 
 ## Your Task
 
 ### 1. Load Implementation Plan
 
-Find `ludeo-integration-plan/PHASE0_PLAN_<GameName>.md` and extract:
+Read `ludeo-integration-plan/TDD_<GameName>.md` first — it contains the architecture decisions, risk assessment, and integration key concepts that inform this implementation.
+
+Find `ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md` and extract:
 - New files to create (paths + full content)
 - Existing files to modify (locations + code snippets)
 - Implementation order
 
-If not found, check game root for `PHASE0_PLAN*.md` or ask user.
+If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 
 ### 1.1 Choose Authentication Mode & Gather Configuration
 
