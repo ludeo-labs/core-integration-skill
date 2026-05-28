@@ -177,6 +177,18 @@ This is the gate that closes phase 11. With Step 3.5 wired and the rest of the r
 
 **If the game crashes during steps 1–3:** do **not** retry the launch blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame and the thread it crashed on, then classify against `11-TROUBLESHOOTING §6` (null `DataReader` deref, wrong-thread SDK call, `EnterObject`/`LeaveObject` mismatch, stale `id_map` deref, pointer-as-reference, use-after-`ObjectsInfo_Release`, SDK call before `Activate`). Fix at the root — don't paper over with null checks or try/catch — then rerun the full smoke test from step 1.
 
+**Iteration discipline — Step 9 is a loop gate, not a one-shot:**
+
+- **Iterate until it passes.** After every failure (crash or wrong-behavior), make a fix and rerun the full smoke test from step 1. Do not advance to "phase 11 done" by inspection.
+- **Propose-confirm-execute every fix.** No autonomous code changes between iterations — each fix is shown to the user, approved, then applied.
+- **Fix at the root each iteration.** Don't add try/catch, null checks, or symptom-masking to make the test pass — that paper-mâchés the failure into production. If you're tempted, escalate instead.
+- **Stop iterating and escalate to the user when ANY of these holds:**
+  - The **same failure mode recurs** after a fix attempt — the root cause was misidentified; further blind iteration just digs the hole.
+  - **Three distinct attempts** on the same failure haven't resolved it (different theories tried, still failing).
+  - A single iteration **sprawls across many files** without isolating the cause — you're guessing, not diagnosing; narrow scope first.
+  - A single iteration's investigation or fix has run **unusually long** with no convergence — sunk-cost gate; reassess.
+- **When escalating, hand the user a clear summary:** what failed (stack / log lines), the theories tried, what was changed in each attempt, what's still unknown — then stop and wait for guidance. Do **not** silently declare done.
+
 ## Important Notes
 
 - **Restoration is the inverse of tracking.** Every spawn/getter here mirrors a `/9` create/setter. Same `LudeoStateAdapter`, same `objectType` strings, same stable-ID anchor — if a mapping is missing, the fix belongs in `/8`/`/9`, not a workaround here.
