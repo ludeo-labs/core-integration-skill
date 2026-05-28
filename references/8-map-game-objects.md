@@ -18,7 +18,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 > ⚠️ **REQUIRED:** These must complete first:
 > 1. `phase 1` → `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 2` → `SDK_INTEGRATION_POINTS.json`
-> 3. Save-system classification → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
+> 3. `phase 2c` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`. If these don't exist, run `phase 2c` first — no other phase produces them.
 >
 > **Recommended:** If `TDD_<GameName>.md` exists, read its **State Capture** section.
 
