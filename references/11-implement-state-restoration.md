@@ -156,7 +156,24 @@ Inverse of `/9` Step 6 (batch registration). For each pre-existing entity type i
 1. Run `/5-compile-and-fix` to verify clean compile both with and without LUDEO_SDK_ENABLED
 2. Trigger LudeoSelected from the main menu and mid-gameplay; confirm clean restoration both paths
 3. Walk the 07 §10 validation checklist
+4. Run **Step 9** (Local Smoke Test) — required before declaring phase 11 done.
 ```
+
+### Step 9: Local smoke test — run with `--ludeo=<id>` and verify load + pause (REQUIRED gate)
+
+This is the gate that closes phase 11. With Step 3.5 wired and the rest of the restore path in place, **run the game with the launch arg** and **verify it pauses with the Ludeo loaded** before handing off to the player. Do not declare phase 11 done by inspection — actually run it.
+
+1. **Launch the game with the arg.** Use any captured ludeo id from `/9` testing. Form depends on the engine (`--ludeo=<id>`, `-ludeo <id>`, etc., per Step 3.5).
+2. **Verify the Ludeo loads properly.** Inspect the session/restoration log:
+   - `LudeoSelected` (synthesized by Step 3.5) fires with the expected `ludeoId`.
+   - `GetLudeo` completion callback fires with `resultCode == Success` and a non-null `dataReader`.
+   - Two-pass restoration completes — Pass 1 spawn count + Pass 2 apply count + deferred queue drained match the plan.
+   - No `Expected type` lines (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`).
+3. **Verify the game is paused (CR-010).** Simulation tick frozen, the level is loaded and populated with restored state, the Ludeo overlay shows the Play button. Nothing in the world advances — no physics, no AI, no scripted ticks.
+4. **Hand off to the player and stop.** Tell the user:
+   > "The Ludeo is loaded and the game is paused. Click **Play** on the overlay, then confirm the restored state matches the captured moment (entity positions, values, references), the game receives `RoomReady` and unpauses, and gameplay proceeds without snap-back or drift."
+
+   Wait for the player's confirmation before declaring phase 11 done. If any of steps 2, 3, or the player's visual check fails, flag the failure against `07 §10` / CR-010 and go back to the relevant earlier step — do not move on.
 
 ## Important Notes
 
