@@ -1591,41 +1591,51 @@ public:
         // Pause game simulation
         GameSimulation::Get().SetPaused(true);
         
-        // Show Ludeo playback UI (the SDK overlay will show play button)
-        // Or show your own "Press to Start" UI
-        
-        LogInfo("[Ludeo] Restoration complete - waiting for player input");
-        
-        // Register for the "player ready" callback from SDK
-        RegisterForPlayerReadyCallback();
+        // The Ludeo OVERLAY shows the Play button — do NOT draw your own.
+        // The player pressing Play causes the SDK to run OpenRoom→AddPlayer→RoomReady→Begin
+        // (the same chain used for tracking-start; see 05-LIFECYCLE-MANAGEMENT.md).
+        // The game UNPAUSES in OnRoomReadyCallback (which calls TryBeginGameplaySession).
+        LogInfo("[Ludeo] Restoration complete - frozen, waiting for RoomReady");
     }
-    
-    void RegisterForPlayerReadyCallback()
+
+    // Register the MID-PLAY overlay-control notifications ONCE at session creation
+    // (next to AddNotifyLudeoSelected), not per-Ludeo. These handle the player
+    // reopening/closing the overlay during an active playback session.
+    // NOTE: the POST-RESTORE resume is OnRoomReadyCallback, not OnResumeGameRequest.
+    // There is NO PlayerReady notification in the SDK.
+    // (Signatures follow the SDK's AddNotify pattern; verify against the cloned
+    //  Include/Ludeo/Session.h + SessionTypes.h.)
+    void RegisterOverlayControlCallbacks()
     {
-        // The SDK provides a callback when the player clicks "Play"
-        // This is when you should unpause and start gameplay
-        LudeoGameplaySessionAddNotifyPlayerReadyParams params = {};
-        params.apiVersion = LUDEO_GAMEPLAYSESSION_ADDNOTIFYPLAYERREADY_API_LATEST;
-        
-        ludeo_GameplaySession_AddNotifyPlayerReady(
-            m_gameplay_session_handle, &params, this, OnPlayerReadyCallback);
+        LudeoSessionAddNotifyPauseGameRequestParams pauseParams = {};
+        pauseParams.apiVersion = LUDEO_SESSION_ADDNOTIFYPAUSEGAMEREQUEST_API_LATEST;
+        ludeo_Session_AddNotifyPauseGameRequest(m_session_handle, &pauseParams, this, OnPauseGameRequest);
+
+        LudeoSessionAddNotifyResumeGameRequestParams resumeParams = {};
+        resumeParams.apiVersion = LUDEO_SESSION_ADDNOTIFYRESUMEGAMEREQUEST_API_LATEST;
+        ludeo_Session_AddNotifyResumeGameRequest(m_session_handle, &resumeParams, this, OnResumeGameRequest);
+
+        // Also register BackToMenuRequest and (optionally) MuteRequest here.
     }
-    
-    // SDK callback - player clicked "Play" button
-    static void OnPlayerReadyCallback(const LudeoGameplaySessionPlayerReadyCallbackParams* data)
+
+    // SDK callback - overlay opened / platform wants the game paused
+    static void OnPauseGameRequest(const LudeoSessionPauseGameRequestCallbackParams* data)
     {
         auto* manager = static_cast<LudeoManager*>(data->clientData);
-        
-        LogInfo("[Ludeo] Player ready - starting gameplay!");
-        
-        // NOW start gameplay
-        manager->m_playback_state = LudeoPlaybackState::Playing;
-        
+        GameSimulation::Get().SetPaused(true);   // FREEZE the sim, not just input
+    }
+
+    // SDK callback - MID-PLAY only: player closed the overlay during an active
+    // playback session → resume. (The POST-RESTORE resume is OnRoomReadyCallback,
+    // not this one — the gameplay session is already running when this fires.)
+    static void OnResumeGameRequest(const LudeoSessionResumeGameRequestCallbackParams* data)
+    {
+        auto* manager = static_cast<LudeoManager*>(data->clientData);
+
+        LogInfo("[Ludeo] Mid-play resume (overlay closed)");
+
         // Unpause game simulation
         GameSimulation::Get().SetPaused(false);
-        
-        // Begin the gameplay session tracking
-        manager->BeginGameplaySession();
     }
 };
 ```
@@ -1656,7 +1666,7 @@ public:
    └── Player sees the restored state frozen
    
 7. Player clicks "Play"
-   └── OnPlayerReadyCallback() fires from SDK
+   └── OnRoomReadyCallback() fires from SDK (player pressed Play on the overlay → OpenRoom→AddPlayer→RoomReady→Begin)
    └── Game unpauses
    └── BeginGameplaySession() called
    └── Normal gameplay begins
@@ -2850,7 +2860,7 @@ private:
 - [ ] Game pauses after restoration completes
 - [ ] Player sees restored state frozen
 - [ ] SDK overlay/UI shows play button
-- [ ] OnPlayerReadyCallback received when player clicks play
+- [ ] RoomReady received when player clicks Play on the overlay (the gameplay-session-start chain reused for playback; there is no PlayerReady; ResumeGameRequest is mid-play only)
 - [ ] Game unpauses correctly
 - [ ] GameplaySession begins after player ready
 - [ ] Gameplay proceeds normally

@@ -363,6 +363,64 @@ void Game::OnLevelLoadStart() {
 
 ---
 
+### 🔴 **CR-010: After a Ludeo Loads, the Game MUST Be PAUSED While the Overlay Awaits the Player**
+
+> **⚠️ THE #1 RESTORATION FAILURE:** "loads the right map, but the game keeps running and the restored state is wrong."
+
+The moment restoration finishes, the game has **not** been handed to the player yet. The Ludeo **overlay** shows the **Play** button and waits for the player. Until the player presses it, the game **MUST be paused — the simulation tick frozen, not merely input suppressed.**
+
+**Why this is mandatory:**
+- A running simulation (physics, AI, scripts, the level's own init) **overwrites the state you just restored** — this is the direct cause of "state isn't reconstructed properly."
+- The player would otherwise see the game blast past the restored moment in the one frame before they can react.
+
+**The full pause/resume contract — two distinct cases, do not conflate them:**
+
+- **Pause after a Ludeo loads** — set **by the game itself** the moment restoration completes. The player hasn't been handed control yet.
+- **Resume after a Ludeo load** — the player presses **Play** on the overlay → the game receives **`RoomReady`** → begin the gameplay session (`ludeo_GameplaySession_Begin`, via the chain `05-LIFECYCLE-MANAGEMENT.md` already documents) → **unpause**. This is the **same** gameplay-session-start mechanism `/4` wired for tracking; playback reuses it.
+- **Mid-play overlay open/close** — the player reopens the overlay during an active playback session → `PauseGameRequest` to pause, `ResumeGameRequest` to resume. These do **not** carry the post-restore resume.
+
+```cpp
+// ✅ Restoration just finished → FREEZE and wait. Do NOT resume here.
+void LudeoManager::OnRestorationComplete() {
+    GameSimulation::Get().SetPaused(true);     // freeze the TICK, not just input
+    m_playback_state = WaitingForRoomReady;
+    // The Ludeo overlay shows the Play button — do NOT draw your own prompt.
+}
+
+// ✅ Player pressed Play on the overlay → SDK runs OpenRoom→AddPlayer→RoomReady→Begin
+//    (see 05-LIFECYCLE-MANAGEMENT). On RoomReady, begin the gameplay session and UNPAUSE.
+//    THIS is the post-restore resume — not ResumeGameRequest.
+void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams*) {
+    TryBeginGameplaySession();                 // /4's helper (begins when player added + room ready)
+    GameSimulation::Get().SetPaused(false);    // unpause as gameplay starts
+}
+
+// ✅ MID-PLAY only: overlay reopened → pause; overlay closed → resume.
+static void OnPauseGameRequest (const LudeoSessionPauseGameRequestCallbackParams*)  { GameSimulation::Get().SetPaused(true);  }
+static void OnResumeGameRequest(const LudeoSessionResumeGameRequestCallbackParams*) { GameSimulation::Get().SetPaused(false); }
+```
+
+**Forbidden:**
+```cpp
+// ❌ Continuing the sim while the overlay waits — restored state is overwritten.
+void OnRestorationComplete() { /* no pause; gameplay keeps ticking */ }
+
+// ❌ Pausing only input while the simulation tick keeps running.
+// ❌ Waiting on ludeo_GameplaySession_AddNotifyPlayerReady — that notification DOES NOT EXIST.
+// ❌ Treating ResumeGameRequest as the post-restore resume — that is the MID-PLAY resume.
+//    Post-restore resume goes through RoomReady → Begin (the chain /4 already wired).
+```
+
+**Validation:**
+- [ ] After a Ludeo loads, the game is **paused (tick frozen)** before the player does anything.
+- [ ] The post-Ludeo-load resume is driven by **`RoomReady` → `Begin`** — not a self-built prompt, not `PlayerReady`, not `ResumeGameRequest`.
+- [ ] Reopening the overlay mid-playback pauses the game (`PauseGameRequest`); closing it resumes (`ResumeGameRequest`).
+- [ ] Restored state is intact at the moment of resume (a running sim didn't overwrite it).
+
+**→ See:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 (overlay control notifications) and §7 (wait-for-player)
+
+---
+
 ## 📊 **Validation Checklist**
 
 Before considering integration complete, verify these critical requirements:
@@ -413,6 +471,12 @@ Before considering integration complete, verify these critical requirements:
 - [ ] `BeginGameplaySession()` called from helper after both conditions met
 - [ ] NOT calling callback-driven operations from game event handlers
 
+### CR-010: Paused While Overlay Awaits Player (⚠️ #1 RESTORATION FAILURE)
+- [ ] After a Ludeo loads, the game is paused (simulation tick frozen) before the player acts
+- [ ] Post-Ludeo-load resume is driven by `RoomReady` → `Begin` (the chain `/4` wired) — not a self-built prompt, not `PlayerReady`, not `ResumeGameRequest`
+- [ ] Reopening the overlay mid-playback pauses the game (`PauseGameRequest`); closing it resumes (`ResumeGameRequest`)
+- [ ] Restored state is intact at resume (a running sim didn't overwrite it)
+
 ---
 
 ## 🔗 **Related Documents**
@@ -431,4 +495,4 @@ Before considering integration complete, verify these critical requirements:
 
 ---
 
-**Remember:** These 9 requirements are non-negotiable. Violating them will break your integration.
+**Remember:** These 10 requirements are non-negotiable. Violating them will break your integration.

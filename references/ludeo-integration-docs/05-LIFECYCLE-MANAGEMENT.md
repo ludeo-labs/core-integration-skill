@@ -452,6 +452,8 @@ void OnPlayerAddedCallback(const LudeoRoomAddPlayerCallbackParams* data)
 
 **CRITICAL:** Must wait for **Room Ready** notification before beginning gameplay. Confirms all players added successfully. **Must register upon session creation** (Section 4), before any room is opened.
 
+> **Dual role — also the post-Ludeo-load resume:** This same `OnRoomReadyCallback` is what unpauses the game during **Ludeo playback**. After a Ludeo is selected and restoration completes, the game stays paused; when the player presses Play on the Ludeo overlay, the SDK runs this same `OpenRoom → AddPlayer → RoomReady → Begin` chain, and **`OnRoomReadyCallback` is where the game calls `TryBeginGameplaySession()` and unpauses**. The restoration phases (`/10`, `/11`, [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §7, [CR-010](./00-CRITICAL-REQUIREMENTS.md)) **reuse** this callback as the post-restore resume — they do not introduce a separate one. (`ResumeGameRequest` is a *different* notification, used only for mid-play overlay open/close.)
+
 ```cpp
 // 🎮 GAME CODE: Register during session creation (Section 4)
 void RegisterRoomReadyNotification()

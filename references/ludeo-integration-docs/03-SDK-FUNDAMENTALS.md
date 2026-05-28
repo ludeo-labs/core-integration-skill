@@ -532,7 +532,10 @@ private:
 | Close Room | `LudeoRoomCloseCallback` | `resultCode` |
 | Get Ludeo | `LudeoSessionGetLudeoCallback` | `dataReader` |
 | Ludeo Selected | `LudeoSessionLudeoSelectedCallback` | `ludeoId` |
-| Player Ready | `LudeoGameplaySessionPlayerReadyCallback` | `resultCode` |
+| Pause Game Request | `LudeoSessionPauseGameRequestCallback` | `clientData` |
+| Resume Game Request | `LudeoSessionResumeGameRequestCallback` | `clientData` |
+| Back To Menu Request | `LudeoSessionBackToMenuRequestCallback` | `clientData` |
+| Mute Request | `LudeoSessionMuteRequestCallback` | `clientData` |
 
 ---
 
