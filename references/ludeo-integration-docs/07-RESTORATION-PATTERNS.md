@@ -190,6 +190,8 @@ for ludeo_obj in reader.objects():
 
 This is the same two-callback-then-enumerate path described in §2 — the SDK calls here are stable enough to reproduce; if one ever disagrees with the cloned headers, the headers win.
 
+**Pass 2 is the inverse of `/9`'s capture, row for row.** Every `LUDEO_CAPTURE_*` `/9` emitted has exactly one mirror here: the matching `ludeo_DataReader_Get*` (same attribute name, same type) **whose returned value is written back into the same field `/9` captured from**, on the **live entity** (the one the player sees in the loaded level — not a detached spawn). `LUDEO_CAPTURE_FLOAT(player, "health", m_health)` mirrors to `ludeo_DataReader_GetFloat("health", &h)` + `m_health = h` (or `entity->SetHealth(h)`). Walk `OBJECT_TRACKING.md` row by row and reverse each capture into a get-then-apply. Any row left un-reversed stays at the level's default — that is the "Ludeo loaded but state didn't restore, the player sees mid-level positions as level-start" symptom.
+
 ### 3.2 Why Single-Pass Fails
 
 If `Enemy.target` references `Player`:
