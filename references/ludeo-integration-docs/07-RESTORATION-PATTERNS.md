@@ -433,9 +433,20 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     **authority**: reconcile captured objects to the level's placed instances
     (don't blind-spawn duplicates — §8/Pre-Existing-Object Reconciliation),
     apply restored values **after** the level finishes initializing, and **keep
-    the simulation frozen** (§7) until `ResumeGameRequest`. If the sim runs, or
-    the game's default init runs after your apply, the restored snapshot is
-    silently overwritten — the "state isn't reconstructed properly" failure.
+    the simulation frozen** (§7) until the `OnRoomReadyCallback` unpauses. If the
+    sim runs, or the game's default init runs after your apply, the restored
+    snapshot is silently overwritten — the "state isn't reconstructed properly" failure.
+11. **Pre-match sequences and location-overriding mechanisms clobber the snapshot.**
+    Most games run a *start-of-match* flow after level load — intro cutscene,
+    countdown, slow-mo, fly-in camera, default-spawn teleport, respawn-on-load
+    logic, level-start scripted events. Any of these that touch position, state,
+    or camera **after** the apply overwrites the restored snapshot. The signature
+    failure: "first frame after Play is the level-start cinematic / default spawn,
+    not the captured mid-level moment." For playback: **identify every such
+    mechanism during planning (`/10` Step 3) and gate it on `IsRestoring()` (or
+    equivalent) in `/11`** — skip the cutscene, suppress the default-spawn teleport,
+    short-circuit the countdown. The Ludeo must start *exactly* at the captured
+    state, with the player at the captured position on the first visible frame.
 
 ---
 

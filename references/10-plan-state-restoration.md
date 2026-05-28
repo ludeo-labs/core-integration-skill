@@ -98,13 +98,16 @@ Record the chosen strategy and exactly what existing game machinery (if any) res
 Per `§2`, specify the handler for a `LudeoSelected` event that can fire in **any** state
 (menu, mid-gameplay, loading, cutscene):
 1. Marshal off the SDK notification thread immediately (never block it).
-2. Tear down any active gameplay session and room (the SDK `Session` stays alive); cancel in-flight transitions; suppress non-restoration input.
-3. Read the level/scene identifier from Ludeo metadata; load it; block until load completes.
-4. Acquire the `DataReader` (async — delivered in `GetLudeo`'s completion callback, see `07 §2`); run two-pass restoration; run environment restoration; enter wait-for-player (**frozen until `RoomReady` fires** — the player pressing Play on the overlay drives `OpenRoom → AddPlayer → RoomReady → Begin`, the chain `/4` wired; the game unpauses in the `RoomReady` callback).
+2. **Pause the game** (freeze sim, not just input — CR-010). Pause spans every step below until `OnRoomReady` unpauses.
+3. Tear down any active gameplay session and room (the SDK `Session` stays alive); cancel in-flight transitions; suppress non-restoration input.
+4. Read the level/scene identifier from Ludeo metadata; load it; block until load completes.
+5. Acquire the `DataReader` (async — delivered in `GetLudeo`'s completion callback, see `07 §2`) and **cache it** (apply runs in step 6, not here).
+6. On `RoomReady`: **unpause → apply (two-pass + environment) → `TryBeginGameplaySession()`**, in that order. Apply runs unpaused so movement/physics/AI can settle; `Begin` runs after apply so the SDK records playback from the restored state.
 
-Also plan two distinct sets of hooks:
-- **Post-restore resume** — reuse `/4`'s `OnRoomReadyCallback` / `TryBeginGameplaySession()` (`05-LIFECYCLE-MANAGEMENT.md`). After restoration, the game stays paused until `RoomReady` fires; that callback begins the gameplay session and unpauses. This is **not** `ResumeGameRequest`.
+Also plan three distinct sets of hooks:
+- **Post-restore resume** — reuse `/4`'s `OnRoomReadyCallback` / `TryBeginGameplaySession()` (`05-LIFECYCLE-MANAGEMENT.md`). Apply state inside this callback, after unpause, before `Begin`.
 - **Mid-play overlay open/close** (07 §2.4) — `PauseGameRequest` → freeze the sim, `ResumeGameRequest` → resume, `BackToMenuRequest` → tear down + go to menu. Session-lifetime; easy to forget because they sit outside the restore path. Map each onto a game hook. **Do not plan around `PlayerReady` — it does not exist in this SDK.**
+- **Pre-match / location-override suppression** (07 §9.11) — identify every mechanism the game runs at start-of-match that would touch restored state: intro cutscenes, countdowns, slow-mo intros, fly-in cameras, default-spawn teleports, respawn-on-load logic, scripted level-start events. List each with its hook (file:function) and the plan to gate it on `IsRestoring()` so it's skipped during playback. The Ludeo must start *exactly* at the captured state on the first visible frame — anything that runs between level-load and apply (or after apply, before `Begin`) is a candidate to suppress.
 
 Map each step onto a concrete game hook (file:function) where known; flag any that don't yet exist as an Open Question for `/11`.
 
@@ -266,6 +269,7 @@ Before handing off to the user, walk the plan you just wrote and confirm each it
 - [ ] **Overlay-control hooks named** (`PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` → CR-011), not "TBD" and not deferred to `/4`'s discretion.
 - [ ] **Deferred queue is ordered** and each entry names *why* it defers (which subsystem it waits on).
 - [ ] **Pre-existing reconciliation chose match-vs-spawn per entity** with a stable-ID match key — no placed-by-default entity left as "spawn fresh."
+- [ ] **Pre-match / location-override mechanisms enumerated and each has a suppression hook** (intro cutscenes, countdowns, slow-mo, fly-in cameras, default-spawn teleports, respawn-on-load logic, scripted start events — 07 §9.11). None left as "TBD"; each gated on `IsRestoring()` or equivalent.
 - [ ] **Environment ordering** is after-entities; exclusion list is rationalized.
 - [ ] **Low-confidence + Open Questions** populated (or explicitly empty with a one-line note — empty on a complex game is itself a yellow flag).
 - [ ] **Disagreements with `OBJECT_TRACKING.md` or `GAME_ANALYSIS_SAVE_SYSTEM.md`** are surfaced for the user, not silently reconciled.
