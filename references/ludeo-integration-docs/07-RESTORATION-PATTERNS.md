@@ -168,7 +168,7 @@ To exercise this flow **without the platform overlay** (useful while integrating
 id_map = {}                       # LudeoObjectId → GameObjectId
 
 for ludeo_obj in reader.objects():
-    game_obj = spawn(ludeo_obj.type)   # type-only, no properties yet
+    game_obj = match_or_spawn(ludeo_obj)   # match the level's placed instance by stable ID first; only spawn fresh if absent (§8 / Pre-Existing-Object Reconciliation)
     id_map[ludeo_obj.id] = game_obj.id
 
 # Pass 2 — Apply + Resolve
