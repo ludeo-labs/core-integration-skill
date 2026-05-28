@@ -67,16 +67,22 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 [Any State — game start, main menu, paused, loading, mid-gameplay]
     │
     ▼ LudeoSelected fires
-[PAUSE the game NOW] — freeze the simulation tick immediately (CR-010)
-    │   The pause spans every step below, until RoomReady. The window between
-    │   level-load and state-apply is a race condition; pausing closes it.
+[Set IsRestoring(true)] — gates every pre-match skip (§9.11): cutscenes, countdowns,
+    │   slow-mo intros, fly-in cameras, default-spawn teleports, respawn-on-load,
+    │   scripted level-start events all hit the gate and silently no-op.
     ▼
 [Interrupt Current Activity]
     │  - Tear down any active gameplay session and room (SDK Session stays alive)
     │  - Cancel in-flight transitions; suppress non-restoration input
     ▼
-[Load Required Level / Scene]   (paused)
+[Load Required Level / Scene]
     │  - Level id from Ludeo metadata; block until loaded
+    │  - Pre-match sequences fire during load and silently skip (because of IsRestoring)
+    ▼
+[PAUSE the game] — freeze the simulation tick AFTER the skips have completed (CR-010)
+    │   The pause locks in a clean post-skip baseline — the player will see this
+    │   frozen frame while the overlay awaits Play. No cutscene paused on its
+    │   first frame, no countdown frozen at "3", no default-spawn teleport visible.
     ▼
 [GetLudeo — cache the DataReader]   (paused; apply runs later)
     │  - Overlay shows the Play button (game does NOT draw one)
@@ -93,14 +99,16 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 
 ```pseudo
 on_ludeo_selected(ludeoId):              # SDK notification thread — marshal to main thread FIRST
-    pause_simulation()                       # FREEZE immediately (CR-010); pause spans level-load + GetLudeo
+    set_restoring(true)                      # FIRST: enable pre-match skip gating (§9.11)
     if current_state == GAMEPLAY:
         end_current_gameplay_session()
     suppress_input()
     cancel_in_flight_transitions()
 
     load_level(level_from_ludeo_metadata)
-    await_level_loaded()                     # still paused
+    await_level_loaded()                     # pre-match sequences fire here and SILENTLY SKIP via IsRestoring
+
+    pause_simulation()                       # PAUSE AFTER skips have completed — locks in a clean post-skip baseline (CR-010)
 
     # GetLudeo is async — its callback delivers the DataReader. CACHE it here;
     # the apply runs later in on_room_ready, after unpause.
@@ -345,12 +353,12 @@ runtime.
 
 ## 7. Wait-For-Player Flow
 
-> 🔴 **CR-010 — non-negotiable:** **from the moment `LudeoSelected` fires, the game is PAUSED — simulation tick frozen, not just input.** The pause spans the interrupt, level load, `GetLudeo`, and the wait for the overlay's Play button. On `RoomReady`, **unpause FIRST**, then apply state, then `Begin`. The unpause-before-apply order matters: the apply needs the game ticking so movement/physics/AI can settle on the new state before `Begin` starts recording playback. There is no `PlayerReady`. `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one (§2.4).
+> 🔴 **CR-010 — non-negotiable:** `LudeoSelected` fires → **`SetRestoring(true)` FIRST** (gates §9.11 pre-match skips) → tear down → load level (skips fire silently during load) → **PAUSE AFTER level load completes** (sim tick frozen, not just input). The pause locks in a clean post-skip baseline. On `RoomReady`: **unpause → apply state → `Begin`**, in that order — the apply needs the game ticking so movement/physics/AI can settle before `Begin` starts recording. There is no `PlayerReady`. `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one (§2.4).
 
-The pause that started at `LudeoSelected` (§2.1 / §2.2) is what makes the wait safe. Two roles:
+The pause set after level load (§2.1 / §2.2) is what makes the wait safe. Two roles:
 
-1. **Closes the race window** between level-load and apply — without the pause, the game ticks with default-init state until apply lands, and that window is where "Ludeo loaded but state is wrong" failures originate.
-2. **UX** — the player picked a Ludeo from the overlay and doesn't expect gameplay to start mid-animation; the overlay's Play button is the explicit handoff.
+1. **Closes the race window** between level-load completion and apply — without the pause, the game ticks with default-init state until apply lands, and that window is where "Ludeo loaded but state is wrong" failures originate.
+2. **UX** — the player picked a Ludeo from the overlay and doesn't expect gameplay to start mid-animation; the overlay's Play button is the explicit handoff. The paused frame they see is *post-skip* (clean), not a frozen mid-cutscene.
 
 ### 7.1 Implementation notes
 
@@ -445,8 +453,11 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     not the captured mid-level moment." For playback: **identify every such
     mechanism during planning (`/10` Step 3) and gate it on `IsRestoring()` (or
     equivalent) in `/11`** — skip the cutscene, suppress the default-spawn teleport,
-    short-circuit the countdown. The Ludeo must start *exactly* at the captured
-    state, with the player at the captured position on the first visible frame.
+    short-circuit the countdown. **Set `IsRestoring(true)` FIRST and pause LAST**
+    (after level load completes), so the skips fire silently during load and the
+    pause locks in a clean post-skip baseline — the player sees a clean frozen
+    frame while the overlay awaits Play, not a frozen mid-intro. The Ludeo must
+    start *exactly* at the captured state on the first visible frame.
 
 ---
 

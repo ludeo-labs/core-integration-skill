@@ -371,16 +371,20 @@ From the moment `LudeoSelected` fires until `RoomReady`, the game **MUST be paus
 
 **Sequence (mirrors `07 §2.1`):**
 
-1. `LudeoSelected` fires → **pause game (set sim paused)**, tear down active session/room, suppress input.
-2. Load level → cache the `DataReader` from `GetLudeo`'s callback. Game stays paused.
-3. Overlay shows Play → player presses it → SDK runs `OpenRoom → AddPlayer → RoomReady`.
-4. **In `OnRoomReadyCallback`: unpause → apply state (Pass 1 + Pass 2 + environment) → `TryBeginGameplaySession()`.**
+1. `LudeoSelected` fires → **`SetRestoring(true)` FIRST** (this gates the pre-match skips in `/11` — cutscenes, countdowns, default-spawn teleports, etc.). Tear down active session/room; suppress input.
+2. Load level → pre-match sequences fire during load and **silently skip** because of the gate.
+3. **PAUSE the game AFTER level load completes** (`07 §9.11`). The pause locks in a clean post-skip baseline — the player will see this frozen frame while the overlay awaits Play, not a frozen mid-intro.
+4. Cache the `DataReader` from `GetLudeo`'s callback. Game stays paused.
+5. Overlay shows Play → player presses it → SDK runs `OpenRoom → AddPlayer → RoomReady`.
+6. **In `OnRoomReadyCallback`: unpause → apply state (Pass 1 + Pass 2 + environment) → `TryBeginGameplaySession()`.**
 
 ```cpp
-// ✅ LudeoSelected fires → PAUSE IMMEDIATELY. The pause spans level-load + GetLudeo + waiting for Play.
+// ✅ LudeoSelected fires → SetRestoring FIRST (gates skips), then tear down, then load level.
+//    PAUSE happens AFTER level load completes, so the paused frame is post-skip and clean.
 void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
-    GameSimulation::Get().SetPaused(true);        // freeze the TICK, not just input
-    // ... tear down active session/room, suppress input, load level, dispatch GetLudeo (see 07 §2.2)
+    SetRestoring(true);                            // gates §9.11 pre-match skips during the load below
+    // ... tear down active session/room, suppress input, load level (see 07 §2.2)
+    // After level loaded: GameSimulation::Get().SetPaused(true);  // freeze the TICK, not just input
 }
 
 void OnGetLudeoCallback(const LudeoSessionGetLudeoCallbackParams* data) {
@@ -413,8 +417,9 @@ void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams*) {
 ```
 
 **Validation:**
-- [ ] Game pauses **at `LudeoSelected`** (not after restoration completes); pause spans level load + `GetLudeo` + waiting for Play.
-- [ ] In the `RoomReady` callback the order is **unpause → apply (Pass 1 + Pass 2 + env) → `Begin`**.
+- [ ] `SetRestoring(true)` is the **first** thing the handler does — before tear-down, before level load — so pre-match sequences hit the §9.11 gate as they fire.
+- [ ] Pause happens **after** level load completes (not at `LudeoSelected`). The paused frame the player sees is post-skip and clean (no frozen mid-cutscene, no countdown frozen at "3", no default-spawn teleport visible).
+- [ ] In `OnRoomReadyCallback` the order is **unpause → apply (Pass 1 + Pass 2 + env) → `Begin`**.
 - [ ] Restored state is visible after Begin (not overwritten by the level's default init or a running sim during apply).
 - [ ] No `PlayerReady` reference anywhere; `ResumeGameRequest` is used only for the mid-play overlay-closed resume (CR-011).
 
@@ -515,9 +520,10 @@ Before considering integration complete, verify these critical requirements:
 - [ ] NOT calling callback-driven operations from game event handlers
 
 ### CR-010: Paused During Restoration; Unpause-Apply-Begin on RoomReady (⚠️ #1 RESTORATION FAILURE)
-- [ ] Game pauses at `LudeoSelected` (not after restoration completes); pause spans level load + `GetLudeo` + waiting for Play
+- [ ] `SetRestoring(true)` is the **first** action in the handler — before tear-down and level load — so §9.11 pre-match skips engage as sequences fire
+- [ ] Pause is set **after** level load completes (not at `LudeoSelected`). The paused frame is post-skip and clean — no frozen mid-cutscene, no countdown frozen at "3"
 - [ ] `OnRoomReadyCallback` order is **unpause → apply (Pass 1 + Pass 2 + env) → `TryBeginGameplaySession`**
-- [ ] Restored state is visible after `Begin` — not overwritten by the level's default init or a running sim during apply
+- [ ] Restored state is visible after `Begin` — not overwritten by default init or a running sim during apply
 - [ ] No `PlayerReady`; `ResumeGameRequest` only used for mid-play overlay close (CR-011)
 
 ### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)

@@ -98,11 +98,12 @@ Record the chosen strategy and exactly what existing game machinery (if any) res
 Per `§2`, specify the handler for a `LudeoSelected` event that can fire in **any** state
 (menu, mid-gameplay, loading, cutscene):
 1. Marshal off the SDK notification thread immediately (never block it).
-2. **Pause the game** (freeze sim, not just input — CR-010). Pause spans every step below until `OnRoomReady` unpauses.
-3. Tear down any active gameplay session and room (the SDK `Session` stays alive); cancel in-flight transitions; suppress non-restoration input.
-4. Read the level/scene identifier from Ludeo metadata; load it; block until load completes.
-5. Acquire the `DataReader` (async — delivered in `GetLudeo`'s completion callback, see `07 §2`) and **cache it** (apply runs in step 6, not here).
-6. On `RoomReady`: **unpause → apply (two-pass + environment) → `TryBeginGameplaySession()`**, in that order. Apply runs unpaused so movement/physics/AI can settle; `Begin` runs after apply so the SDK records playback from the restored state.
+2. **`SetRestoring(true)` FIRST** — gates the §9.11 pre-match skips (cutscenes, countdowns, default-spawn teleports, etc.) so they silently no-op during the level load below.
+3. Tear down any active gameplay session and room (SDK `Session` stays alive); cancel in-flight transitions; suppress non-restoration input.
+4. Read the level/scene identifier from Ludeo metadata; load it; block until load completes. Pre-match sequences fire here and silently skip via the gate.
+5. **`SetPaused(true)` AFTER level load completes** (freeze sim, not just input — CR-010). The paused frame is now a clean post-skip baseline. Pause spans every step below until `OnRoomReady` unpauses.
+6. Acquire the `DataReader` (async — delivered in `GetLudeo`'s completion callback, see `07 §2`) and **cache it** (apply runs in step 7).
+7. On `RoomReady`: **unpause → apply (two-pass + environment) → `TryBeginGameplaySession()`**, in that order. Apply runs unpaused so movement/physics/AI can settle; `Begin` runs after apply so the SDK records playback from the restored state.
 
 Also plan three distinct sets of hooks:
 - **Post-restore resume** — reuse `/4`'s `OnRoomReadyCallback` / `TryBeginGameplaySession()` (`05-LIFECYCLE-MANAGEMENT.md`). Apply state inside this callback, after unpause, before `Begin`.
