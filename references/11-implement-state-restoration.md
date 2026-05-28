@@ -170,10 +170,15 @@ This is the gate that closes phase 11. With Step 3.5 wired and the rest of the r
    - Two-pass restoration completes — Pass 1 spawn count + Pass 2 apply count + deferred queue drained match the plan.
    - No `Expected type` lines (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`).
 3. **Verify the game is paused (CR-010).** Simulation tick frozen, the level is loaded and populated with restored state, the Ludeo overlay shows the Play button. Nothing in the world advances — no physics, no AI, no scripted ticks.
-4. **Hand off to the player and stop.** Tell the user:
+4. **Hand off to the player for the post-restore resume.** Tell the user:
    > "The Ludeo is loaded and the game is paused. Click **Play** on the overlay, then confirm the restored state matches the captured moment (entity positions, values, references), the game receives `RoomReady` and unpauses, and gameplay proceeds without snap-back or drift."
 
-   Wait for the player's confirmation before declaring phase 11 done. If any of steps 2, 3, or the player's visual check fails, flag the failure against `07 §10` / CR-010 and go back to the relevant earlier step — do not move on.
+5. **Mid-play overlay pause/resume gate — required, not deferred (CR-011).** Once playback is running, prompt the user:
+   > "With the game now playing, **open the Ludeo overlay** and confirm the game **freezes** (no physics, no AI, no scripted ticks — not just input suppressed). Then **close the overlay** and confirm the game **resumes**. Repeat the open/close once more to confirm it survives multiple toggles."
+
+   This is the gate that catches the #1 mid-play failure ("game keeps running while the overlay covers it"). If the game doesn't pause when the overlay opens, the agent did not register `ludeo_Session_AddNotifyPauseGameRequest` / `ResumeGameRequest` at session creation — go back to `/4` §3.5 and add them, then rerun the full smoke test from step 1.
+
+Wait for the player's confirmation on both steps 4 and 5 before declaring phase 11 done. If any of steps 2–5 fails, flag against `07 §10` / CR-010 / CR-011 and go back to the relevant earlier step — do not move on.
 
 **If the game crashes during steps 1–3:** do **not** retry the launch blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame and the thread it crashed on, then classify against `11-TROUBLESHOOTING §6` (null `DataReader` deref, wrong-thread SDK call, `EnterObject`/`LeaveObject` mismatch, stale `id_map` deref, pointer-as-reference, use-after-`ObjectsInfo_Release`, SDK call before `Activate`). Fix at the root — don't paper over with null checks or try/catch — then rerun the full smoke test from step 1.
 

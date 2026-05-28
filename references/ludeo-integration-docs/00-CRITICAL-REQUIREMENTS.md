@@ -421,6 +421,48 @@ void OnRestorationComplete() { /* no pause; gameplay keeps ticking */ }
 
 ---
 
+### 🔴 **CR-011: While the Ludeo Overlay Is Active During Playback, the Game MUST Be Paused**
+
+> **⚠️ THE #1 MID-PLAY FAILURE:** "the game keeps running while the overlay covers it — the player sees a game they can't see, playing itself."
+
+Distinct from CR-010 (the *post-Ludeo-load* pause until `RoomReady`). This is the **ongoing runtime contract**: every time the Ludeo overlay opens during an active playback session, the game must pause; when it closes, the game must resume. The SDK drives both transitions through session-lifetime notifications — register them once at session creation, alongside `LudeoSelected` and `RoomReady` (see [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" and phase 4 §3.5). Missing these registrations is the most common cause of the failure.
+
+**Required:**
+```cpp
+// Overlay opened → FREEZE the simulation tick (not just input)
+static void OnPauseGameRequest(const LudeoSessionPauseGameRequestCallbackParams*)
+{
+    GameSimulation::Get().SetPaused(true);
+}
+
+// Overlay closed → resume
+static void OnResumeGameRequest(const LudeoSessionResumeGameRequestCallbackParams*)
+{
+    GameSimulation::Get().SetPaused(false);
+}
+
+// Registered ONCE at session creation, with the other AddNotify* calls:
+ludeo_Session_AddNotifyPauseGameRequest (session, &p, ctx, OnPauseGameRequest);
+ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
+```
+
+**Forbidden:**
+```cpp
+// ❌ Notifications not registered at all — the SDK has no way to tell the game to pause.
+// ❌ Handler suppresses input only — physics/AI keep mutating the world.
+// ❌ Conflated with CR-010 — that is a separate, one-time freeze gated on RoomReady, not the per-overlay-toggle pause.
+```
+
+**Validation:**
+- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`/4` §3.5).
+- [ ] Opening the Ludeo overlay during an active playback session **freezes the simulation tick** (not just input).
+- [ ] Closing the overlay **resumes** the game.
+- [ ] Repeated open/close cycles behave the same — handlers are idempotent across multiple toggles.
+
+**→ See:** [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" · [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 · CR-010 (post-Ludeo-load pause)
+
+---
+
 ## 📊 **Validation Checklist**
 
 Before considering integration complete, verify these critical requirements:
@@ -477,6 +519,12 @@ Before considering integration complete, verify these critical requirements:
 - [ ] Reopening the overlay mid-playback pauses the game (`PauseGameRequest`); closing it resumes (`ResumeGameRequest`)
 - [ ] Restored state is intact at resume (a running sim didn't overwrite it)
 
+### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)
+- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation
+- [ ] Opening the Ludeo overlay during playback **freezes the simulation tick** (not just input)
+- [ ] Closing the overlay **resumes** the game
+- [ ] Repeated open/close cycles behave the same (handlers idempotent across toggles)
+
 ---
 
 ## 🔗 **Related Documents**
@@ -495,4 +543,4 @@ Before considering integration complete, verify these critical requirements:
 
 ---
 
-**Remember:** These 10 requirements are non-negotiable. Violating them will break your integration.
+**Remember:** These 11 requirements are non-negotiable. Violating them will break your integration.

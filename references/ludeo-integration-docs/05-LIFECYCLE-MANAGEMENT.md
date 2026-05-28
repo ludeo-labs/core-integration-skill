@@ -124,24 +124,61 @@ bool Initialize()
 
 ### Registering Notifications
 
-Register for notifications **after session creation, before** activating the session:
+Register for notifications **after session creation, before** activating the session. **These are session-lifetime — register them once at session creation, not per-Ludeo.** Five are required for a working integration; one is optional:
+
+| Notification | Required? | Triggers / Purpose |
+|---|---|---|
+| `ludeo_Session_AddNotifyLudeoSelected` | ✅ | Player picked a Ludeo from the overlay — entry into the restoration flow (`07-RESTORATION-PATTERNS.md` §2). |
+| `ludeo_Session_AddNotifyRoomReady` | ✅ | Gameplay-session-start gate (§6.5) — and the post-Ludeo-load resume signal during playback (CR-010). |
+| `ludeo_Session_AddNotifyPauseGameRequest` | ✅ | Ludeo overlay opened during playback — **game MUST pause (freeze the sim, not just input)** (CR-011). |
+| `ludeo_Session_AddNotifyResumeGameRequest` | ✅ | Ludeo overlay closed during playback — game resumes (CR-011). |
+| `ludeo_Session_AddNotifyBackToMenuRequest` | ✅ | Player chose "back to menu" from the overlay — tear down the current Ludeo gameplay session + room and navigate to menu. |
+| `ludeo_Session_AddNotifyMuteRequest` | optional | Platform requests mute — mute game audio. |
+
+> ⚠️ **Skipping `PauseGameRequest`/`ResumeGameRequest` is the #1 mid-play failure** — the game keeps running while the Ludeo overlay covers it, and the player sees a game they can't see playing itself. CR-011 makes this non-negotiable.
 
 ```cpp
 void RegisterNotifications()
 {
-    // Register for LudeoSelected - this is how the game knows when a user wants to play a Ludeo
+    // LudeoSelected — entry into restoration (07 §2)
     auto selectedParams = Ludeo::create<LudeoSessionAddNotifyLudeoSelectedParams>();
-    LudeoResult result = ludeo_Session_AddNotifyLudeoSelected(
+    ludeo_Session_AddNotifyLudeoSelected(
         session_handle, &selectedParams, callback_data, OnLudeoSelectedCallback);
-    
-    // Register for RoomReady - CRITICAL: register upon session creation
+
+    // RoomReady — gameplay-session-start gate (§6.5); also the post-Ludeo-load resume (CR-010)
     auto roomReadyParams = Ludeo::create<LudeoSessionAddNotifyRoomReadyParams>();
-    result = ludeo_Session_AddNotifyRoomReady(
+    ludeo_Session_AddNotifyRoomReady(
         session_handle, &roomReadyParams, nullptr, OnRoomReadyCallback);
-    
-    // Check results and handle errors appropriately for your game
+
+    // PauseGameRequest — overlay opened mid-play → FREEZE the sim (CR-011)
+    auto pauseParams = Ludeo::create<LudeoSessionAddNotifyPauseGameRequestParams>();
+    ludeo_Session_AddNotifyPauseGameRequest(
+        session_handle, &pauseParams, callback_data, OnPauseGameRequestCallback);
+
+    // ResumeGameRequest — overlay closed mid-play → resume (CR-011)
+    auto resumeParams = Ludeo::create<LudeoSessionAddNotifyResumeGameRequestParams>();
+    ludeo_Session_AddNotifyResumeGameRequest(
+        session_handle, &resumeParams, callback_data, OnResumeGameRequestCallback);
+
+    // BackToMenuRequest — overlay "back to menu" → tear down + navigate
+    auto backToMenuParams = Ludeo::create<LudeoSessionAddNotifyBackToMenuRequestParams>();
+    ludeo_Session_AddNotifyBackToMenuRequest(
+        session_handle, &backToMenuParams, callback_data, OnBackToMenuRequestCallback);
+
+    // (Optional) AddNotifyMuteRequest — platform-driven audio mute
+
+    // Check each result and handle errors appropriately
 }
 ```
+
+**Handler responsibilities** (the contract — engine-specific implementations vary):
+- `OnLudeoSelectedCallback` — marshal off the SDK thread; continue per `07-RESTORATION-PATTERNS.md` §2.
+- `OnRoomReadyCallback` — `TryBeginGameplaySession()` + unpause. Dual role: gameplay-session-start gate (tracking) AND post-Ludeo-load resume (playback, §6.5).
+- `OnPauseGameRequestCallback` — **freeze the simulation tick** (not just input). Reuse the game's pause; build a minimal tick-freeze if none.
+- `OnResumeGameRequestCallback` — unfreeze the sim.
+- `OnBackToMenuRequestCallback` — tear down the current Ludeo gameplay session + room (SDK Session stays alive); navigate to main menu.
+
+→ See `07-RESTORATION-PATTERNS.md` §2.4 for the overlay-control flow in the restoration context, **CR-010** (post-Ludeo-load pause), and **CR-011** (mid-play overlay pause).
 
 ### Integration Point: Game Startup
 

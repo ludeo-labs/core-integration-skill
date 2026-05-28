@@ -80,8 +80,8 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - **This command does NOT search the codebase** - it reads from the outputs of previous commands
 - The implementation plan follows LudeoManager wrapper pattern (game code calls wrapper methods, not raw SDK functions)
 - All SDK code in the plan is wrapped in `#if LUDEO_SDK_ENABLED` for conditional compilation
-- The plan covers ONLY SDK Lifecycle (initialization, session, tick, shutdown, room management, gameplay sessions)
-- The plan does NOT cover tracking (DataWriter usage) or restoration (DataReader, LudeoSelected)
+- The plan covers SDK Lifecycle (initialization, session, tick, shutdown, room management, gameplay sessions) **and the registration + handler bodies for all session-lifetime notifications** (see below).
+- The plan does NOT cover tracking (DataWriter usage) or the *restoration logic* inside the LudeoSelected handler (DataReader-driven spawning, two-pass, etc. — that's phase 10/11). **It does** cover the LudeoSelected handler stub and *all* overlay-control notifications, because those are session-lifetime concerns, not restoration-specific.
 
 ### Critical Distinctions
 
@@ -93,6 +93,16 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - BeginGameplaySession (from TryBeginGameplaySession helper)
 - RemovePlayer (from OnGameplayEndedCallback)
 - CloseRoom (from OnPlayerRemovedCallback)
+
+**🔔 Session-lifetime notifications the plan MUST cover** (registered once at session creation; see `05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications"):
+- `LudeoSelected` — register + stub handler (full restoration logic lands in `/11`)
+- `RoomReady` — full handler (gameplay-session-start gate; also post-Ludeo-load resume per CR-010)
+- `PauseGameRequest` — full handler: **freeze the simulation tick** (CR-011 — game must pause while the overlay is up)
+- `ResumeGameRequest` — full handler: unfreeze the sim (CR-011)
+- `BackToMenuRequest` — full handler: tear down current Ludeo gameplay session + room, navigate to main menu
+- Optional: `MuteRequest` — mute game audio
+
+> Omitting any of the required four overlay-control notifications causes the #1 mid-play failure: the game keeps running while the overlay covers it. Plan them now; `/4` implements them; CR-011 enforces them.
 
 ## Related Phases
 

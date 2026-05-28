@@ -131,6 +131,21 @@ Follow the plan's hook points. Example modifications (actual files vary by game)
 
 **CRITICAL:** Wrap ALL Ludeo code in `#if LUDEO_SDK_ENABLED ... #endif`
 
+### 3.5. Required: Session Notification Registration (enforce, even if the plan is silent)
+
+After session creation and **before** session activation, the LudeoManager **must** register these notifications. They are session-lifetime — register once, not per-Ludeo. **If the plan from `/3` doesn't include them, add them anyway** — this is a hard requirement, not a plan-driven detail.
+
+| Notification | Required? | If missing, the symptom is… |
+|---|---|---|
+| `ludeo_Session_AddNotifyLudeoSelected` | ✅ | Player picks a Ludeo and nothing happens — no restoration entry. |
+| `ludeo_Session_AddNotifyRoomReady` | ✅ | `GameplaySession_Begin` never fires; tracking never starts; post-Ludeo-load playback never resumes (CR-010). |
+| `ludeo_Session_AddNotifyPauseGameRequest` | ✅ | **Game keeps running while the Ludeo overlay covers it — the #1 mid-play failure (CR-011).** |
+| `ludeo_Session_AddNotifyResumeGameRequest` | ✅ | Overlay closes mid-play but the game stays paused (or never paused — see above). |
+| `ludeo_Session_AddNotifyBackToMenuRequest` | ✅ | Player chooses "back to menu" from the overlay and the game stays in the Ludeo. |
+| `ludeo_Session_AddNotifyMuteRequest` | optional | Platform mute requests ignored. |
+
+**Reference for the registration code + handler responsibilities:** `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications" (under §4). Copy the registration block verbatim and wire the handlers per the responsibility list there.
+
 ### 4. Verification (Pre-Compile)
 
 - [ ] `LudeoConfig.h` stub overwritten with full version
@@ -138,6 +153,8 @@ Follow the plan's hook points. Example modifications (actual files vary by game)
 - [ ] All hook points modified per plan
 - [ ] All modifications have `#if LUDEO_SDK_ENABLED` guards
 - [ ] `.bak` backups exist for all modified files
+- [ ] **All five required session notifications registered** (LudeoSelected, RoomReady, PauseGameRequest, ResumeGameRequest, BackToMenuRequest) — §3.5
+- [ ] **`OnPauseGameRequestCallback` actually freezes the simulation tick** (not just input) — CR-011
 
 ## Output
 
