@@ -175,6 +175,8 @@ This is the gate that closes phase 11. With Step 3.5 wired and the rest of the r
 
    Wait for the player's confirmation before declaring phase 11 done. If any of steps 2, 3, or the player's visual check fails, flag the failure against `07 §10` / CR-010 and go back to the relevant earlier step — do not move on.
 
+**If the game crashes during steps 1–3:** do **not** retry the launch blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame and the thread it crashed on, then classify against `11-TROUBLESHOOTING §6` (null `DataReader` deref, wrong-thread SDK call, `EnterObject`/`LeaveObject` mismatch, stale `id_map` deref, pointer-as-reference, use-after-`ObjectsInfo_Release`, SDK call before `Activate`). Fix at the root — don't paper over with null checks or try/catch — then rerun the full smoke test from step 1.
+
 ## Important Notes
 
 - **Restoration is the inverse of tracking.** Every spawn/getter here mirrors a `/9` create/setter. Same `LudeoStateAdapter`, same `objectType` strings, same stable-ID anchor — if a mapping is missing, the fix belongs in `/8`/`/9`, not a workaround here.

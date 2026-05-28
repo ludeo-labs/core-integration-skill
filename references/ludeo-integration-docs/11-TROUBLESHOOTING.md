@@ -17,6 +17,7 @@ Jump to the symptom:
 - Object appears in capture but its properties don't → §3 Tracking active but values missing
 - Replay references resolve to the wrong object / null → §4 Reference resolution
 - Capture is empty entirely → §5 Nothing is being captured
+- Hard crash during restoration / playback → §6 Restoration crashes
 
 ---
 
@@ -86,6 +87,47 @@ kart_id: Expected type Int32 but client specified UInt32
 - **Batch registration never ran**, or ran during restoration and was correctly skipped but the normal-play path was never reached (see `06 §6.3`).
 - **`LUDEO_SDK_ENABLED` is 0** in the build you're running — verify the active build config actually defines it.
 - **Gameplay session never reached `Begin`** — the callback chain (OpenRoom → AddPlayer → RoomReady → Begin) stalled. Check `05-LIFECYCLE-MANAGEMENT.md`.
+
+---
+
+## 6. Restoration crashes (hard failures, not silent drops)
+
+Unlike §1–§5, these are **hard crashes** during restoration or playback. Almost every one lands in one of seven buckets. Identify which by looking at the failing stack frame, the thread, and the last `ludeo_*` call before the crash — then fix at the root, not by adding a defensive null check or try/catch.
+
+### 6.1 Null `DataReader` deref
+**Stack ends in:** `ludeo_DataReader_SetCurrent` / `GetObjectsInfo` / `Get*` shortly after the `ludeo_Session_GetLudeo` completion callback.
+**Cause:** `GetLudeo`'s callback was consumed without checking `data->resultCode == Success`. On failure the `dataReader` field is null/invalid.
+**Fix:** Always branch on `resultCode` in the `GetLudeo` callback (`07-RESTORATION-PATTERNS.md §2`). Abort restoration on non-Success; never substitute a default reader.
+
+### 6.2 Wrong-thread SDK call
+**Stack:** a `ludeo_*` call on the SDK notification thread, or a main-thread SDK call from inside a mid-tick observer.
+**Cause:** Notification callbacks (`LudeoSelected`, `PauseGameRequest`, `RoomReady`, `GetLudeo` completion) arrive on the SDK's thread. Touching game state or issuing further SDK calls from there without marshalling crashes (or corrupts state).
+**Fix:** Marshal off the SDK notification thread immediately in every handler (`07 §2`). All reader/writer calls run on the main game thread.
+
+### 6.3 `EnterObject` / `LeaveObject` mismatch
+**Stack:** crash inside `ludeo_DataReader_Get*` / `ludeo_DataWriter_Set*` with no obvious null; or an earlier `ludeo_*Object` returned `LUDEO_FALSE` and was ignored.
+**Cause:** Context stack corrupted — an `EnterObject` without its matching `LeaveObject` (or vice versa), or a hand-paired Enter that returned false but the code proceeded anyway.
+**Fix:** Use the RAII `ObjectScope` (CR-002) on both reader and writer sides; check the scope's "entered" flag before issuing attribute calls. Never hand-pair Enter/Leave.
+
+### 6.4 Stale `id_map` deref in Pass 2
+**Stack:** crash dereferencing a returned game object pointer inside Pass 2 (`SetReference`, target lookup).
+**Cause:** Pass 2 looked up a `LudeoObjectId` that wasn't in `id_map` (Pass 1 skipped that object) and the code substituted null instead of failing loud.
+**Fix:** Pass 2's missing-id policy is **fail loud** (`07 §3.3`, §9.6). The bug is in Pass 1 — find the entity it skipped (missing `objectType` in the spawn dispatch, plan mismatch, etc.) and fix there.
+
+### 6.5 Pointer captured as a reference
+**Stack:** crash inside a setter applying a captured "id" to a `target` field; the bytes look like a pointer from another session.
+**Cause:** During `/9`, a reference property was captured with `(uintptr_t)target` instead of `target->GetEntityId()`. The "id" is a stale pointer from the capture session — garbage in this one.
+**Fix:** Recapture as the target's stable game id (`06 §4.4`); update the Cross-Entity References row in `OBJECT_TRACKING.md`; re-run `/9` for that property; re-test.
+
+### 6.6 Use-after-`ObjectsInfo_Release`
+**Stack:** crash iterating `objects[...]` after `ludeo_ObjectsInfo_Release` was already called.
+**Cause:** `Release` happened too early, or iteration continued past a Pass-1/Pass-2 boundary that already released the buffer.
+**Fix:** Hold `LudeoObjectsInfo*` for the lifetime of both passes; release exactly once after Pass 2 (CR-008). A RAII guard around `GetObjectsInfo` (mirroring `ObjectScope`) avoids this.
+
+### 6.7 SDK call before `Activate` (or after `Release`)
+**Stack:** `ludeo_*` returns an invalid handle / null and a downstream deref crashes; or an unhandled exception inside the SDK.
+**Cause:** A handler fires (or the `/11` Step 3.5 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
+**Fix:** Gate every SDK call on session state. For the launch-arg dispatch, hold the pending ludeo id until the `Activate` success callback (or first `ludeo_Tick` after activation) before invoking `LudeoSelected`.
 
 ---
 
