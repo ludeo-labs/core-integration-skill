@@ -129,6 +129,11 @@ Unlike §1–§5, these are **hard crashes** during restoration or playback. Alm
 **Cause:** A handler fires (or the `/11` Step 3.5 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
 **Fix:** Gate every SDK call on session state. For the launch-arg dispatch, hold the pending ludeo id until the `Activate` success callback (or first `ludeo_Tick` after activation) before invoking `LudeoSelected`.
 
+### 6.8 Old Ludeo + new attribute schema (assert on read)
+**Stack:** assert / crash inside `ludeo_DataReader_Get*` (or a reader-side scope guard) on a previously-working playback path.
+**Cause:** `/9` added a new captured attribute (or renamed/retyped one) but the test Ludeo was recorded before that change. The SDK **asserts** when `ReadData` is called for an attribute that doesn't exist in the captured data — it does not gracefully return absent.
+**Fix:** Re-record the Ludeo against the current write-side schema. When the captured-attribute set changes, document it as a breaking change and re-record old test Ludeos.
+
 ---
 
 ## Verification checklist (do this against a live capture)
@@ -138,6 +143,7 @@ Unlike §1–§5, these are **hard crashes** during restoration or playback. Alm
 - [ ] Confirmed each planned attribute is present with the expected type.
 - [ ] Confirmed actions land (objectives/scoring react, or the log shows the action).
 - [ ] Confirmed reference fields resolve to the correct objects on a replay.
+- [ ] Grepped the log for `[Ludeo] Data: Error` / `[Ludeo] Core: Error` / `[Ludeo] Session: Error` — SDK-level errors don't surface in game-integration logs and are the first place to look on any silent failure.
 
 ---
 

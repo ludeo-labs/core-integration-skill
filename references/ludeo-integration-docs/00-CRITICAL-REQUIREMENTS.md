@@ -363,59 +363,60 @@ void Game::OnLevelLoadStart() {
 
 ---
 
-### 🔴 **CR-010: After a Ludeo Loads, the Game MUST Be PAUSED While the Overlay Awaits the Player**
+### 🔴 **CR-010: During Restoration the Game MUST Be Paused; Unpause BEFORE the Apply, Then Begin**
 
 > **⚠️ THE #1 RESTORATION FAILURE:** "loads the right map, but the game keeps running and the restored state is wrong."
 
-The moment restoration finishes, the game has **not** been handed to the player yet. The Ludeo **overlay** shows the **Play** button and waits for the player. Until the player presses it, the game **MUST be paused — the simulation tick frozen, not merely input suppressed.**
+From the moment `LudeoSelected` fires until `RoomReady`, the game **MUST be paused — simulation tick frozen, not just input.** That pause closes the race between level-load (which spawns the level's default content) and state apply (which must win over those defaults). On `RoomReady`, **unpause FIRST, then apply state, then `Begin`** — in that order. The apply needs the game ticking so movement, physics, AI, and animation can settle on the restored values; `Begin` is what starts SDK recording of playback, so it must come after the apply.
 
-**Why this is mandatory:**
-- A running simulation (physics, AI, scripts, the level's own init) **overwrites the state you just restored** — this is the direct cause of "state isn't reconstructed properly."
-- The player would otherwise see the game blast past the restored moment in the one frame before they can react.
+**Sequence (mirrors `07 §2.1`):**
 
-**The full pause/resume contract — two distinct cases, do not conflate them:**
-
-- **Pause after a Ludeo loads** — set **by the game itself** the moment restoration completes. The player hasn't been handed control yet.
-- **Resume after a Ludeo load** — the player presses **Play** on the overlay → the game receives **`RoomReady`** → begin the gameplay session (`ludeo_GameplaySession_Begin`, via the chain `05-LIFECYCLE-MANAGEMENT.md` already documents) → **unpause**. This is the **same** gameplay-session-start mechanism `/4` wired for tracking; playback reuses it.
-- **Mid-play overlay open/close** — the player reopens the overlay during an active playback session → `PauseGameRequest` to pause, `ResumeGameRequest` to resume. These do **not** carry the post-restore resume.
+1. `LudeoSelected` fires → **pause game (set sim paused)**, tear down active session/room, suppress input.
+2. Load level → cache the `DataReader` from `GetLudeo`'s callback. Game stays paused.
+3. Overlay shows Play → player presses it → SDK runs `OpenRoom → AddPlayer → RoomReady`.
+4. **In `OnRoomReadyCallback`: unpause → apply state (Pass 1 + Pass 2 + environment) → `TryBeginGameplaySession()`.**
 
 ```cpp
-// ✅ Restoration just finished → FREEZE and wait. Do NOT resume here.
-void LudeoManager::OnRestorationComplete() {
-    GameSimulation::Get().SetPaused(true);     // freeze the TICK, not just input
-    m_playback_state = WaitingForRoomReady;
-    // The Ludeo overlay shows the Play button — do NOT draw your own prompt.
+// ✅ LudeoSelected fires → PAUSE IMMEDIATELY. The pause spans level-load + GetLudeo + waiting for Play.
+void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
+    GameSimulation::Get().SetPaused(true);        // freeze the TICK, not just input
+    // ... tear down active session/room, suppress input, load level, dispatch GetLudeo (see 07 §2.2)
 }
 
-// ✅ Player pressed Play on the overlay → SDK runs OpenRoom→AddPlayer→RoomReady→Begin
-//    (see 05-LIFECYCLE-MANAGEMENT). On RoomReady, begin the gameplay session and UNPAUSE.
-//    THIS is the post-restore resume — not ResumeGameRequest.
+void OnGetLudeoCallback(const LudeoSessionGetLudeoCallbackParams* data) {
+    if (data->resultCode != LudeoResult::Success) { /* abort */ return; }
+    m_pending_reader = data->dataReader;          // CACHE; do not apply yet
+}
+
+// ✅ Player pressed Play → SDK runs OpenRoom→AddPlayer→RoomReady. UNPAUSE FIRST,
+//    apply state with the game running so movement/physics/AI react, THEN Begin.
 void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams*) {
-    TryBeginGameplaySession();                 // /4's helper (begins when player added + room ready)
-    GameSimulation::Get().SetPaused(false);    // unpause as gameplay starts
+    GameSimulation::Get().SetPaused(false);       // unpause FIRST
+    if (m_pending_reader) {
+        ludeo_DataReader_SetCurrent(m_pending_reader);
+        StateAdapter::Get().RestoreTwoPass(m_pending_reader);
+        StateAdapter::Get().RestoreEnvironment(m_pending_reader);
+        m_pending_reader = nullptr;
+    }
+    TryBeginGameplaySession();                    // Begin AFTER apply
 }
-
-// ✅ MID-PLAY only: overlay reopened → pause; overlay closed → resume.
-static void OnPauseGameRequest (const LudeoSessionPauseGameRequestCallbackParams*)  { GameSimulation::Get().SetPaused(true);  }
-static void OnResumeGameRequest(const LudeoSessionResumeGameRequestCallbackParams*) { GameSimulation::Get().SetPaused(false); }
 ```
 
 **Forbidden:**
 ```cpp
-// ❌ Continuing the sim while the overlay waits — restored state is overwritten.
-void OnRestorationComplete() { /* no pause; gameplay keeps ticking */ }
-
+// ❌ Applying state inside the GetLudeo callback (before RoomReady, before the overlay's Play).
+//    The level just loaded; default-init is still running; the apply will be overwritten.
+// ❌ Calling Begin BEFORE the apply — the SDK records playback from default state.
 // ❌ Pausing only input while the simulation tick keeps running.
 // ❌ Waiting on ludeo_GameplaySession_AddNotifyPlayerReady — that notification DOES NOT EXIST.
-// ❌ Treating ResumeGameRequest as the post-restore resume — that is the MID-PLAY resume.
-//    Post-restore resume goes through RoomReady → Begin (the chain /4 already wired).
+// ❌ Treating ResumeGameRequest as the post-restore resume — that is the MID-PLAY resume (CR-011).
 ```
 
 **Validation:**
-- [ ] After a Ludeo loads, the game is **paused (tick frozen)** before the player does anything.
-- [ ] The post-Ludeo-load resume is driven by **`RoomReady` → `Begin`** — not a self-built prompt, not `PlayerReady`, not `ResumeGameRequest`.
-- [ ] Reopening the overlay mid-playback pauses the game (`PauseGameRequest`); closing it resumes (`ResumeGameRequest`).
-- [ ] Restored state is intact at the moment of resume (a running sim didn't overwrite it).
+- [ ] Game pauses **at `LudeoSelected`** (not after restoration completes); pause spans level load + `GetLudeo` + waiting for Play.
+- [ ] In the `RoomReady` callback the order is **unpause → apply (Pass 1 + Pass 2 + env) → `Begin`**.
+- [ ] Restored state is visible after Begin (not overwritten by the level's default init or a running sim during apply).
+- [ ] No `PlayerReady` reference anywhere; `ResumeGameRequest` is used only for the mid-play overlay-closed resume (CR-011).
 
 **→ See:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 (overlay control notifications) and §7 (wait-for-player)
 
@@ -513,11 +514,11 @@ Before considering integration complete, verify these critical requirements:
 - [ ] `BeginGameplaySession()` called from helper after both conditions met
 - [ ] NOT calling callback-driven operations from game event handlers
 
-### CR-010: Paused While Overlay Awaits Player (⚠️ #1 RESTORATION FAILURE)
-- [ ] After a Ludeo loads, the game is paused (simulation tick frozen) before the player acts
-- [ ] Post-Ludeo-load resume is driven by `RoomReady` → `Begin` (the chain `/4` wired) — not a self-built prompt, not `PlayerReady`, not `ResumeGameRequest`
-- [ ] Reopening the overlay mid-playback pauses the game (`PauseGameRequest`); closing it resumes (`ResumeGameRequest`)
-- [ ] Restored state is intact at resume (a running sim didn't overwrite it)
+### CR-010: Paused During Restoration; Unpause-Apply-Begin on RoomReady (⚠️ #1 RESTORATION FAILURE)
+- [ ] Game pauses at `LudeoSelected` (not after restoration completes); pause spans level load + `GetLudeo` + waiting for Play
+- [ ] `OnRoomReadyCallback` order is **unpause → apply (Pass 1 + Pass 2 + env) → `TryBeginGameplaySession`**
+- [ ] Restored state is visible after `Begin` — not overwritten by the level's default init or a running sim during apply
+- [ ] No `PlayerReady`; `ResumeGameRequest` only used for mid-play overlay close (CR-011)
 
 ### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)
 - [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation

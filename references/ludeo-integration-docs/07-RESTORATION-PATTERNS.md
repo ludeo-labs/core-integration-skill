@@ -67,27 +67,24 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 [Any State — game start, main menu, paused, loading, mid-gameplay]
     │
     ▼ LudeoSelected fires
+[PAUSE the game NOW] — freeze the simulation tick immediately (CR-010)
+    │   The pause spans every step below, until RoomReady. The window between
+    │   level-load and state-apply is a race condition; pausing closes it.
+    ▼
 [Interrupt Current Activity]
-    │  - Tear down any active gameplay session and room (Session stays alive)
-    │  - Cancel in-flight transitions
-    │  - Suppress non-restoration input
+    │  - Tear down any active gameplay session and room (SDK Session stays alive)
+    │  - Cancel in-flight transitions; suppress non-restoration input
     ▼
-[Load Required Level / Scene]
-    │  - Use the level identifier from the Ludeo metadata
-    │  - Block until load completes
+[Load Required Level / Scene]   (paused)
+    │  - Level id from Ludeo metadata; block until loaded
     ▼
-[Two-Pass Restoration]
-    │  - Pass 1: Create all objects
-    │  - Pass 2: Apply properties + resolve references
-    ▼
-[Environment Restoration]
-    │  - World flags, time-of-day, weather, etc.
-    ▼
-[Wait-For-Player — game PAUSED, simulation frozen]
-    │  - Ludeo overlay shows the Play button (game does NOT draw one)
-    ▼ Player presses Play → SDK runs OpenRoom→AddPlayer→RoomReady→Begin
-[On RoomReady → TryBeginGameplaySession → unpause]
-    │  (same gameplay-session-start chain `/4` wired — see 05-LIFECYCLE)
+[GetLudeo — cache the DataReader]   (paused; apply runs later)
+    │  - Overlay shows the Play button (game does NOT draw one)
+    ▼ Player presses Play → SDK runs OpenRoom→AddPlayer→RoomReady
+[On RoomReady]
+    │  1. UNPAUSE — apply needs the game running so movement/physics/AI can settle
+    │  2. Apply state from the cached DataReader: two-pass restoration + environment
+    │  3. TryBeginGameplaySession() — Begin AFTER apply, so the SDK records from restored state
     ▼
 [Resume Gameplay]
 ```
@@ -96,40 +93,42 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 
 ```pseudo
 on_ludeo_selected(ludeoId):              # SDK notification thread — marshal to main thread FIRST
+    pause_simulation()                       # FREEZE immediately (CR-010); pause spans level-load + GetLudeo
     if current_state == GAMEPLAY:
         end_current_gameplay_session()
     suppress_input()
     cancel_in_flight_transitions()
 
-    load_level(level_from_ludeo_metadata)   # level/scene id from the Ludeo metadata
-    await_level_loaded()
+    load_level(level_from_ludeo_metadata)
+    await_level_loaded()                     # still paused
 
-    # The DataReader is delivered ASYNCHRONOUSLY by GetLudeo's callback — there is no
-    # synchronous open-reader call. Request it; continue in on_get_ludeo:
+    # GetLudeo is async — its callback delivers the DataReader. CACHE it here;
+    # the apply runs later in on_room_ready, after unpause.
     ludeo_Session_GetLudeo(session, { apiVersion, ludeoId }, on_get_ludeo)
 
-on_get_ludeo(callbackParams):            # GetLudeo completion callback — marshal to main thread
+on_get_ludeo(callbackParams):            # GetLudeo completion — marshal to main thread
     if callbackParams.resultCode != Success:
         abort_restoration(); return
-    reader = callbackParams.dataReader   # <-- the reader arrives here
-    ludeo_DataReader_SetCurrent(reader)
-    state_adapter.restore_two_pass(reader)
-    state_adapter.restore_environment(reader)
-    pause_simulation()                   # FREEZE the tick — CR-010; overlay shows Play
+    pending_reader = callbackParams.dataReader   # cache; do NOT apply yet
 
-on_room_ready(callbackParams):           # SDK fires this when the player presses Play
-    try_begin_gameplay_session()         # /4's helper (begins when player added + room ready)
-    resume_simulation()                  # UNPAUSE — gameplay starts here
+on_room_ready(callbackParams):           # SDK fires when player presses Play (gameplay-session-start chain)
+    resume_simulation()                          # UNPAUSE FIRST — apply needs game running for movement/physics/AI
+    if pending_reader:
+        ludeo_DataReader_SetCurrent(pending_reader)
+        state_adapter.restore_two_pass(pending_reader)       # match-or-spawn + apply (§3)
+        state_adapter.restore_environment(pending_reader)    # §8
+        pending_reader = null                                # one-shot
+    try_begin_gameplay_session()                 # Begin AFTER apply — SDK records from restored state
 ```
 
 > **On `level_from_ludeo_metadata`:** the level/scene identifier is **integration-defined, not a dedicated SDK call to hunt for.** It's data *your own tracking captured* — read it back from the restored state (e.g. a world/session attribute `/9` wrote, or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there). If the plan didn't capture a way to identify the level, that's a gap to fix in `/8`/`/9`, not a missing SDK function.
 
 ### 2.3 What the Handler Must NOT Do
 
-- Block the SDK's notification thread. Marshal to the main thread or a
-  queued task immediately.
+- Block the SDK's notification thread. Marshal to the main thread or a queued task immediately.
 - Assume the game is in a "safe" state. Always handle the interrupt path.
 - Restore directly into a live gameplay session. Tear down first.
+- **Run write-side SDK calls during playback.** Restoration is **read-only**: no `CreateObject`, no `Set*`, no `BindPlayer`, no per-tick capture, no action `Send*`. The `IsRestoring()` seam from `/9` gates batch registration; the same gate (or its equivalent — phase 11 Important Notes) must guard every write path the game has, or restoration races against itself and pollutes the playback. Entity *discovery* for action detection still runs (otherwise actions go undetected during playback) — only the writer-API calls are off.
 
 ### 2.4 Overlay & platform control notifications — the game does NOT drive pause/resume itself
 
@@ -307,18 +306,17 @@ per-entity matrix, not by global policy.
 
 ## 6. Deferred Property Application
 
-Some properties cannot be applied at the moment the entity is spawned:
+Some properties cannot be applied synchronously in the apply path because their setter reaches into subsystems that aren't initialized yet at that moment. Apply those on the **next tick**:
 
 - **Animation state** — requires the skeletal mesh to be initialized.
-- **Physics** — requires the physics body to be registered.
-- **Ability state** — requires gameplay subsystems to be online.
+- **Physics velocity / impulses** — requires the physics body to be registered.
+- **Ability / attribute-system state** — requires the ability system to be online.
 - **Networked replicated state** — requires the replication graph to be ready.
+- **Health (or any "trivial" attribute whose setter fans out into handlers)** — the setter looks like a one-liner, but the handler chain (widget creation, mesh material updates, AI perception, damage events) crashes or no-ops on uninitialized targets. Defer.
 
 ### 6.1 Detection
 
-Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output
-of `/10-plan-state-restoration`). Common heuristic: anything that fails or
-no-ops when set in a constructor needs deferral.
+Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output of `/10-plan-state-restoration`). General rule: **if a setter's handler reaches into another subsystem, defer it.** Heuristic: anything that fails, no-ops, or crashes when set in a constructor lands here.
 
 ### 6.2 Pattern
 
@@ -347,49 +345,18 @@ runtime.
 
 ## 7. Wait-For-Player Flow
 
-> 🔴 **CR-010 — crystal clear, non-negotiable:** **the instant a Ludeo finishes loading, the game is PAUSED — simulation tick frozen, not just input — and it stays paused while the Ludeo overlay waits for the player to press Play.** It resumes when the player presses Play and the game receives **`RoomReady`** (→ `Begin`, the gameplay-session-start chain already documented in `05-LIFECYCLE-MANAGEMENT.md`). The game must never run, tick, or advance state during this wait — a running sim overwrites the restored state, which is exactly the "loads the right map but the state is wrong" failure. There is no `PlayerReady`; do not build your own prompt to bypass this; `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one.
+> 🔴 **CR-010 — non-negotiable:** **from the moment `LudeoSelected` fires, the game is PAUSED — simulation tick frozen, not just input.** The pause spans the interrupt, level load, `GetLudeo`, and the wait for the overlay's Play button. On `RoomReady`, **unpause FIRST**, then apply state, then `Begin`. The unpause-before-apply order matters: the apply needs the game ticking so movement/physics/AI can settle on the new state before `Begin` starts recording playback. There is no `PlayerReady`. `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one (§2.4).
 
-After restoration completes, the game should **pause (freeze the simulation) and
-wait for the player to press Play on the overlay**, which the SDK signals with
-**`RoomReady`** (→ `Begin`, via the gameplay-session-start chain already documented
-in `05-LIFECYCLE-MANAGEMENT.md`). This serves two purposes:
+The pause that started at `LudeoSelected` (§2.1 / §2.2) is what makes the wait safe. Two roles:
 
-1. **UX:** The player just selected a Ludeo and doesn't expect gameplay to
-   start mid-animation.
-2. **Robustness:** Any restoration glitches surface visually before the
-   player is fighting them.
+1. **Closes the race window** between level-load and apply — without the pause, the game ticks with default-init state until apply lands, and that window is where "Ludeo loaded but state is wrong" failures originate.
+2. **UX** — the player picked a Ludeo from the overlay and doesn't expect gameplay to start mid-animation; the overlay's Play button is the explicit handoff.
 
-### 7.1 State
+### 7.1 Implementation notes
 
-```
-[Restoration Complete]
-    │
-    ▼
-[Paused — frozen, waiting for the player on the overlay]
-    │  - Freeze the simulation tick (not just input)
-    │  - The Ludeo OVERLAY shows the Play button (you do not draw one)
-    ▼  Player presses Play → SDK runs OpenRoom→AddPlayer→RoomReady→Begin
-[On RoomReady → TryBeginGameplaySession → unpause]   (chain owned by 05-LIFECYCLE)
-    ▼
-[Resume Gameplay]
-```
-
-### 7.2 Implementation Notes
-
-- **Freeze the simulation, not just input.** Otherwise physics/AI drift — and
-  overwrite the values you just restored — during the wait. Reuse the game's
-  pause system if it has one; build a minimal tick-freeze if it doesn't
-  (Group 3 games often lack pause).
-- **Resume on `RoomReady` (then `Begin`), not a self-made prompt and not `ResumeGameRequest`.**
-  When the player presses Play on the overlay, the SDK runs the gameplay-session-start chain
-  `OpenRoom → AddPlayer → RoomReady → Begin` — already documented in
-  `05-LIFECYCLE-MANAGEMENT.md` for tracking-start; **playback reuses the same chain**.
-  In the `RoomReady` callback, call `TryBeginGameplaySession()` and **unpause**.
-  **There is no `PlayerReady` notification in this SDK; do not wait on one.**
-  `ResumeGameRequest` is the **mid-play** overlay-closed resume — not the post-restore one (§2.4).
-- **Stay frozen until `RoomReady`.** Nothing in the game world may advance between
-  "restoration complete" and the `RoomReady` callback that begins the playback session.
-  That frozen window is what keeps the live simulation from overwriting the restored snapshot (§9).
+- **Freeze the simulation tick, not just input.** Otherwise physics/AI/scripts drift during the wait and over the apply that follows. Reuse the game's pause system; build a minimal tick-freeze if none (common in Group 3).
+- **Unpause BEFORE the apply (in the `RoomReady` callback), not after.** A teleport / setHealth / spawn issued against a paused world doesn't propagate — components need a tick to react. Order: `unpause → apply → TryBeginGameplaySession`. See §2.1 / §2.2.
+- **The overlay shows Play — don't build your own prompt.** Resume is `RoomReady → Begin`; do not wait on `PlayerReady` (it doesn't exist in this SDK) or on `ResumeGameRequest` (mid-play only, §2.4).
 
 ---
 
