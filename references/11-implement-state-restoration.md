@@ -87,6 +87,18 @@ This is the entry point — the inverse of the session lifecycle entry `/4` wire
 
 Show each insertion as propose-confirm-execute. If a tear-down or level-load hook the plan named doesn't exist, propose adding it as a separate, named change first.
 
+### Step 3.5: Local-testing hook — launch-arg Ludeo id
+
+So devs can exercise restoration **without going through the Ludeo overlay**, add a launch argument that synthesizes a `LudeoSelected` for the handler wired in Step 3. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader` (07 §2). **Do not fake the `DataReader`** or short-circuit `GetLudeo`.
+
+Implementation:
+- **Parse the arg at startup** using the game's existing arg conventions — `--ludeo=<id>` (POSIX-style), `-ludeo <id>` (Unreal's `FParse::Value`), proprietary command-line table, etc. Match the engine; don't prescribe a format.
+- **Stash the id** on `LudeoManager` (e.g. `m_pending_local_ludeo_id`); don't act on it during early init.
+- **Dispatch once the session is ready** — after `ludeo_Session_Activate` succeeds and Step 3's `AddNotifyLudeoSelected` is registered (earlier, `GetLudeo` can't be called and the chain has nothing to drive). Cleanest hook: the session-activation success callback, or a one-shot check on the first `ludeo_Tick` after activation. Dispatch by invoking the same handler the SDK calls (e.g. `OnLudeoSelected(ludeoId)` helper), then clear the stash so it fires once.
+- Wrap in `#if LUDEO_SDK_ENABLED` (CR-001). The arg is a no-op when `LUDEO_SDK_ENABLED=0`.
+
+Result: launching the game with `--ludeo=<id>` (or engine-equivalent) runs the full restoration flow end-to-end — `LudeoSelected → GetLudeo → DataReader → restore → wait-for-player → RoomReady → Begin` — without needing the platform overlay.
+
 ### Step 4: Implement Pass 1 — Spawn + Build the ID Map
 
 Inverse of `/9` Step 3 (Register/CreateObject). In `RestoreTwoPass`:
@@ -172,10 +184,11 @@ Inverse of `/9` Step 6 (batch registration). For each pre-existing entity type i
 
 After running this command:
 1. Run `/5-compile-and-fix` with `LUDEO_SDK_ENABLED=1` and `=0`
-2. Receive LudeoSelected at the main menu — verify clean restoration + wait-for-player
-3. Receive LudeoSelected mid-gameplay — verify gameplay session + room tear-down then clean restoration
-4. Confirm a cross-entity reference restores correctly (two-pass exercised)
-5. **Press Play on the Ludeo overlay after a Ludeo loads — the game receives `RoomReady`, the gameplay session begins (`Begin`), and the game unpauses** (CR-010, 07 §7). Until then it stays frozen.
-6. **Open the Ludeo overlay during playback — the game must pause (frozen tick); close it — the game resumes** (`PauseGameRequest`/`ResumeGameRequest`, mid-play overlay open/close, 07 §2.4)
-7. **Confirm restored state survives resume** — spot-check that the live sim and the level's default init didn't overwrite restored values (07 §9.10)
-8. Walk the validation checklist in `07-RESTORATION-PATTERNS.md §10`
+2. **Local trigger:** launch the game with `--ludeo=<id>` (or engine-equivalent) and verify the full chain runs end-to-end without the platform overlay (Step 3.5)
+3. Receive LudeoSelected at the main menu — verify clean restoration + wait-for-player
+4. Receive LudeoSelected mid-gameplay — verify gameplay session + room tear-down then clean restoration
+5. Confirm a cross-entity reference restores correctly (two-pass exercised)
+6. **Press Play on the Ludeo overlay after a Ludeo loads — the game receives `RoomReady`, the gameplay session begins (`Begin`), and the game unpauses** (CR-010, 07 §7). Until then it stays frozen.
+7. **Open the Ludeo overlay during playback — the game must pause (frozen tick); close it — the game resumes** (`PauseGameRequest`/`ResumeGameRequest`, mid-play overlay open/close, 07 §2.4)
+8. **Confirm restored state survives resume** — spot-check that the live sim and the level's default init didn't overwrite restored values (07 §9.10)
+9. Walk the validation checklist in `07-RESTORATION-PATTERNS.md §10`

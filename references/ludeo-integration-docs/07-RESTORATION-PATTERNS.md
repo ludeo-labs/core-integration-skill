@@ -149,6 +149,10 @@ Two consequences that decide whether restoration actually works:
 
 These notifications are **session-lifetime** (register once at session creation, not per-Ludeo), and they apply to the whole Ludeo experience, not just the moment of restoration.
 
+### 2.5 Local trigger — `--ludeo=<id>` launch arg
+
+To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `/11` Step 3.5.
+
 ---
 
 ## 3. Two-Pass Restoration (CR-006)
@@ -492,6 +496,7 @@ Before considering restoration "done" on a game:
 - [ ] Restored values survive: spot-check that the live simulation and the
       level's default init do **not** overwrite restored state after resume (§9.10).
 - [ ] `BackToMenuRequest` returns to the menu and tears down the current Ludeo.
+- [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `/11` Step 3.5).
 
 ---
 
