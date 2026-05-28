@@ -255,6 +255,23 @@ Write `ludeo-integration-plan/RESTORATION_PLAN.md`:
 | ... | ... | ... |
 ```
 
+### Step 12.5: Self-validate the plan before the human review
+
+Before handing off to the user, walk the plan you just wrote and confirm each item below — catch gaps now rather than letting them surface in `/11`:
+
+- [ ] **Mirror is complete.** For every entity in `OBJECT_TRACKING.md` there is a restoration block; for every property row there is a setter + Pass-2 mapping (or it's in the deferred queue). No row left un-reversed.
+- [ ] **No stub rows.** Every spawn function, setter, `id_map` key, and hook is named with a file:function (or a clearly-flagged Open Question) — not `TODO`, not "to be filled."
+- [ ] **Cross-Entity References table covers every reference property.** Missing rows silently break two-pass.
+- [ ] **Order is right.** Sequence: pause at `LudeoSelected` → cache reader in `OnGetLudeo` → on `RoomReady` **unpause → apply (Pass 1 + Pass 2 + env) → `Begin`** (CR-010). Not Begin-then-apply; not apply-in-GetLudeo.
+- [ ] **Overlay-control hooks named** (`PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` → CR-011), not "TBD" and not deferred to `/4`'s discretion.
+- [ ] **Deferred queue is ordered** and each entry names *why* it defers (which subsystem it waits on).
+- [ ] **Pre-existing reconciliation chose match-vs-spawn per entity** with a stable-ID match key — no placed-by-default entity left as "spawn fresh."
+- [ ] **Environment ordering** is after-entities; exclusion list is rationalized.
+- [ ] **Low-confidence + Open Questions** populated (or explicitly empty with a one-line note — empty on a complex game is itself a yellow flag).
+- [ ] **Disagreements with `OBJECT_TRACKING.md` or `GAME_ANALYSIS_SAVE_SYSTEM.md`** are surfaced for the user, not silently reconciled.
+
+If any item fails, fix the plan and re-check before Step 13 — do not advance to human review with known gaps.
+
 ### Step 13: Halt for Human Review
 
 After writing the plan, summarize for the user and ask them to review:
