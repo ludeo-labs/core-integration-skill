@@ -94,6 +94,8 @@ Look up each entity in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`:
 - **reconciliation** → tracking will mirror the game's save plumbing
 - **manual** → tracking will write each property explicitly
 
+> ⚠️ **A strong save system does not mean reconciliation.** Reconciliation only works when the game serializes to **named fields** that map onto Ludeo's named attributes. A binary/packed/opaque blob save (e.g. a rewind/replay buffer) is **not** reusable as reconciliation even if it's excellent — and it may not even be active in the mode you're capturing. When the save is opaque, mark the entity **manual** and capture discrete attributes (`06 §1.4`). This is often the single most consequential call in this phase — don't default to reconciliation just because a save system exists. See `02F §8`.
+
 If an entity isn't in the matrix, add it there before continuing.
 
 ### Step 9: Identify Batch Registration Path

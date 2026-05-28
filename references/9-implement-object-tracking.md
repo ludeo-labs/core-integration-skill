@@ -24,11 +24,14 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 **Action Required:** Read the following files. Do not assume they are in context.
 
-- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §1.4 (attributes-vs-blobs — default to attributes), §3 (lifecycle), §4 (identity/mapping), §5 (manager integration), §6 (batch registration). All canonical code patterns live here.
+- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §1.4 (attributes-vs-blobs — default to attributes), §3 (lifecycle), §4 (identity/mapping), §5 (manager integration — **§5.4 centralized pull vs entity-embedded**), §6 (batch registration). All canonical code patterns live here.
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` — CR-001 (`#if LUDEO_SDK_ENABLED` guards), CR-002 (Enter/Leave pairing via `ObjectScope`)
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — per-entity reconciliation vs manual
+- `ludeo-integration-docs/11-TROUBLESHOOTING.md` — runtime failure modes (especially §1 attribute type-locking) to check against a live capture after wiring
 
 ## Your Task
+
+> ⚠️ **Verify every `ludeo_*` signature against the cloned SDK headers before emitting it.** The canonical snippets in `06-TRACKING-PATTERNS.md` (`§3.2` CreateObject, `§3.4` DestroyObject, `§4.3` the adapter, `§7` actions) show the *shape* of each call, but the skill clones the **latest** SDK release, so exact parameter lists, struct fields, `*_API_LATEST` macro names, and the `LudeoBool` vs `LudeoResult` return types can drift. Open `Include/Ludeo/DataWriter.h` + `DataWriterTypes.h` in the clone and confirm — e.g. the `Set*` setters take `(attributeName, value)` against the current object context and return `LudeoBool`, while `CreateObject`/`DestroyObject`/`SendAction` take the writer handle + a params struct and return `LudeoResult`. Don't paste a signature you haven't checked.
 
 ### Step 1: Read the Plan
 
@@ -42,6 +45,15 @@ Read `ludeo-integration-plan/OBJECT_TRACKING.md`. Extract per entity:
 Also extract the Codebase Pattern Summary, Batch Registration Sites, and Cross-Entity References tables.
 
 Skip entities with unresolved Open Questions — confirm with the user before generating code for them.
+
+### Step 1.5: Choose the Implementation Style
+
+There are two valid ways to wire tracking (see `06-TRACKING-PATTERNS.md §5.4`). Decide up front — it changes where Steps 3–5 put code:
+
+- **Entity-embedded** (default for most games): `RegisterWithLudeo()`/`UnregisterFromLudeo()` and `LUDEO_CAPTURE_*` macros live inside the entity classes; entities push their own state. Use when state changes through setters/events you can hook precisely, accessors are missing or expensive, or object lifetimes are irregular.
+- **Centralized pull adapter**: all SDK calls live in `LudeoStateAdapter`, which iterates the game's objects through their existing public getters and pulls state. **Touches zero game files.** Prefer this when objects come from a manager/factory (§2.2) with clean accessors, you already batch-register at session start, and the codebase wants "no SDK calls outside the integration module" (CR-009's spirit).
+
+You may mix: pull for clean manager-owned entities, embedded for the awkward ones. State the chosen style (per subsystem if mixed) and confirm with the user before generating code. If centralized-pull is chosen, Steps 3–5 happen **inside the adapter** rather than in entity classes — the identity, gating, `ObjectScope`, and `#if LUDEO_SDK_ENABLED` rules are identical, just centralized.
 
 ### Step 2: Ensure Shared Infrastructure Exists
 
@@ -100,11 +112,28 @@ Critical discipline:
 
 ### Step 6: Wire Batch Registration for Pre-Existing Objects
 
-For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` to avoid double-registration during `phase 11`'s restoration path.
+For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phase 10/11) is wired, this hook won't double-register objects that restoration recreates.
+
+**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 10/11 lands; don't invent a different check:
+
+```cpp
+#if LUDEO_SDK_ENABLED
+    // Returns false until restoration (phase 10/11) sets m_is_restoring true while
+    // a Ludeo replay is being reconstructed. Gates batch registration so we don't
+    // double-register objects that restoration will recreate.
+    bool IsRestoring() const { return m_is_restoring; }
+private:
+    bool m_is_restoring = false;  // set by the restoration phase, not here
+#endif
+```
+
+Propose this stub as part of the batch-registration change. Do not gate on a pending-ludeo id or other ad-hoc signal — `IsRestoring()` is the seam the later phases expect.
 
 ### Step 7: Reconciliation Wiring (Per-Entity, Only Where the Matrix Says So)
 
 For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: locate the entity's existing `Serialize`/`Save` method and add a Ludeo capture that mirrors the fields it writes. For **manual** entities, all writes are explicit per Step 5 — no reconciliation wiring.
+
+> ⚠️ **Reconciliation only applies when the save writes named fields.** If the entity's `Serialize`/`Save` produces an opaque/packed blob rather than discrete named fields, you **cannot** mirror it into Ludeo's named-attribute API — capture discrete attributes (Step 5) instead and treat the entity as manual, regardless of what the matrix says. If you find a "reconciliation" entry that actually serializes a blob, flag it for the user rather than wiring a blob-mirroring capture (`02F §8`, `06 §1.4`).
 
 ### Step 8: Summary
 
@@ -128,7 +157,7 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 
 ### Next
 1. Run `phase 5` to verify clean compile both with and without LUDEO_SDK_ENABLED
-2. Verify a sample capture contains the expected objects + attributes
+2. Capture a real session and verify it contains the expected objects + attributes — a clean compile does not prove tracking works. Search the capture/session log for `Expected type` (attribute type-lock mismatches are dropped silently at runtime; see `11-TROUBLESHOOTING.md §1`).
 3. Run `phase 10` next
 ```
 
@@ -154,5 +183,5 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 After running this command:
 1. Run `phase 5` with `LUDEO_SDK_ENABLED=1` and `=0`
 2. Run the game; verify registration logs at gameplay session begin
-3. Sample a capture and confirm planned objects + attributes are present
+3. Sample a **real capture** and confirm planned objects + attributes are present — and that none were dropped. Check the log for `Expected type` (server-side type-locking; `11-TROUBLESHOOTING.md §1`).
 4. Run `phase 10`
