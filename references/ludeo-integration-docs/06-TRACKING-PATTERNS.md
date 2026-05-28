@@ -940,13 +940,31 @@ Actions are discrete gameplay events (`"Kill"`, `"CollectCoin"`, `"ObjectiveComp
 
 If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `/6` or `02C`. This section is only for the SDK call definitions.
 
+> ⚠️ **Verify every SDK signature against your cloned headers before using.** The C-API snippets in this document are illustrative of the *shape* of each call, not a version-locked contract. The skill clones the **latest** Ludeo SDK release (`github.com/EdgeGamingGG/ludeo-sdk-releases`), so exact parameter lists, struct fields, `*_API_LATEST` macro names, and enum spellings can drift between releases. Before you paste any `ludeo_*` call into a game, open the matching header in the cloned SDK (e.g. `ludeo_DataWriter.h`) and confirm the signature. The signatures here reflect the 4.1.x API surface as last reviewed.
+
 ### 7.1 `SendAction` on LudeoManager — canonical definition
 
-Header declaration inside the `LudeoManager` class:
+`ludeo_DataWriter_SendAction` takes the **DataWriter handle** plus a params struct, and **`playerId` is required** — the SDK needs to know which player the action applies to. Do **not** call it with just an action name; that older one-argument form does not exist in the current SDK.
+
+```c
+// From the SDK headers (verify against your clone):
+LudeoResult ludeo_DataWriter_SendAction(
+    LudeoHDataWriter handle,
+    const LudeoDataWriterSendActionParams* params);
+
+struct LudeoDataWriterSendActionParams {
+    int32_t     apiVersion;  // set to LUDEO_DATAWRITER_SENDACTION_API_LATEST
+    const char* playerId;    // REQUIRED — player the action applies to
+    const char* action;      // REQUIRED — the action name, e.g. "Kill"
+};
+```
+
+Header declaration inside the `LudeoManager` class. The single-argument overload defaults to the local player the manager added in `AddPlayer` (`m_player_id`), so existing call sites stay simple:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
-    void SendAction(const char* actionName);
+    void SendAction(const char* actionName);                       // uses the local player id
+    void SendAction(const char* actionName, const char* playerId); // explicit player
 #endif
 ```
 
@@ -956,19 +974,35 @@ Implementation:
 #if LUDEO_SDK_ENABLED
 void LudeoManager::SendAction(const char* actionName)
 {
+    // m_player_id is the id passed to ludeo_Room_AddPlayer during gameplay-session setup.
+    SendAction(actionName, m_player_id.c_str());
+}
+
+void LudeoManager::SendAction(const char* actionName, const char* playerId)
+{
     if (!m_gameplay_session_active || m_data_writer == nullptr) {
         return;  // Not ready for actions — silently drop
     }
 
     ludeo_DataWriter_SetCurrent(m_data_writer);
-    ludeo_DataWriter_SendAction(actionName);
 
-    LogDebug("[LUDEO] Action: %s", actionName);
+    LudeoDataWriterSendActionParams params = {};
+    params.apiVersion = LUDEO_DATAWRITER_SENDACTION_API_LATEST;
+    params.playerId   = playerId;    // REQUIRED
+    params.action     = actionName;  // REQUIRED
+
+    LudeoResult result = ludeo_DataWriter_SendAction(m_data_writer, &params);
+    if (result != LudeoResult::Success) {
+        LogWarning("[LUDEO] SendAction('%s') failed: %d", actionName, result);
+        return;
+    }
+
+    LogDebug("[LUDEO] Action: %s (player %s)", actionName, playerId);
 }
 #endif
 ```
 
-Actions sent before `BeginGameplaySession` or after `EndGameplaySession` are silently dropped, not errors. This lets callers invoke the action API freely without guarding every call site against session state.
+Actions sent before `BeginGameplaySession` or after `EndGameplaySession` are silently dropped, not errors. This lets callers invoke the action API freely without guarding every call site against session state. If `m_player_id` is empty when an action fires, the action is dropped server-side — confirm the manager stores the id it passed to `ludeo_Room_AddPlayer` (see `05-LIFECYCLE-MANAGEMENT.md`).
 
 ### 7.2 `LUDEO_ACTION` macro
 
@@ -1524,8 +1558,12 @@ ludeo_DataWriter_SetBool(attrName, value);
 // Object destruction
 ludeo_DataWriter_DestroyObject(writer, &params);
 
-// Actions
-ludeo_DataWriter_SendAction(actionName);
+// Actions (handle + params struct; playerId and action are both REQUIRED)
+LudeoDataWriterSendActionParams actionParams = {};
+actionParams.apiVersion = LUDEO_DATAWRITER_SENDACTION_API_LATEST;
+actionParams.playerId   = playerId;
+actionParams.action     = actionName;
+ludeo_DataWriter_SendAction(writer, &actionParams);
 
 // Context management
 ludeo_DataWriter_SetCurrent(writer);

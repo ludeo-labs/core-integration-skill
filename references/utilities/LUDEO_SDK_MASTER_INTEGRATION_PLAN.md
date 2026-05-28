@@ -1121,34 +1121,33 @@ void LudeoManager::RegisterAllExistingObjects()
 // LudeoManager - Action Support
 class LudeoManager {
 public:
-    // Send an action event
+    // Send an action event.
+    // NOTE: ludeo_DataWriter_SendAction takes the DataWriter handle + a params
+    // struct, and playerId is REQUIRED. Verify the signature against your cloned
+    // SDK headers before use. The single-arg form defaults to the local player.
     void SendAction(const char* actionName)
     {
-        if (!m_gameplay_session_active || m_data_writer == nullptr) {
-            return;
-        }
-        
-        ludeo_DataWriter_SetCurrent(m_data_writer);
-        ludeo_DataWriter_SendAction(actionName);
-        
-        LogInfo("[Ludeo] Action sent: %s", actionName);
+        SendAction(actionName, m_player_id.c_str());  // m_player_id = id passed to AddPlayer
     }
-    
-    // Send action with parameters (for richer context)
-    void SendActionWithContext(const char* actionName, 
-                               uint64_t actorId,
-                               uint64_t targetId = 0,
-                               const Vec3* position = nullptr)
+
+    void SendAction(const char* actionName, const char* playerId)
     {
         if (!m_gameplay_session_active || m_data_writer == nullptr) {
             return;
         }
-        
+
         ludeo_DataWriter_SetCurrent(m_data_writer);
-        
-        // Create action context object (optional, for detailed actions)
-        // The action name itself is what Ludeo uses for objectives/scoring
-        ludeo_DataWriter_SendAction(actionName);
+
+        LudeoDataWriterSendActionParams params = {};
+        params.apiVersion = LUDEO_DATAWRITER_SENDACTION_API_LATEST;
+        params.playerId   = playerId;    // REQUIRED
+        params.action     = actionName;  // REQUIRED
+
+        if (ludeo_DataWriter_SendAction(m_data_writer, &params) != LudeoResult::Success) {
+            LogWarning("[Ludeo] SendAction('%s') failed", actionName);
+            return;
+        }
+        LogInfo("[Ludeo] Action sent: %s (player %s)", actionName, playerId);
     }
 };
 ```
@@ -1163,13 +1162,14 @@ public:
 #define LUDEO_ACTION(actionName) \
     LudeoManager::Get().SendAction(actionName)
 
-#define LUDEO_ACTION_WITH_ACTOR(actionName, actorId) \
-    LudeoManager::Get().SendActionWithContext(actionName, actorId)
+// Attribute the action to a specific player rather than the default local player.
+#define LUDEO_ACTION_FOR_PLAYER(actionName, playerId) \
+    LudeoManager::Get().SendAction(actionName, playerId)
 
 #else
 
 #define LUDEO_ACTION(actionName)
-#define LUDEO_ACTION_WITH_ACTOR(actionName, actorId)
+#define LUDEO_ACTION_FOR_PLAYER(actionName, playerId)
 
 #endif
 ```
