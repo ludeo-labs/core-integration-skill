@@ -12,6 +12,7 @@
 |------|-------|-------------|--------|
 | [shooter.md](./shooter.md) | FPS / TPS / Arena Shooter | Kill, Death, Headshot, Pickup, Reload | Active |
 | [rts.md](./rts.md) | Real-Time Strategy | BuildUnit, BuildStructure, Research, Capture | Active |
+| [racing.md](./racing.md) | Racing / Kart / Sim Racing | LapComplete, Overtake, BestLap, RaceFinish | Active |
 
 ## How the Agent Should Use These Files
 
