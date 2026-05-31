@@ -990,6 +990,13 @@ void OnLevelLoadComplete()
 
 Actions are discrete gameplay events (`"Kill"`, `"CollectCoin"`, `"ObjectiveComplete"`) sent at a single moment in time, as opposed to the continuous state that §3 tracks.
 
+**Actions fire in BOTH flows — unlike state, which is capture-only.**
+
+- **Creator Flow (recording):** `SendAction` records each event alongside the state stream.
+- **Player Flow (playback):** the *same* `SendAction` sites fire again as the player replays the captured moment. The SDK uses these to evaluate the Ludeo's **win/fail conditions** — did the player land the kill, finish before the timer, hit the objective? Without action sends during playback, the SDK has no signal to score the player's run.
+
+This means action call sites **must not** be gated behind `IsRestoring()` or any "are we in player flow?" check. They fire identically in both flows. (State writes — `CreateObject`, `Set*`, per-tick capture — *are* gated to Creator Flow only; see `07 §2.3`.)
+
 **Ownership of action work is split across three places — this section owns only the SDK surface:**
 
 | Concern | Owned by |

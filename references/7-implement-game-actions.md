@@ -137,6 +137,7 @@ After all actions are inserted, output a summary:
 - Follow the **propose-confirm-execute** cycle — show each change before making it
 - Every SDK call must be wrapped in `#if LUDEO_SDK_ENABLED`
 - Action calls go AFTER game logic, not before
+- **Actions fire in BOTH Creator Flow (recording) and Player Flow (playback)** — never gate `SendAction` behind `IsRestoring()` or any "are we in playback?" check. Player Flow re-fires the same sites so the SDK can score win/fail conditions. See `06 §7` for the dual-flow contract; state writes *are* gated to Creator Flow only, action writes are not.
 - Do NOT modify game logic — only add SDK calls
 - If a file needs `#include "LudeoManager.h"` (or equivalent), add it inside `#if LUDEO_SDK_ENABLED` guards
 - This command uses direct `LudeoManager::Get().SendAction()` calls, not macros. A future phase will replace these with a `LUDEO_ACTION` macro.

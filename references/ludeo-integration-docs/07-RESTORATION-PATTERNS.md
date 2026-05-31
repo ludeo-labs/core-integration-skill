@@ -136,7 +136,8 @@ on_room_ready(callbackParams):           # SDK fires when player presses Play (g
 - Block the SDK's notification thread. Marshal to the main thread or a queued task immediately.
 - Assume the game is in a "safe" state. Always handle the interrupt path.
 - Restore directly into a live gameplay session. Tear down first.
-- **Run write-side SDK calls during playback.** Restoration is **read-only**: no `CreateObject`, no `Set*`, no `BindPlayer`, no per-tick capture, no action `Send*`. The `IsRestoring()` seam from `/9` gates batch registration; the same gate (or its equivalent — phase 11 Important Notes) must guard every write path the game has, or restoration races against itself and pollutes the playback. Entity *discovery* for action detection still runs (otherwise actions go undetected during playback) — only the writer-API calls are off.
+- **Run *state-writing* SDK calls during playback.** Restoration is **state-read-only**: no `CreateObject`, no `Set*`, no `BindPlayer`, no per-tick state capture. The `IsRestoring()` seam from `/9` gates batch registration; the same gate must guard every *state-write* path the game has, or restoration races against itself and pollutes the playback. Entity *discovery* for action detection still runs (otherwise actions go undetected during playback).
+  - **EXCEPTION — action sends:** `SendAction` calls (and the `LUDEO_ACTION` macro) **fire in BOTH flows** and are *not* gated by `IsRestoring()`. Player Flow re-fires the same action sites so the SDK can score the Ludeo's win/fail conditions. See `06 §7` for the dual-flow contract.
 
 ### 2.4 Overlay & platform control notifications — the game does NOT drive pause/resume itself
 
