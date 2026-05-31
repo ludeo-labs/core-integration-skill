@@ -90,17 +90,18 @@ This is the entry point — the inverse of the session lifecycle entry `/4` wire
 
 Show each insertion as propose-confirm-execute. If a tear-down or level-load hook the plan named doesn't exist, propose adding it as a separate, named change first.
 
-### Step 3.5: Local-testing hook — launch-arg Ludeo id
+### Step 3.5: Local-testing hook — launch-arg Ludeo id (plus a persistent `ludeo.ini` alternative)
 
 So devs can exercise restoration **without going through the Ludeo overlay**, add a launch argument that synthesizes a `LudeoSelected` for the handler wired in Step 3. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader` (07 §2). **Do not fake the `DataReader`** or short-circuit `GetLudeo`.
 
 Implementation:
 - **Parse the arg at startup** using the game's existing arg conventions — `--ludeo=<id>` (POSIX-style), `-ludeo <id>` (Unreal's `FParse::Value`), proprietary command-line table, etc. Match the engine; don't prescribe a format.
+- **Also accept `activationLudeoId` from `ludeo.ini`** (see `04 §4`). The launch arg and the config field do the same thing — auto-fire `LudeoSelected` once the session is ready — but the config field is **persistent** across runs (handy for a debug setup), while the launch arg is **one-off** (handy for CLI invocations). Support both: if the launch arg is present, prefer it; otherwise fall back to `LudeoConfig::Instance().GetActivationLudeoId()`. Either path stashes the id and dispatches the same way.
 - **Stash the id** on `LudeoManager` (e.g. `m_pending_local_ludeo_id`); don't act on it during early init.
 - **Dispatch once the session is ready** — after `ludeo_Session_Activate` succeeds and Step 3's `AddNotifyLudeoSelected` is registered (earlier, `GetLudeo` can't be called and the chain has nothing to drive). Cleanest hook: the session-activation success callback, or a one-shot check on the first `ludeo_Tick` after activation. Dispatch by invoking the same handler the SDK calls (e.g. `OnLudeoSelected(ludeoId)` helper), then clear the stash so it fires once.
 - Wrap in `#if LUDEO_SDK_ENABLED` (CR-001). The arg is a no-op when `LUDEO_SDK_ENABLED=0`.
 
-Result: launching the game with `--ludeo=<id>` (or engine-equivalent) runs the full restoration flow end-to-end — `LudeoSelected → GetLudeo → DataReader → restore → wait-for-player → RoomReady → Begin` — without needing the platform overlay.
+Result: launching the game with `--ludeo=<id>` (or engine-equivalent), **or** setting `activationLudeoId` in `ludeo.ini`, runs the full restoration flow end-to-end — `LudeoSelected → GetLudeo → DataReader → restore → wait-for-player → RoomReady → Begin` — without needing the platform overlay.
 
 ### Step 4: Implement Pass 1 — Spawn + Build the ID Map
 

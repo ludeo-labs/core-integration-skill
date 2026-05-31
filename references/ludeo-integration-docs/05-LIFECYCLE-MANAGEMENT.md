@@ -277,7 +277,7 @@ void ActivateSession()
     if (config.GetAuthMode() == LudeoAuthMode::Explicit)
     {
         // EXPLICIT MODE: Game provides Steam credentials to Ludeo
-        steamAuthDetails.authId = config.GetAuthID().c_str();
+        steamAuthDetails.authId = config.GetExplicitAuthID().c_str();
         steamAuthDetails.currentBetaName = config.GetBetaBranch().empty() 
             ? nullptr : config.GetBetaBranch().c_str();
         steamAuthDetails.authType = LudeoAuthType::Steam;

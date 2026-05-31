@@ -140,9 +140,13 @@ Create `src/core/ludeo/LudeoConfig.h`:
 #define LogError(...)   /* YourGame::Log(Error, __VA_ARGS__) */
 ```
 
-### Optional: Runtime Configuration
+### Runtime Configuration (REQUIRED — file-based)
 
-For file-based configuration, add to `LudeoConfig.h`:
+Ludeo runtime values (API key, game version, Steam auth fields, platform URL, debug-activation ludeo id) **must be loaded from an external file at startup** — `ludeo.ini` next to the executable by default — so QA, ops, and end users can change them **without rebuilding the game**. The values in the header are placeholder fallbacks only.
+
+> **Extension:** `ludeo.ini` is the skill default — `.ini` matches the on-disk format (key=value + `#` comments) and gets editor syntax highlighting out of the box. **If the game already ships its own config-file convention (`.cfg`, `.conf`, etc.), match that instead** — consistency with the host project beats the default.
+
+#### `LudeoConfig.h`
 
 ```cpp
 #include <string>
@@ -156,22 +160,123 @@ public:
         static LudeoConfig instance;
         return instance;
     }
-    
+
+    // Load runtime values from a key=value file (typically `ludeo.ini` next to
+    // the executable). Returns false if the file is absent / unreadable; in
+    // that case the constructor placeholders below remain in effect. Call ONCE
+    // at startup, BEFORE any Ludeo API call.
     bool LoadFromFile(const std::string& filepath);
-    
-    LudeoAuthMode GetAuthMode() const { return m_authMode; }
-    const std::string& GetApiKey() const { return m_apiKey; }
-    const std::string& GetGameVersion() const { return m_gameVersion; }
-    
+
+    // Required (used in BOTH modes)
+    LudeoAuthMode GetAuthMode()           const { return m_authMode; }
+    const std::string& GetApiKey()        const { return m_apiKey; }
+    const std::string& GetGameVersion()   const { return m_gameVersion; }
+    const std::string& GetPlatformUrl()   const { return m_platformUrl; }
+    // Explicit-mode-only Steam fields. Empty string ⇒ "not set" (SDK call site passes nullptr).
+    const std::string& GetExplicitAuthID()const { return m_explicitAuthId; }
+    const std::string& GetBetaBranch()    const { return m_betaBranch; }
+    // Debug affordance: if non-empty, the integration synthesizes a LudeoSelected
+    // with this id once the session is active (see /11 Step 3.5). Persistent
+    // alternative to the --ludeo=<id> launch arg.
+    const std::string& GetActivationLudeoId() const { return m_activationLudeoId; }
+
 private:
-    LudeoConfig() : m_authMode(LudeoAuthMode::Implicit), 
-                    m_apiKey("YOUR_API_KEY"), m_gameVersion("1.0") {}
-    
+    // Defaults are PLACEHOLDERS — real values come from ludeo.ini at startup.
+    LudeoConfig()
+        : m_authMode(LudeoAuthMode::Implicit),
+          m_apiKey("YOUR_API_KEY"),
+          m_gameVersion("1.0"),
+          m_platformUrl("https://services.ludeo.com"),
+          m_explicitAuthId(""),       // empty ⇒ unset
+          m_betaBranch(""),           // empty ⇒ no branch
+          m_activationLudeoId("") {}  // empty ⇒ disabled
+
     LudeoAuthMode m_authMode;
     std::string m_apiKey;
     std::string m_gameVersion;
+    std::string m_platformUrl;
+    std::string m_explicitAuthId;
+    std::string m_betaBranch;
+    std::string m_activationLudeoId;
 };
 ```
+
+#### `LudeoConfig.cpp` (key=value parser — no third-party lib)
+
+```cpp
+#include "LudeoConfig.h"
+#include <algorithm>
+#include <cctype>
+
+bool LudeoConfig::LoadFromFile(const std::string& filepath) {
+    std::ifstream in(filepath);
+    if (!in) {
+        LogWarning("[Ludeo] Config file not found: %s — using built-in placeholder defaults", filepath.c_str());
+        return false;
+    }
+    auto trim = [](std::string& s) {
+        size_t a = s.find_first_not_of(" \t\r\n");
+        size_t b = s.find_last_not_of(" \t\r\n");
+        s = (a == std::string::npos) ? "" : s.substr(a, b - a + 1);
+    };
+    auto iequals = [](std::string a, std::string b) {
+        std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c){ return std::tolower(c); });
+        std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c){ return std::tolower(c); });
+        return a == b;
+    };
+    std::string line;
+    while (std::getline(in, line)) {
+        auto hash = line.find('#'); if (hash != std::string::npos) line.erase(hash);
+        auto eq   = line.find('='); if (eq   == std::string::npos) continue;
+        std::string key = line.substr(0, eq);
+        std::string val = line.substr(eq + 1);
+        trim(key); trim(val);
+        if      (key == "apiKey")             m_apiKey            = val;
+        else if (key == "gameVersion")        m_gameVersion       = val;
+        else if (key == "platformUrl")        m_platformUrl       = val;
+        else if (key == "authMode")           m_authMode          = iequals(val, "explicit") ? LudeoAuthMode::Explicit : LudeoAuthMode::Implicit;
+        else if (key == "explicitAuthId")     m_explicitAuthId    = val;
+        else if (key == "betaBranch")         m_betaBranch        = val;
+        else if (key == "activationLudeoId")  m_activationLudeoId = val;
+    }
+    return true;
+}
+```
+
+#### Sample `ludeo.ini` (shipped alongside the game executable)
+
+```ini
+# Ludeo SDK runtime configuration.
+# Edit these values to change Ludeo behavior WITHOUT rebuilding the game.
+# Format: key = value. Lines starting with '#' are comments.
+
+# REQUIRED — your Ludeo API key. Until set, Session_Activate fails with InvalidAuth.
+apiKey       = YOUR_API_KEY_HERE
+
+# Game version recorded with each Ludeo. Leave blank to fall back to the placeholder.
+gameVersion  = 1.0
+
+# Ludeo platform endpoint (staging vs production).
+platformUrl  = https://services.ludeo.com
+
+# Auth mode: 'implicit' (Ludeo initializes Steam itself) | 'explicit' (you supply Steam creds below).
+authMode     = implicit
+
+# Explicit-mode-only fields. Leave empty if authMode = implicit.
+explicitAuthId =
+betaBranch     =
+
+# Debug affordance: if set, the integration auto-fires a LudeoSelected with this id
+# once the session is active (equivalent to passing --ludeo=<id> on the command line,
+# but persistent). Leave blank to disable. See /11 Step 3.5.
+activationLudeoId =
+```
+
+#### Wiring it up
+
+Call `LudeoConfig::Instance().LoadFromFile("ludeo.ini")` **once at startup**, before `ludeo_Session_Activate` (typically the first line of `LudeoManager::Initialize`). Every later read goes through the getters — there are no literal values anywhere in the SDK call path.
+
+**Build-side note:** ship `ludeo.ini` to the game's output directory the same way the SDK DLLs are copied (see §5). Without the file present, the game falls back to the placeholder defaults and `Session_Activate` will reject the unset API key.
 
 ### Usage
 ```cpp
