@@ -469,6 +469,7 @@ private:
 - **Check DataWriter validity** before registration
 - **Set initial values immediately** after registration
 - **Handle registration failure gracefully** (game must continue)
+- **Atomicity: register-and-write-statics is one transaction, retried until both succeed.** A successful `CreateObject` that's followed by a *partial* one-shot write (e.g. one identity attribute drops due to a type-lock mismatch) leaves the object registered-but-incomplete; restoration then fills the gap with defaults and produces duplicates / wrong identities (real-world failure mode: "4 copies of the player on Ludeo load"). Track success on the **`statics_written`** flag, not on "have I seen this object before" — and retry from the top until that flag is set. Don't treat registration as a proxy for "fully initialized."
 
 ---
 
