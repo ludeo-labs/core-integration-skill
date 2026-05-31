@@ -131,6 +131,7 @@ Follow the appropriate section based on build system:
 **IMPORTANT:** 
 - Create backups of original build files before modifying!
 - Configure **only** for the OS selected in Step 0b
+- **Copy the third-party runtime DLLs too, not just the Ludeo SDK DLL.** The SDK ships its runtime deps in `<SDK>/ThirdParty/<platform>/<config>/Bin/` (cohtml, libx264, MediaDecoders, HttpServer, RenoirCore, openAL32, v8 family). `copy_directory` the whole folder to the game's output dir alongside the SDK DLL — cherry-picking is the root cause of the "agent shipped a build that crashes on launch with missing cohtml/libx264" failure mode. See `04 §5` for the CMake snippet.
 
 ### Step 8: Build Game WITHOUT SDK First (Baseline Verification)
 Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
@@ -144,7 +145,7 @@ Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
 Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
 - Build with `LUDEO_SDK_ENABLED=ON` (or equivalent)
 - Verify compilation succeeds
-- Verify SDK DLL/SO copied to output directory
+- Verify SDK DLL/SO **and the entire `ThirdParty/<platform>/<config>/Bin/` directory** copied to output (cherry-picking causes missing-DLL crashes on launch — see Step 7)
 - Compare with baseline build - should behave identically at runtime
 - If build fails, follow **Section 10.3** (Error Handling)
 

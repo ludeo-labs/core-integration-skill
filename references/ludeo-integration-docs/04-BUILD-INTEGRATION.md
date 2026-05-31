@@ -72,8 +72,9 @@ Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/buil
 <project_root>/
 ├── external/ludeo/LudeoCoreSDK_X_X_X/    # SDK location
 │   ├── Include/Ludeo/                     # Headers
-│   ├── Lib/<platform>/{Development|Release}/  # Static libraries
-│   └── Bin/<platform>/{Development|Release}/  # Dynamic libraries
+│   ├── Lib/<platform>/{Development|Release}/                    # Static libraries
+│   ├── Bin/<platform>/{Development|Release}/                    # SDK runtime binary
+│   └── ThirdParty/<platform>/{Development|Release}/Bin/         # 3rd-party runtime deps — copy whole dir to output
 │
 ├── src/core/ludeo/                        # Integration files
 │   ├── LudeoConfig.h                      # ⭐ CREATE THIS
@@ -208,16 +209,25 @@ if(LUDEO_SDK_ENABLED)
         message(FATAL_ERROR "Ludeo SDK not found at: ${LUDEO_SDK_ROOT}")
     endif()
     
-    # Platform configuration
+    # Platform configuration. LUDEO_BIN_DIR holds the Ludeo SDK runtime binary;
+    # LUDEO_THIRDPARTY_BIN_DIR holds the third-party runtime deps the SDK ships
+    # for the matching configuration — overlay UI (cohtml + v8 family), video
+    # capture (libx264), media decode, HTTP, and audio. Copy the WHOLE ThirdParty
+    # Bin/ directory to the game's output dir (don't cherry-pick); missing common
+    # ones — at minimum cohtml and libx264 — crashes the game at startup with a
+    # missing-DLL error, and copying the directory is forward-compatible if the
+    # SDK adds or renames deps in future releases.
     if(WIN32)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Development")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Development")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Win64/Development/Bin")
             set(LUDEO_LIB_FILE "LudeoSDK-Win64-Development.lib")
             set(LUDEO_DLL_FILE "LudeoSDK-Win64-Development.dll")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Release")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Win64/Release/Bin")
             set(LUDEO_LIB_FILE "LudeoSDK-Win64-Release.lib")
             set(LUDEO_DLL_FILE "LudeoSDK-Win64-Release.dll")
         endif()
@@ -225,11 +235,13 @@ if(LUDEO_SDK_ENABLED)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Development")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Development")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Linux/Development/Bin")
             set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Development.so")
             set(LUDEO_SO_FILE "libLudeoSDK-Linux-Development.so")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Release")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Linux/Release/Bin")
             set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Release.so")
             set(LUDEO_SO_FILE "libLudeoSDK-Linux-Release.so")
         endif()
@@ -247,16 +259,26 @@ if(LUDEO_SDK_ENABLED)
     target_include_directories(YourGameName PRIVATE "${LUDEO_SDK_ROOT}/Include")
     target_link_libraries(YourGameName PRIVATE "${LUDEO_LIB_DIR}/${LUDEO_LIB_FILE}")
     
-    # Copy DLL/SO to output
+    # Copy SDK + third-party runtime binaries to output.
+    # Third-party deps (cohtml, libx264, MediaDecoders, HttpServer, RenoirCore,
+    # openAL32, v8 family) are runtime deps the Ludeo SDK loads on startup.
+    # `copy_directory` the WHOLE ThirdParty Bin/ — don't cherry-pick — to avoid
+    # the "missing cohtml/libx264 at startup" failure and to stay forward-compatible.
     if(WIN32)
         add_custom_command(TARGET YourGameName POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${LUDEO_BIN_DIR}/${LUDEO_DLL_FILE}"
+                "$<TARGET_FILE_DIR:YourGameName>"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${LUDEO_THIRDPARTY_BIN_DIR}"
                 "$<TARGET_FILE_DIR:YourGameName>")
     elseif(UNIX AND NOT APPLE)
         add_custom_command(TARGET YourGameName POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${LUDEO_BIN_DIR}/${LUDEO_SO_FILE}"
+                "$<TARGET_FILE_DIR:YourGameName>"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${LUDEO_THIRDPARTY_BIN_DIR}"
                 "$<TARGET_FILE_DIR:YourGameName>")
     endif()
 else()
