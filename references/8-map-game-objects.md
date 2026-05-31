@@ -193,6 +193,7 @@ May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 - **Pattern classification is foundational** — get §2 right or every downstream hook decision is wrong.
 - **Stable game IDs only** — restoration cannot resolve pointers across sessions.
 - **When in doubt, track it** — over-tracking is cheap; under-tracking produces silently broken replays (06 §9.1).
+- **Full state tracking is Ludeo's defining purpose, not a scoping choice** (06 §1.1). Do **not** ask the user "do you want full or partial tracking?" — the SDK exists for perfect replay from the player's POV. For large games, a "critical state now, full coverage in the next wave" staging plan in `OBJECT_TRACKING.md` is legitimate; the negotiation is about *order of rollout*, not whether to reach complete coverage.
 - **Genre checklists are validation lists** — what to verify is covered, not how to find it in the code.
 - **Mixed patterns per game are normal** — classify per subsystem.
 

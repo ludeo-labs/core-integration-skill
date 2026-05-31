@@ -55,7 +55,11 @@ A skill asking for "object tracking implementation" typically needs §2, §3, §
 
 **Track ALL game objects that affect the gameplay experience.**
 
-The goal is **complete state capture** for faithful restoration. When in doubt, track it.
+The Ludeo SDK exists so the player sees a captured moment played back **perfectly from their perspective** — a continuous, playable reconstruction, not a screenshot, a highlight reel, or an "approximate" replay. The integration's job is to identify *what set of state* makes up that complete picture for this game. **The destination is always full reconstruction**, not partial.
+
+**Do not ask the user "do you want full state tracking?"** — that's the SDK's defining purpose, not a scoping choice. Scope questions go the other way (*"is this entity / this property part of the complete picture?"*) and are answered by `§9` and the genre checklists, not by negotiation.
+
+**Legitimate iterative rollout (large/complex games only):** instead of capturing every entity in one pass, an integration can stage coverage in waves — start with the most critical state (player + primary entities) to get a working capture/replay loop end-to-end, then expand to full coverage in subsequent passes. That's a **staging strategy**, not a partial destination. Record it in `OBJECT_TRACKING.md` as "covered now" vs "planned for next wave" so the iterative path is explicit and the end goal (full reconstruction) is unchanged. The agent doesn't need permission to use this rollout — it's a planning decision, not a fidelity decision. When in doubt, track it.
 
 ### 1.2 What Gets Tracked
 
