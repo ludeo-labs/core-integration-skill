@@ -7,6 +7,8 @@ metadata:
 
 # Ludeo SDK Integration
 
+**Skill version:** 0.0.0 · Compare against the [latest release](https://github.com/ludeo-labs/core-integration-skill/releases/latest) to confirm your installed copy is current. If older, run `npx skills update ludeo-integration` (then start a fresh agent session — `SKILL.md` is cached per session).
+
 This skill walks the agent through integrating the Ludeo SDK into a game project, from build configuration to action mapping and runtime verification.
 
 ## When to use
