@@ -292,6 +292,8 @@ Before downstream stages consume this classification, verify:
 Even within Group 1, individual entity types may need different approaches.
 Decide per entity type after the global group is set.
 
+> ⚠️ **A binary/blob save is not reusable as Ludeo reconciliation.** Reconciliation reuses the game's save *path*, but Ludeo's `DataReader` consumes **named, typed attributes** — not an opaque blob. Reconciliation therefore applies **only when the game serializes to named fields** that map one-to-one onto Ludeo attributes. A game with a great binary serializer (e.g. a rewind/replay system that writes a packed buffer) usually **cannot** reconcile: the blob is the wrong shape for the named-attribute API, and that serializer may not even be active in the mode you're capturing. Do **not** default a Group-1 game to reconciliation just because it has a strong save system — check whether the save is field-named or opaque first. When it's opaque, the entity is **manual** (capture discrete attributes per `06 §1.4`), even though the game can serialize itself perfectly. This is the named-attribute constraint behind the §9 pitfalls below.
+
 ### Approach: Reconciliation
 
 Reuse the game's own save/load path for this entity type. Ludeo writes via
@@ -299,6 +301,7 @@ the same plumbing; restoration is mostly "load and dispatch."
 
 **Choose when:**
 - The game's save covers this entity comprehensively
+- The save serializes to **named fields** that map onto Ludeo attributes (not a packed/opaque blob — see the caveat above)
 - No custom serializer / delta serializer is in the way
 - The opt-in coverage is complete
 

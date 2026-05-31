@@ -8,6 +8,10 @@
 
 ---
 
+> ⚠️ **Treat every `ludeo_*` snippet here as a shape, not a contract — verify against your cloned headers.** The C-API signatures in this document (object lifecycle in §3, the adapter in §4, actions in §7) reflect the **4.1.x** API surface as last reviewed. The skill clones the **latest** Ludeo SDK release, so parameter lists, struct fields, `*_API_LATEST` macro names, and return types (`LudeoBool` for setters vs `LudeoResult` for handle+params calls) can drift between releases. Before pasting any call into a game, open the matching header in the clone (`Include/Ludeo/DataWriter.h`, `DataWriterTypes.h`, …) and confirm the exact signature. Don't assume these are authoritative for your SDK version.
+
+---
+
 ## How to use this document
 
 This file covers the full object-tracking surface. You rarely need to read it end-to-end — most skills point you at a specific section. Jump to the one that matches your current task:
@@ -76,6 +80,23 @@ The goal is **complete state capture** for faithful restoration. When in doubt, 
 | **Examples** | `health=75`, `position=(10,5,3)` | `"Kill"`, `"CollectCoin"`, `"Headshot"` |
 
 **Both are required** for a complete Ludeo integration.
+
+### 1.4 Attributes vs Blobs — default to attributes
+
+The SDK can store and reconstruct state two ways:
+
+- **Attribute integration** — capture each property as a named, typed attribute (`ludeo_DataWriter_Set*` → `ludeo_DataReader_Get*`). This is what every pattern in this document uses.
+- **Blob integration** — serialize an object's (or the world's) state into one opaque buffer and stuff it into a single string/byte attribute, then deserialize it on restoration.
+
+**Ludeo strongly prefers attribute integrations. Default to attributes — do not ask the user which to use.** Attributes are the default for good reason: the platform can read individual values, so objectives, scoring, and highlights can key off real state (`health`, `kills`, `position`); restoration can be partial and version-tolerant; captures are inspectable and debuggable; and a field added or removed on one side doesn't corrupt everything else. A blob is opaque to the platform — it can only be handed back verbatim, defeats per-attribute objectives/scoring, and breaks the moment the game's serialization format shifts.
+
+**Only deviate to a blob when one of these is true:**
+1. **The user explicitly asks for blob/serialized storage** for an entity or the whole game.
+2. **The integration genuinely calls for it** — e.g. an entity's state is an already-opaque, large, or deeply-nested structure with no stable field-level schema (a procedural world buffer, a third-party physics state blob, a scripting VM heap) where mapping individual attributes is infeasible or would be wildly more complex than round-tripping the existing serialized form.
+
+When neither holds, use attributes and move on — do **not** prompt the user per entity. When a blob *is* warranted under (2), note the entity and the specific reason in the plan's Open Questions / Notes so the human reviewer sees the rationale; you don't need a live answer to proceed. Prefer the narrowest blob possible (one sub-object), never a whole-world blob, when a blob is unavoidable.
+
+> Note: this is distinct from how the *game's own* save system serializes state (see `02F-RESEARCH-SAVE-SYSTEM.md`). A game that saves itself as a JSON/binary blob can — and by default should — still be tracked into Ludeo as discrete attributes.
 
 ---
 
@@ -782,6 +803,56 @@ public:
 };
 ```
 
+### 5.4 Centralized "pull" adapter (a first-class alternative to entity-embedded capture)
+
+Everything above (and §3) assumes the **entity-embedded** style: `RegisterWithLudeo()`/`UnregisterFromLudeo()` methods and `LUDEO_CAPTURE_*` macros live *inside* the game's entity classes, and entities push their own state. That is one valid style — not the only one.
+
+The other style is a **centralized pull adapter**: a single module (the `LudeoStateAdapter`) holds the SDK calls, iterates the game's objects through their existing public accessors, and **pulls** each property into Ludeo. The entity classes are never touched.
+
+**Prefer the centralized pull adapter when most of these hold:**
+
+- Objects are created/owned through a **manager or factory** (§2.2) with clean public **getters** for the state you need to track.
+- You already register everything at **session start via batch registration** (§6), and per-frame/per-event diffs can be read from the same accessors.
+- The codebase enforces (or you want to honor) a **"no SDK calls outside the integration module"** rule — the spirit of CR-009. Embedding macros in entity headers spreads `#if LUDEO_SDK_ENABLED` and SDK includes across game files; a pull adapter keeps all of that in one place.
+- You want the integration to touch **zero game files** (e.g. the game is third-party, or you can't modify entity classes).
+
+**Prefer entity-embedded capture when:**
+
+- State changes through **setters/events** you can hook precisely, and per-change capture is cheaper than re-reading everything (large object counts, expensive accessors).
+- There is **no clean accessor** for some state, so the only place to observe a change is inside the class.
+- Object lifetimes are irregular and a central walker can't reliably observe creation/destruction.
+
+You can mix: pull for managed entities with clean getters, embedded for the awkward ones.
+
+**Sketch — pull adapter:**
+
+```cpp
+// LudeoStateAdapter.cpp — the ONLY place SDK calls live in this style.
+void LudeoStateAdapter::RegisterAllExistingObjects()
+{
+    for (Entity* e : EntityManager::Get().GetAllEntities()) {
+        LudeoObjectId id = CreateLudeoObject(e, "entity");   // CreateObject + store mapping
+        RegisterObject(e, id, e->GetEntityId());
+        CaptureStatic(e, id);                                // one-shot identity/static, via getters
+    }
+}
+
+void LudeoStateAdapter::CaptureDynamic()   // called each tracked tick / on a diff signal
+{
+    for (Entity* e : EntityManager::Get().GetAllEntities()) {
+        LudeoObjectId id = LudeoIdFor(e);
+        if (id == LUDEO_INVALID_OBJECTID) continue;
+        LudeoCapture::ObjectScope scope(id);
+        const Vec3 pos = e->GetPosition();                 // pull via accessor
+        ludeo_DataWriter_SetVec3Float("position", &pos.x); // SetVec3Float takes const float*
+        ludeo_DataWriter_SetFloat    ("health",   e->GetHealth());
+        // ... only the fields in the plan
+    }
+}
+```
+
+Identity/reference rules (§4), the active-tracking gate, `ObjectScope` pairing (CR-002), and `#if LUDEO_SDK_ENABLED` guards are **identical** to the embedded style — they just all live in the adapter. Capture types must still match the locked server schema (see `11-TROUBLESHOOTING.md §1`).
+
 ---
 
 ## 6. Batch Registration
@@ -907,6 +978,8 @@ void OnLevelLoadComplete()
 }
 ```
 
+> **`IsRestoring()` is a forward-compatible seam.** In a tracking-only integration (before restoration is wired in phase 10/11) it has nothing behind it. Add it as a stub on `LudeoManager` that returns `false` (`bool IsRestoring() const { return m_is_restoring; }`, `m_is_restoring` set later by the restoration phase) so this gate is a harmless no-op now and becomes correct once restoration lands — no need to revisit the call site. Don't substitute an ad-hoc "is this a replay" check.
+
 ---
 
 ## 7. Ludeo Actions (Discrete Events)
@@ -923,13 +996,31 @@ Actions are discrete gameplay events (`"Kill"`, `"CollectCoin"`, `"ObjectiveComp
 
 If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `/6` or `02C`. This section is only for the SDK call definitions.
 
+> ⚠️ **Verify every SDK signature against your cloned headers before using.** The C-API snippets in this document are illustrative of the *shape* of each call, not a version-locked contract. The skill clones the **latest** Ludeo SDK release (`github.com/EdgeGamingGG/ludeo-sdk-releases`), so exact parameter lists, struct fields, `*_API_LATEST` macro names, and enum spellings can drift between releases. Before you paste any `ludeo_*` call into a game, open the matching header in the cloned SDK (e.g. `ludeo_DataWriter.h`) and confirm the signature. The signatures here reflect the 4.1.x API surface as last reviewed.
+
 ### 7.1 `SendAction` on LudeoManager — canonical definition
 
-Header declaration inside the `LudeoManager` class:
+`ludeo_DataWriter_SendAction` takes the **DataWriter handle** plus a params struct, and **`playerId` is required** — the SDK needs to know which player the action applies to. Do **not** call it with just an action name; that older one-argument form does not exist in the current SDK.
+
+```c
+// From the SDK headers (verify against your clone):
+LudeoResult ludeo_DataWriter_SendAction(
+    LudeoHDataWriter handle,
+    const LudeoDataWriterSendActionParams* params);
+
+struct LudeoDataWriterSendActionParams {
+    int32_t     apiVersion;  // set to LUDEO_DATAWRITER_SENDACTION_API_LATEST
+    const char* playerId;    // REQUIRED — player the action applies to
+    const char* action;      // REQUIRED — the action name, e.g. "Kill"
+};
+```
+
+Header declaration inside the `LudeoManager` class. The single-argument overload defaults to the local player the manager added in `AddPlayer` (`m_player_id`), so existing call sites stay simple:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
-    void SendAction(const char* actionName);
+    void SendAction(const char* actionName);                       // uses the local player id
+    void SendAction(const char* actionName, const char* playerId); // explicit player
 #endif
 ```
 
@@ -939,19 +1030,35 @@ Implementation:
 #if LUDEO_SDK_ENABLED
 void LudeoManager::SendAction(const char* actionName)
 {
+    // m_player_id is the id passed to ludeo_Room_AddPlayer during gameplay-session setup.
+    SendAction(actionName, m_player_id.c_str());
+}
+
+void LudeoManager::SendAction(const char* actionName, const char* playerId)
+{
     if (!m_gameplay_session_active || m_data_writer == nullptr) {
         return;  // Not ready for actions — silently drop
     }
 
     ludeo_DataWriter_SetCurrent(m_data_writer);
-    ludeo_DataWriter_SendAction(actionName);
 
-    LogDebug("[LUDEO] Action: %s", actionName);
+    LudeoDataWriterSendActionParams params = {};
+    params.apiVersion = LUDEO_DATAWRITER_SENDACTION_API_LATEST;
+    params.playerId   = playerId;    // REQUIRED
+    params.action     = actionName;  // REQUIRED
+
+    LudeoResult result = ludeo_DataWriter_SendAction(m_data_writer, &params);
+    if (result != LudeoResult::Success) {
+        LogWarning("[LUDEO] SendAction('%s') failed: %d", actionName, result);
+        return;
+    }
+
+    LogDebug("[LUDEO] Action: %s (player %s)", actionName, playerId);
 }
 #endif
 ```
 
-Actions sent before `BeginGameplaySession` or after `EndGameplaySession` are silently dropped, not errors. This lets callers invoke the action API freely without guarding every call site against session state.
+Actions sent before `BeginGameplaySession` or after `EndGameplaySession` are silently dropped, not errors. This lets callers invoke the action API freely without guarding every call site against session state. If `m_player_id` is empty when an action fires, the action is dropped server-side — confirm the manager stores the id it passed to `ludeo_Room_AddPlayer` (see `05-LIFECYCLE-MANAGEMENT.md`).
 
 ### 7.2 `LUDEO_ACTION` macro
 
@@ -1402,7 +1509,7 @@ These patterns reliably indicate a problem — investigate rather than explain a
 
 ### 11.4 How to measure
 
-Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REREFENCE.md`) for capture volume, combined with the game's existing frame profiler:
+Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERENCE.md`) for capture volume, combined with the game's existing frame profiler:
 
 - **Per-frame cost** — wrap SDK Tick + captures with a timer for a fixed scenario; compare SDK ON vs OFF.
 - **Per-scenario cost** — run representative scenarios (combat peak, traversal, scripted events) with and without SDK. Differences that exceed the game's budget flag candidates for the levers in §11.2.
@@ -1507,8 +1614,12 @@ ludeo_DataWriter_SetBool(attrName, value);
 // Object destruction
 ludeo_DataWriter_DestroyObject(writer, &params);
 
-// Actions
-ludeo_DataWriter_SendAction(actionName);
+// Actions (handle + params struct; playerId and action are both REQUIRED)
+LudeoDataWriterSendActionParams actionParams = {};
+actionParams.apiVersion = LUDEO_DATAWRITER_SENDACTION_API_LATEST;
+actionParams.playerId   = playerId;
+actionParams.action     = actionName;
+ludeo_DataWriter_SendAction(writer, &actionParams);
 
 // Context management
 ludeo_DataWriter_SetCurrent(writer);

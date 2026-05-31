@@ -139,17 +139,22 @@
 
 ---
 
-### "I need to handle LudeoSelected"
+### "I need to handle LudeoSelected and the overlay (pause/resume)"
 **Functions:**
-- `ludeo_Session_AddNotifyLudeoSelected()` - [API Docs](https://api-docs.ludeo.com/docs/core/topics.html#ludeo_Session_AddNotifyLudeoSelected)
-- `ludeo_GameplaySession_AddNotifyPlayerReady()` - [API Docs](https://api-docs.ludeo.com/docs/core/topics.html#ludeo_GameplaySession_AddNotifyPlayerReady)
+- `ludeo_Session_AddNotifyLudeoSelected()` — a Ludeo was selected (delivers a `ludeoId`; then call `ludeo_Session_GetLudeo`, which is async and hands you the `DataReader` in its callback)
+- `ludeo_Session_AddNotifyPauseGameRequest()` — **mid-play** overlay reopened → freeze the simulation
+- `ludeo_Session_AddNotifyResumeGameRequest()` — **mid-play** overlay closed → resume. *Not* the post-restore resume (see below).
+- `ludeo_Session_AddNotifyBackToMenuRequest()` — return to the main menu / lobby
+- `ludeo_Session_AddNotifyMuteRequest()` — mute game audio
 
 **Integration Notes:**
-- LudeoSelected can fire at ANY time (even mid-gameplay)
-- Must pause and wait for player after restoration
-- Use PlayerReady callback to know when to start
+- LudeoSelected can fire at ANY time (even mid-gameplay) — marshal off the SDK notification thread
+- Register all of these at **session creation**; they are session-lifetime
+- The overlay **drives** pause/resume — the game doesn't poll for it. Pause = freeze the simulation tick, not just input
+- **Post-restore resume goes through `RoomReady → Begin`**, not `ResumeGameRequest`. When the player presses Play after a Ludeo loads, the SDK runs `OpenRoom → AddPlayer → RoomReady → Begin` (the same gameplay-session-start chain documented in `05-LIFECYCLE-MANAGEMENT.md`); the game unpauses in the `RoomReady` callback. `ResumeGameRequest` is for the player reopening/closing the overlay *during* an active playback session.
+- **There is no `PlayerReady` notification in this SDK.**
 
-**Our Docs:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md#91-ludeoselected-handling)
+**Our Docs:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 (overlay control), §7 (wait-for-player); [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) (RoomReady → Begin)
 
 ---
 
@@ -223,7 +228,10 @@
 | Function | Purpose | Sync/Async |
 |----------|---------|------------|
 | `ludeo_Session_AddNotifyLudeoSelected()` | Register LudeoSelected handler | Sync |
-| `ludeo_GameplaySession_AddNotifyPlayerReady()` | Register PlayerReady handler | Sync |
+| `ludeo_Session_AddNotifyPauseGameRequest()` | Overlay requests pause → freeze sim | Sync |
+| `ludeo_Session_AddNotifyResumeGameRequest()` | Overlay requests resume (post-restore resume) | Sync |
+| `ludeo_Session_AddNotifyBackToMenuRequest()` | Overlay requests return to menu | Sync |
+| `ludeo_Session_AddNotifyMuteRequest()` | Overlay requests mute | Sync |
 
 ---
 

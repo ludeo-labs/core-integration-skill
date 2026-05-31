@@ -21,7 +21,7 @@ Activate this skill when the user says any of:
 
 ## Workflow
 
-The integration is a sequential 11-phase workflow (phase 0 through phase 9, including phase 2b). Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
+The integration is a sequential 14-phase workflow (phase 0 through phase 11, including phases 2b and 2c). Phases 0–9 build the **capture** (tracking) side; phases 10–11 add **state restoration**, which is what turns a capture into a playable Ludeo. Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
@@ -29,6 +29,7 @@ The integration is a sequential 11-phase workflow (phase 0 through phase 9, incl
 | 1 | `references/1-map-game-code.md` | Produce CODE_MAP of game architecture |
 | 2 | `references/2-find-sdk-integration-points.md` | Identify where SDK calls go |
 | 2b | `references/2b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
+| 2c | `references/2c-classify-save-system.md` | Classify save system (group + per-entity reconciliation/manual matrix); required by phases 8–9 |
 | 3 | `references/3-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
 | 4 | `references/4-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
 | 5 | `references/5-compile-and-fix.md` | Compile, fix, verify |
@@ -36,12 +37,15 @@ The integration is a sequential 11-phase workflow (phase 0 through phase 9, incl
 | 7 | `references/7-implement-game-actions.md` | Insert action calls |
 | 8 | `references/8-map-game-objects.md` | Discover trackable objects & properties |
 | 9 | `references/9-implement-object-tracking.md` | Wire object registration & capture |
+| 10 | `references/10-plan-state-restoration.md` | Plan the two-pass restoration flow (inverse of tracking) → `RESTORATION_PLAN.md` |
+| 11 | `references/11-implement-state-restoration.md` | Implement restoration: `LudeoStateAdapter` restore path, `LudeoSelected` handling, two-pass `DataReader` reads |
 
 ## Important rules
 
 - **One phase at a time.** Get user confirmation before advancing to the next phase.
 - **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/N-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
 - **Critical requirements** live in `references/ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`. Review them before phase 0.
+- **Track objects as attributes by default, not blobs.** The SDK supports both attribute and blob state storage/reconstruction; Ludeo strongly prefers attribute integrations. When mapping and tracking objects (phases 8–9), capture discrete typed attributes by default and do **not** ask the user which to use. Use blob/serialized storage only when the user explicitly asks or an entity is genuinely opaque/unmappable — see `references/ludeo-integration-docs/06-TRACKING-PATTERNS.md §1.4`.
 - **The agent writes outputs into the game's repo**, not into this skill. For example, `ludeo-integration-plan/CODE_MAP.json` is created at the game project root.
 - **Fresh session recommended.** Each phase produces a lot of context. If a phase has been running long, suggest the user start a fresh agent session for the next phase.
 

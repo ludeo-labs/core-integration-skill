@@ -37,7 +37,7 @@ By the end of this setup:
 
 ### Prerequisites
 
-- [ ] Ludeo SDK downloaded and extracted
+- [ ] Ludeo SDK cloned from `https://github.com/EdgeGamingGG/ludeo-sdk-releases` (latest release)
 - [ ] Build system identified (CMake, VS, Makefile, etc.)
 - [ ] Project structure documented (see [02-RESEARCH-TEMPLATE.md](./02-RESEARCH-TEMPLATE.md))
 

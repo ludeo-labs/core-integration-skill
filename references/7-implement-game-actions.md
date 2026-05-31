@@ -41,6 +41,8 @@ Find the LudeoManager class in the game codebase (check `ludeo-integration-plan/
 
 **Check if `SendAction` method already exists.** If not, propose adding it using the canonical header and implementation defined in `ludeo-integration-docs/06-TRACKING-PATTERNS.md` §7.1. Use that version verbatim — do not drop the session-state guard (`m_gameplay_session_active && m_data_writer != nullptr`); it's load-bearing and lets callers invoke the API without per-call-site session checks.
 
+> ⚠️ **Verify the SDK signature against the cloned headers first.** `ludeo_DataWriter_SendAction` takes the DataWriter **handle** plus a `LudeoDataWriterSendActionParams*`, and **`playerId` is required** — the one-argument `ludeo_DataWriter_SendAction(actionName)` form does not exist. The canonical `LudeoManager::SendAction` in §7.1 wraps this and defaults `playerId` to the local player (`m_player_id`), so the call sites below stay one-argument. Confirm the manager actually stores the id it passed to `ludeo_Room_AddPlayer`; if it doesn't, add that first or actions will be dropped server-side.
+
 This is a one-time prerequisite. Propose it first, get user confirmation, then proceed to action insertions.
 
 ### Step 3: Insert Action Calls

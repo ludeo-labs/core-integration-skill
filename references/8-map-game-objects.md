@@ -18,7 +18,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 > ⚠️ **REQUIRED:** These must complete first:
 > 1. `phase 1` → `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 2` → `SDK_INTEGRATION_POINTS.json`
-> 3. Save-system classification → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
+> 3. `phase 2c` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`. If these don't exist, run `phase 2c` first — no other phase produces them.
 >
 > **Recommended:** If `TDD_<GameName>.md` exists, read its **State Capture** section.
 
@@ -26,7 +26,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 **Action Required:** Read the following files. Do not assume they are in context.
 
-- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §2 (codebase pattern classification), §4 (identity & references), §9 (what-to-track decision flow). These are the core inputs to this command.
+- `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §1.4 (attributes-vs-blobs — default to attributes), §2 (codebase pattern classification), §4 (identity & references), §9 (what-to-track decision flow). These are the core inputs to this command.
 - `ludeo-integration-docs/research-context/02B-RESEARCH-OBJECTS.md` — entity inventory template
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — per-entity reconciliation vs manual matrix
 - `ludeo-integration-docs/game-patterns/INDEX.md` — genre tracking checklists (§3 of each genre file)
@@ -75,6 +75,8 @@ Record the ID field + file:line of assignment. If a class lacks a stable ID, fla
 
 For each entity, list properties and classify each kind: `identity | static | dynamic-continuous | dynamic-discrete | event-driven | reference`. Apply `06 §9.3` to decide what to keep.
 
+Capture each property as a **discrete typed attribute by default** — this is the assumed approach for every entity. Do **not** plan blob/serialized-buffer storage, and do not ask the user which to use, unless the user explicitly requested blobs or an entity genuinely warrants one (opaque/large/no stable field schema). See `06-TRACKING-PATTERNS.md §1.4` for the rule and the narrow exceptions; if an exception applies, record the entity + the specific reason under that entity's Open Questions rather than pausing for an answer.
+
 For each kept property pick the write strategy: `one-shot | per-tick | per-change | event-driven | debounced`. Default rules:
 - Identity / static → one-shot at registration
 - Position / rotation / velocity → per-tick (or debounced if the game is very large)
@@ -91,6 +93,8 @@ For every reference-kind property, fill a row in the Cross-Entity References tab
 Look up each entity in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`:
 - **reconciliation** → tracking will mirror the game's save plumbing
 - **manual** → tracking will write each property explicitly
+
+> ⚠️ **A strong save system does not mean reconciliation.** Reconciliation only works when the game serializes to **named fields** that map onto Ludeo's named attributes. A binary/packed/opaque blob save (e.g. a rewind/replay buffer) is **not** reusable as reconciliation even if it's excellent — and it may not even be active in the mode you're capturing. When the save is opaque, mark the entity **manual** and capture discrete attributes (`06 §1.4`). This is often the single most consequential call in this phase — don't default to reconciliation just because a save system exists. See `02F §8`.
 
 If an entity isn't in the matrix, add it there before continuing.
 
@@ -185,6 +189,7 @@ May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 
 ## Important Notes
 
+- **Attributes by default, not blobs** — plan discrete typed attributes for every entity (06 §1.4). Reach for a serialized blob only if the user asked or an entity is genuinely opaque/unmappable; record the reason in Open Questions and keep going — don't ask the user per entity.
 - **Pattern classification is foundational** — get §2 right or every downstream hook decision is wrong.
 - **Stable game IDs only** — restoration cannot resolve pointers across sessions.
 - **When in doubt, track it** — over-tracking is cheap; under-tracking produces silently broken replays (06 §9.1).

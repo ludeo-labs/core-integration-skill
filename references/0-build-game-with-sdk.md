@@ -14,9 +14,8 @@ Set up the Ludeo SDK build environment, create directory structure, configure bu
 > **REQUIRED:** This command needs the Ludeo SDK distribution.
 >
 > If not specified, the agent will:
-> 1. Check parent folder of game root (`../LudeoCoreSDK_*` or `../ludeo/LudeoCoreSDK_*`)
-> 2. Check standard locations (`external/ludeo/`, `third_party/ludeo/`)
-> 3. **Ask you** for the SDK path if not found
+> 1. **Clone the latest release** from `https://github.com/EdgeGamingGG/ludeo-sdk-releases`
+> 2. If the clone fails (no network, no access, git error), **ask you** to clone it manually and provide the path
 >
 > You can specify upfront: "SDK is at `C:\SDKs\LudeoCoreSDK_1_2_3`"
 
@@ -80,14 +79,17 @@ Follow **Section 2.1** of `04-BUILD-INTEGRATION.md`:
 - Check for CMakeLists.txt, .sln, Makefile, Unity, or Unreal Engine
 - Report detected build system and primary build file
 
-### Step 2: Discover SDK Location
+### Step 2: Obtain the SDK
 Follow **Section 2.2** of `04-BUILD-INTEGRATION.md`:
-- **FIRST:** Check parent folder of game root (`../LudeoCoreSDK_*` or `../ludeo/LudeoCoreSDK_*`)
-- **THEN:** Check standard locations within game root (`external/ludeo/`, `third_party/ludeo/`, etc.)
+- **Clone the latest release** of the SDK from `https://github.com/EdgeGamingGG/ludeo-sdk-releases`:
+  ```bash
+  git clone https://github.com/EdgeGamingGG/ludeo-sdk-releases.git
+  ```
+  - If the repo uses tagged releases, check out the latest release tag after cloning
+  - **On failure** (no network, no access, git error): stop and **ask the user** to clone the repo manually and provide the local SDK path
 - Extract version from directory name
 - Verify SDK structure **for selected OS only** (Include/, Lib/, Bin/)
-- Verify DLL/SO files are real binaries (> 1MB), not Git LFS pointer files (~130 bytes) — if pointer-sized, the SDK was copied from an LFS checkout without its binaries; ask the user to re-provide a complete SDK
-- If not found, prompt user for SDK path
+- Verify DLL/SO files are real binaries (> 1MB), not Git LFS pointer files (~130 bytes) — if pointer-sized, the SDK was checked out without its LFS binaries; run `git lfs pull` (or ask the user to re-provide a complete SDK)
 
 ### Step 3: Detect Target Name and Source Structure
 Follow **Sections 2.3 and 2.5** of `04-BUILD-INTEGRATION.md`:
@@ -158,7 +160,7 @@ Follow **Section 10.2** of `04-BUILD-INTEGRATION.md`:
 
 - [ ] Integration branch created (`feature/ludeosdk-integration-#N`)
 - [ ] Build system detected correctly
-- [ ] SDK located and verified (checked parent folder first)
+- [ ] SDK cloned from public releases repo and verified (or user-provided on clone failure)
 - [ ] Directory structure created
 - [ ] **Stub** `LudeoConfig.h` generated with correct logging macros
 - [ ] Build files modified (backups created)
@@ -183,7 +185,7 @@ If any step fails:
 - **Always create the integration branch first** - All work happens on `feature/ludeosdk-integration-#N`
 - **Build for ONE OS only** - Prompt user to select OS first (Step 0b)
 - **Debug/Development first** - Target Debug/Development build configs only; defer Release builds until Debug/Development is verified working
-- **SDK Discovery Priority:** Check parent folder of game root FIRST, then standard locations
+- **SDK Source:** Clone the latest release from `https://github.com/EdgeGamingGG/ludeo-sdk-releases`; on failure, ask the user to clone it and provide the path
 - **Build Order is Critical:** Always build WITHOUT SDK first to establish baseline, then build WITH SDK
 - **Always create backups** before modifying build files
 - **Verify each step** before proceeding
