@@ -465,6 +465,27 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 - [ ] Closing the overlay **resumes** the game.
 - [ ] Repeated open/close cycles behave the same — handlers are idempotent across multiple toggles.
 
+#### CR-010 and CR-011 are INDEPENDENT — do not collapse them into one `m_paused` boolean
+
+The post-restore freeze (CR-010) and the mid-play overlay pause (CR-011) are different events with different lifecycles, and the game can be in BOTH simultaneously (e.g., the player presses overlay-open during the post-restore wait). Track them as **separate flags** (or a small state machine), not a single shared `m_paused`. The forbidden pattern:
+
+```cpp
+// ❌ One flag collapses both sources. ResumeGameRequest unfreezes the still-mid-restoration
+//    pause; or RoomReady's unfreeze cancels a player-requested overlay pause.
+void SetPaused(bool v) { m_paused = v; engine.SetPaused(v); }
+```
+
+Required: each source owns its own bit, and the engine is paused **if any bit is set**:
+
+```cpp
+// ✅ Sources are independent; engine paused = ANY bit set
+void SetRestorationFreeze(bool v) { m_freeze_restore = v; UpdateEnginePause(); }
+void SetOverlayPause     (bool v) { m_freeze_overlay = v; UpdateEnginePause(); }
+void UpdateEnginePause() { engine.SetPaused(m_freeze_restore || m_freeze_overlay); }
+```
+
+`RoomReady` clears `m_freeze_restore` only; `ResumeGameRequest` clears `m_freeze_overlay` only. The engine stays paused if either source still wants it.
+
 **→ See:** [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" · [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 · CR-010 (post-Ludeo-load pause)
 
 ---
