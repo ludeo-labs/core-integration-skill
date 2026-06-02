@@ -347,6 +347,26 @@ For each entity type in `02B-RESEARCH-OBJECTS.md`, fill:
 5. **"Save anywhere" is often a lie.** Some games allow `Save()` calls
    from any state but only correctly restore state captured at checkpoint
    boundaries. Test mid-combat save→load before trusting Group 1.
+6. **"Named fields in nested structs" ≠ free reconciliation.** A typed
+   serializer (FullSerializer, Newtonsoft, Odin, JsonUtility) that emits
+   per-entity structs (`PlayerData_v1`, `EnemyData_v1`, etc.) has named
+   fields *inside* each struct — but Ludeo's attribute namespace is **flat
+   per object**. Reconciliation isn't free even though the data is
+   non-opaque: you still have to enumerate each struct's fields into
+   individual `Set*("name", value)` calls. The work is mechanical, but the
+   approach is still **manual** per property. Don't conflate "named fields
+   exist" with "reconciliation works out of the box" — the schema shape
+   matters, not just whether the bytes have names.
+7. **Transition / streaming caches are not save backbones.** Many open-world
+   games have an interior↔exterior cache, a streaming-chunk cache, or a
+   level-streaming hand-off that calls itself `CacheScene` / `Persist*` /
+   similar. These hold **partial deltas** — only the state the game needs
+   to round-trip across a transition, not the full live world. They are
+   *not* the canonical save format, and reusing them as the Ludeo backbone
+   silently drops everything outside the cached delta (other cells, distant
+   AI, quest world-state, etc.). For tracking/restoration, find the real
+   save path (the one called from the menu's Save/Load), not the transition
+   cache.
 
 ---
 
