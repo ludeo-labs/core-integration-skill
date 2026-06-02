@@ -44,11 +44,15 @@ Execute these searches systematically before writing the CODE_MAP. Skip sections
 - Shutdown: `Grep("Shutdown\|Cleanup\|Terminate\|OnQuit\|OnExit")` in source files
 
 ### 5. Session / Match Boundaries
+
+> **🛑 Classification gate.** If your classification (next bullet) lands on **single-streaming-world**, **state-machine-driven**, **event-dispatch-driven**, or any hybrid that lacks per-level scenes — **stop and read `ludeo-integration-docs/game-patterns/open-world.md` before continuing this section.** That file is the doctrine for what to record in `session_boundaries` and what phase 3 will consume. The detailed trigger + required sub-structure is the last bullet of this section; this notice exists so you don't miss it by skimming.
+
 - **First, identify how the game actually models a session** — don't assume match/level. Use `ludeo-integration-docs/research-context/02A-RESEARCH-ARCHITECTURE.md` §2.3 (State Machine) and §3.1 (Scene/Level Management) to classify: scene/level-driven, state-machine-driven, event-dispatch-driven, single-streaming-world, or hybrid. Trust that classification over the keyword greps below — for state-machine games (no `StartMatch`-style keywords), the session boundary lives in state transitions, not in named functions.
 - **State-machine probe** (run if `02A` §2.3 says yes, or if the keyword greps below come up empty): `Grep("enum .*State\|ChangeState\|CurrentState\|GameState\|StateMachine\|TransitionTo")` in source files. Walk the resulting state graph to find the states that bracket gameplay — those are the session boundaries.
 - **Keyword probe** (works for match/level-centric games; misses state-machine ones):
   - Start: `Grep("StartMatch\|StartGame\|LoadLevel\|LoadScene\|LoadMap\|BeginMatch\|NewGame")` in source files
   - End: `Grep("EndMatch\|EndGame\|GameOver\|MatchEnd\|LevelComplete\|ReturnToMenu\|QuitMatch")` in source files
+- **If the project has no per-level scenes** (single streaming world, state-machine-driven, sandbox, MMO, open-world RPG, etc.) — read `ludeo-integration-docs/game-patterns/open-world.md` before producing the CODE_MAP, and emit `session_boundaries` with the sub-structure below. This is the artifact phase 4 will consume; without it, the lifecycle agent has no canonical "where does the Gameplay Session begin / end" answer and falls back to asking the integrator.
 
 ### 6. Event Systems
 - `Grep("delegate\|event\|Signal\|Observer\|Listener\|Callback\|Broadcast\|Dispatch\|Subscribe\|Notify")` in headers
@@ -77,7 +81,11 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
    - `entry_points` - Main functions with file, line, and call chain
    - `core_classes` - Key classes with files, methods, inheritance
    - `lifecycle_hooks` - Integration points for initialization, main_loop, shutdown
-   - `session_boundaries` - Match/level start and end points (distinct from lifecycle_hooks)
+   - `session_boundaries` - Match/level start and end points (distinct from lifecycle_hooks). **When the project has no per-level scenes** (open-world / streaming / sandbox / state-machine-driven), use this sub-structure (see `ludeo-integration-docs/game-patterns/open-world.md`):
+     - `model` — one-line classification (e.g. `"state-machine + event-dispatch; single streaming world"`)
+     - `start_sites[]` — each `{ trigger, file, line, meaning }` for events that begin a live run (new game / load save / etc.)
+     - `exit_sites[]` — each `{ trigger | state, file, line, ludeo: "End" | "Abort" | "End/Abort" }` for events that end a run (death, return-to-menu, quit, load-different-save-while-in-game)
+     - `pause_overlay[]` — the game's pause primitive(s) to wire to `PauseGameRequest` / `ResumeGameRequest` ([CR-011](ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md))
    - `event_systems` - Delegate/event/observer patterns found, with pattern type
    - `save_system` - Format classification (custom binary, JSON, XML, third-party, engine-provided, none) **and** the existing per-object state-capture system (interface, registry/manager, object-type list, stable id) flagged as the tracking/restoration backbone
    - `ai` - Whether AI/bots exist, spawn mechanism, controllability

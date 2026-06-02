@@ -13,6 +13,7 @@ This is a sequential workflow — continuing to phase 3 in the **same session as
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` - Critical rules (async callbacks, tick requirements)
 - `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` - SDK lifecycle phases, LudeoManager requirement, callback flow
 - `ludeo-integration-docs/01-AI-AGENT-GUIDE.md` - LudeoManager implementation steps and patterns
+- **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (open-world / streaming / sandbox / state-machine-driven game with no per-level scenes), also read `ludeo-integration-docs/game-patterns/open-world.md`. This is the phase where the **OpenRoom bind point** is decided; without `open-world.md` the agent has no doctrine for picking among multiple start sites and will either pick wrong (binding to a state that fires too late or too often) or stall asking the integrator who doesn't know the SDK.
 
 ## Prerequisites
 

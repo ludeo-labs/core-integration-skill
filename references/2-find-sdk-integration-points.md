@@ -12,6 +12,7 @@ This is a sequential workflow — continuing to phase 2 in the **same session as
 
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` - Critical rules (threading, callbacks, tick requirements)
 - `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` - SDK lifecycle phases, callback flow, timing
+- **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (i.e. the project has no per-level scenes — open-world / streaming / sandbox / MMO / state-machine-driven), also read `ludeo-integration-docs/game-patterns/open-world.md`. It is the doctrine for picking which `start_sites[]` entry to bind `OpenRoom` to, and which `exit_sites[]` entries become `GameplaySession_End` calls. Without it, multiple start/exit sites are ambiguous and the agent will fall back to asking the integrator.
 
 ## Prerequisites
 
@@ -56,8 +57,8 @@ For each SDK function, find the best location from the CODE_MAP:
 | `ludeo_Session_Create()` | After Initialize | Same location as Initialize |
 | `ludeo_Session_Activate()` | After window/GL ready | `lifecycle_hooks.initialization` - after graphics init |
 | `ludeo_Session_Tick()` | Every frame | `lifecycle_hooks.main_loop` |
-| `ludeo_Session_OpenRoom()` | Level/match loading starts (ALL paths) | `lifecycle_hooks.session_start` |
-| `ludeo_GameplaySession_End()` | Gameplay ends (ALL exit paths) | `lifecycle_hooks.session_end` - may need multiple locations |
+| `ludeo_Session_OpenRoom()` | Level/match loading starts (ALL paths) | `session_boundaries.start_sites[]` (open-world / state-machine games — pick **one** per `open-world.md` §3) or the level/scene-load hook in `lifecycle_hooks` for level-driven games |
+| `ludeo_GameplaySession_End()` | Gameplay ends (ALL exit paths) | `session_boundaries.exit_sites[]` (open-world / state-machine games — wire **every** entry) or the equivalent level/match-end hooks for level-driven games |
 | `ludeo_Session_Release()` | Game shutdown | `lifecycle_hooks.shutdown` |
 | `ludeo_Shutdown()` | Game exit | `lifecycle_hooks.shutdown` - last point |
 

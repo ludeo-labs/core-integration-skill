@@ -358,6 +358,8 @@ bool Initialize()
 
 A **Gameplay Session** represents one instance of gameplay. Flow: Open Room (level loading starts) → Add Player(s) → Wait for Room Ready → Begin Gameplay → End Gameplay → Remove Player(s) → Close Room.
 
+> **No discrete level / match / mission?** The `(level, match, mission)` examples in [§3](#3-ludeo-session-vs-gameplay-session) are illustrative, not constraining. For open-world / streaming / sandbox / MMO games — where session boundaries are state-machine or event-driven rather than scene loads — **one continuous live run is one Gameplay Session**. Bind `OpenRoom` to the game's canonical "gameplay began" event, end on death / return-to-menu / quit, and keep the standard two-gate `RoomReady + PlayerAdded` (no third gate needed — see [`game-patterns/open-world.md`](./game-patterns/open-world.md) §4). Read [`game-patterns/open-world.md`](./game-patterns/open-world.md) before mapping `OpenRoom` for these games.
+
 ### ⚠️ **CRITICAL: Callback-Driven Flow - Common Mistake**
 
 **THE MISTAKE:** Calling `AddPlayer()` directly from game code after `OpenRoom()`.

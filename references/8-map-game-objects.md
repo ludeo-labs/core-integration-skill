@@ -53,6 +53,7 @@ For each pattern identified, record from §2:
 Same flow as `phase 6`:
 - Web search `"<game_name>" game genre`; ask the user if web search fails.
 - Read `game-patterns/INDEX.md`, load matching genre file(s).
+- **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (no per-level scenes), also load `game-patterns/open-world.md`. It is structural, not genre — it doesn't replace the genre tracking checklist, but it tells you the session spans the whole live run, which affects how `pre-existing-at-load` is interpreted (the run's "load" is the new-game / load-save moment, not a level load) and which entities are pre-existing vs. dynamically spawned during the run.
 
 Use §3 (Tracking Checklist) of each genre file as a **validation checklist** — what *should* be tracked for this genre. Actual hook sites and field names still come from the codebase.
 

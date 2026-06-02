@@ -41,8 +41,9 @@ Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is t
 
 **Once genre is known:**
 1. Read `ludeo-integration-docs/game-patterns/INDEX.md`
-2. Load the matching genre pattern file(s) from `ludeo-integration-docs/game-patterns/`
-3. For hybrid games, load multiple pattern files and merge their action catalogs and search keywords
+2. **Check the structural axis first.** If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }` (open-world / streaming / sandbox / state-machine-driven — no per-level scenes), load `game-patterns/open-world.md` in addition to the genre file(s). It is **structural**, not genre — it tells you that "one run = one Gameplay Session," which means actions accumulate across the whole live run rather than resetting per level. The genre file still provides the action catalog.
+3. Load the matching genre pattern file(s) from `ludeo-integration-docs/game-patterns/`
+4. For hybrid games, load multiple pattern files and merge their action catalogs and search keywords
 
 If no genre pattern file exists for this game's genre, inform the user:
 > "No genre pattern file exists for `<genre>`. I'll use a general search strategy. Consider creating `ludeo-integration-docs/game-patterns/<genre>.md` for future integrations."
