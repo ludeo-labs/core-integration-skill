@@ -4,10 +4,7 @@ Analyze the game codebase to identify where Ludeo actions (`LUDEO_ACTION()`) sho
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 6 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 6 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 6** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Prerequisites
 

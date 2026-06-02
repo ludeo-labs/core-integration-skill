@@ -4,10 +4,7 @@ Analyze the game codebase and build a comprehensive structural map for SDK integ
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 1 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — running phase 1 right after phase 0 in the **same session is normal**; do **not** stop just because earlier phases ran here. Only stop if **phase 1 itself** was already completed in this conversation (a `CODE_MAP.json` already exists) and you're about to regenerate it — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -22,6 +19,8 @@ These files help identify the specific lifecycle patterns needed for SDK integra
 ## Analysis Checklist
 
 Execute these searches systematically before writing the CODE_MAP. Skip sections that return no results. All patterns are engine-agnostic — adapt based on what the project structure reveals.
+
+> **Triage for large codebases.** Big projects can return hundreds of hits for a single pattern (e.g. `Serialize`, `class .*Manager`). Do **not** record them all. Map the **relevant subset**: entry point(s), the central game/loop class, the state machine, the save/state system, and the entity types that will be captured/restored. Anchor on those, follow references outward, and stop when the structural picture is complete — the CODE_MAP is a planning map, not an exhaustive inventory.
 
 ### 1. Project Structure
 - List top-level directories and identify source directories
@@ -45,16 +44,20 @@ Execute these searches systematically before writing the CODE_MAP. Skip sections
 - Shutdown: `Grep("Shutdown\|Cleanup\|Terminate\|OnQuit\|OnExit")` in source files
 
 ### 5. Session / Match Boundaries
-- Start: `Grep("StartMatch\|StartGame\|LoadLevel\|LoadScene\|LoadMap\|BeginMatch\|NewGame")` in source files
-- End: `Grep("EndMatch\|EndGame\|GameOver\|MatchEnd\|LevelComplete\|ReturnToMenu\|QuitMatch")` in source files
+- **First, identify how the game actually models a session** — don't assume match/level. Use `ludeo-integration-docs/research-context/02A-RESEARCH-ARCHITECTURE.md` §2.3 (State Machine) and §3.1 (Scene/Level Management) to classify: scene/level-driven, state-machine-driven, event-dispatch-driven, single-streaming-world, or hybrid. Trust that classification over the keyword greps below — for state-machine games (no `StartMatch`-style keywords), the session boundary lives in state transitions, not in named functions.
+- **State-machine probe** (run if `02A` §2.3 says yes, or if the keyword greps below come up empty): `Grep("enum .*State\|ChangeState\|CurrentState\|GameState\|StateMachine\|TransitionTo")` in source files. Walk the resulting state graph to find the states that bracket gameplay — those are the session boundaries.
+- **Keyword probe** (works for match/level-centric games; misses state-machine ones):
+  - Start: `Grep("StartMatch\|StartGame\|LoadLevel\|LoadScene\|LoadMap\|BeginMatch\|NewGame")` in source files
+  - End: `Grep("EndMatch\|EndGame\|GameOver\|MatchEnd\|LevelComplete\|ReturnToMenu\|QuitMatch")` in source files
 
 ### 6. Event Systems
 - `Grep("delegate\|event\|Signal\|Observer\|Listener\|Callback\|Broadcast\|Dispatch\|Subscribe\|Notify")` in headers
 - Identify pattern: delegates, observer, message bus, or signal/slot
 
-### 7. Save / Serialization
-- `Grep("Save\|Load\|Serialize\|Deserialize\|Archive\|Persist\|Checkpoint")` in source files, excluding test/log files
-- Classify: custom binary, JSON, XML, engine-provided, or none
+### 7. Save / Serialization — and the existing state-capture system (your tracking/restoration backbone)
+- `Grep("Save\|Load\|Serialize\|Deserialize\|Archive\|Persist\|Checkpoint")` in source files, excluding test/log files. Also check for third-party serializers (e.g. FullSerializer/`fsObject`, Odin, MessagePack, Protobuf).
+- Classify: custom binary, JSON, XML, third-party, engine-provided, or none.
+- **Most important:** if the game already has a **per-object state capture/restore system** (a serialize/restore interface + a registry/manager + an object-type list), treat it as the **backbone for object tracking and restoration**, not just a format to classify. It usually maps almost 1:1 to Ludeo state objects, objectType buckets, and the stable-key attribute — record its interface, manager, and type enum prominently in the CODE_MAP.
 
 ### 8. AI / Bots
 - `Grep("class.*AI\|class.*Bot\|class.*NPC\|PathFind\|NavMesh\|Spawn.*Bot\|Spawn.*NPC\|Spawn.*Enemy")` in source files
@@ -76,7 +79,7 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
    - `lifecycle_hooks` - Integration points for initialization, main_loop, shutdown
    - `session_boundaries` - Match/level start and end points (distinct from lifecycle_hooks)
    - `event_systems` - Delegate/event/observer patterns found, with pattern type
-   - `save_system` - Save system classification (custom binary, JSON, engine-provided, none) and key classes
+   - `save_system` - Format classification (custom binary, JSON, XML, third-party, engine-provided, none) **and** the existing per-object state-capture system (interface, registry/manager, object-type list, stable id) flagged as the tracking/restoration backbone
    - `ai` - Whether AI/bots exist, spawn mechanism, controllability
    - `threading` - Threading model and thread safety notes
    - `build_system` - Build files and dependencies

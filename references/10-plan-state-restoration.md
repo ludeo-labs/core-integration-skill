@@ -13,10 +13,7 @@ written here; the output is a reviewed plan that `/11` consumes.
 
 ## Fresh Context Check
 
-**Before proceeding, verify this is a fresh chat:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. Please open a new Agent window (Ctrl+Shift+I / Cmd+Shift+I) and run `/10-plan-state-restoration` there for best results."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 10 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 10** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
