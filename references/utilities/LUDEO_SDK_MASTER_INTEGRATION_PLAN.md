@@ -148,7 +148,7 @@ Before starting integration, the AI agent must investigate and document the foll
 - [ ] How can the game interrupt and restart from ANY state? (menu, gameplay, loading, cutscene)
 - [ ] What cleanup is needed when aborting current activity?
 - [ ] How to gracefully end current gameplay session if one is active?
-- [ ] How can the game pause after loading and wait for player input?
+- [ ] How can the game freeze the simulation at `LudeoSelected` and wait for player input? (the level loads on Play, not before — read-then-load, 07 §2)
 - [ ] Does the game have a "ready to play" or "press to start" screen?
 - [ ] Where is the game simulation paused/unpaused?
 - [ ] How to integrate with SDK's "player ready" callback?
@@ -1592,9 +1592,10 @@ public:
         GameSimulation::Get().SetPaused(true);
         
         // The Ludeo OVERLAY shows the Play button — do NOT draw your own.
-        // The player pressing Play causes the SDK to run OpenRoom→AddPlayer→RoomReady→Begin
-        // (the same chain used for tracking-start; see 05-LIFECYCLE-MANAGEMENT.md).
-        // The game UNPAUSES in OnRoomReadyCallback (which calls TryBeginGameplaySession).
+        // The room was already opened (with the selected ludeoId — Player Flow) and the player
+        // added during the LudeoSelected handler; only RoomReady is withheld until the player
+        // presses Play. On RoomReady the game UNPAUSES and TryBeginGameplaySession() issues Begin
+        // once BOTH player_added and room_ready are set (either order; see 05-LIFECYCLE-MANAGEMENT.md §6.6/§6.11).
         LogInfo("[Ludeo] Restoration complete - frozen, waiting for RoomReady");
     }
 
@@ -1643,39 +1644,35 @@ public:
 **Playback Timeline:**
 
 ```
-1. User selects Ludeo to play
-   └── OnLudeoSelectedCallback() fires
-   
-2. Game requests Ludeo data
-   └── ludeo_Session_GetLudeo() async call
-   
-3. DataReader received
-   └── OnLudeoDataReceivedCallback() fires
-   └── Read level metadata, determine what to load
-   
-4. Game loads appropriate level
-   └── Level loading begins
-   
-5. Level load complete, restore state
-   └── Two-pass restoration executes
-   └── All objects created and properties restored
-   
-6. PAUSE - Wait for player (CRITICAL!)
-   └── Game is paused
-   └── SDK overlay shows "Play" button
-   └── Player sees the restored state frozen
-   
-7. Player clicks "Play"
-   └── OnRoomReadyCallback() fires from SDK (player pressed Play on the overlay → OpenRoom→AddPlayer→RoomReady→Begin)
-   └── Game unpauses
-   └── BeginGameplaySession() called
+1. LudeoSelected fires
+   └── OnLudeoSelectedCallback() — marshal off the SDK notification thread
+   └── FREEZE the simulation (may already be frozen at the menu); SetRestoring(true)
+   └── Dispatch ludeo_Session_GetLudeo(ludeoId) AND OpenRoom(ludeoId) — they race, no ordering guarantee
+       (OpenRoom carries the ludeoId = Player Flow; dispatched HERE, not off a level-load hook —
+        the target level is UNKNOWN until the reader is in hand)
+
+2. DataReader received
+   └── OnLudeoDataReceivedCallback() — CACHE the reader; do NOT apply yet
+
+3. Player clicks "Play"
+   └── OnRoomReadyCallback() fires — the platform withheld RoomReady until Play
+       (the room was opened with the ludeoId and the player added back in the handler, not now)
+
+4. Apply — fires ONCE, on the last of {reader cached, room_ready}; in this exact order:
+   └── Unpause FIRST (load + apply need the sim running)
+   └── Read level metadata from the reader → determine + LOAD the level (generic level if no rooms)
+   └── Two-pass restoration executes — all objects created and properties restored
+   └── BeginGameplaySession() — once both player_added && room_ready (either order, 05 §6.6); AFTER apply
    └── Normal gameplay begins
+
+   ✅ This is the authoritative synchronous read-then-load order (CR-010, 07 §2): freeze at
+   LudeoSelected; GetLudeo + OpenRoom dispatched in the handler; the level loads + state restores
+   INSIDE the apply on RoomReady (after the unpause); then Begin. The level is NOT loaded before Play.
 ```
 
 **Why This Matters:**
-- Gives player time to orient themselves in the restored state
-- SDK overlay may show objectives, score targets, etc.
-- Ensures player consciously starts the Ludeo challenge
+- The SDK overlay shows objectives, score targets, and the Play button while the game is frozen
+- Ensures the player consciously starts the Ludeo challenge (the restored world appears on Play, when the level loads + state restores)
 - Allows SDK to properly time the gameplay session
 
 ### 9.3 Two-Pass Restoration

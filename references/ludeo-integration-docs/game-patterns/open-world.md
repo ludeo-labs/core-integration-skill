@@ -66,7 +66,7 @@ You may worry: "if `OpenRoom` fires at loading start but `StateManager` doesn't 
 
 **No third gate is needed.** The existing `TryBeginGameplaySession()` helper ([05-LIFECYCLE-MANAGEMENT.md §6.6](../05-LIFECYCLE-MANAGEMENT.md#66-beginning-gameplay-after-loading-complete)) gates on `PlayerAdded + RoomReady` — both SDK-side signals. The reason this is safe even when the game world isn't live yet:
 
-- **Sampling is gated by the game's own in-gameplay state.** Per [CR-005](../00-CRITICAL-REQUIREMENTS.md) / [CR-013](../00-CRITICAL-REQUIREMENTS.md), `LUDEO_CAPTURE_*` calls only fire while the game is actually in gameplay. Between `Begin` and the world becoming live, the sampler is dormant — nothing is captured.
+- **Sampling is gated by the game's own in-gameplay state — *and* must be off entirely during a Player-Flow replay.** Per the sampling gate ([06-TRACKING-PATTERNS.md §3](../06-TRACKING-PATTERNS.md)), `LUDEO_CAPTURE_*` calls only fire while the game is actually in gameplay. Between `Begin` and the world becoming live, the sampler is dormant — nothing is captured. **But a Player-Flow replay is *also* in-gameplay**, so the in-gameplay gate alone does not exclude it: add a **session-scoped Player-Flow gate** (set when this session's `OpenRoom` carried a `ludeoId`) that suppresses all state capture for the whole replay (`07 §2.3`, `06 §7`). `IsRestoring()` only covers the restore window — it goes false mid-replay, and capture would resume.
 - **Actions only fire on real gameplay events.** They're hooked to kills / pickups / quest completions, not to the loading sequence. The loading window doesn't generate action calls.
 - **The first captured frame is the real first gameplay frame.** The gap between `Begin` and "world live" is dead time on the SDK side — invisible to the captured Ludeo.
 
@@ -80,17 +80,25 @@ Per [CR-011](../00-CRITICAL-REQUIREMENTS.md), the Ludeo overlay opening mid-play
 - **Streaming jobs / coroutines** (terrain Jobs, asset loading, AI tick) must be paused too if they advance world state. Background asset *I/O* that doesn't mutate gameplay state can keep running.
 - The pause needs **two independent flags** for `PauseGameRequest` and the post-Ludeo-load pause ([CR-010](../00-CRITICAL-REQUIREMENTS.md)) — not one shared boolean.
 
-## 6. Restoration: Tearing Down the Live Run
+## 6. Restoration: Read the Ludeo, Then Reach Active Gameplay and Overwrite
 
-When `LudeoSelected` fires mid-run, the player wants to play *the captured moment*, not their current save. The teardown is the same shape as End-of-run, but **the Ludeo Session itself survives**:
+The apply (your load-save plumbing) writes into a **live run** — player, world, and in-gameplay state all present — so the restore must ultimately land on one. But the flow is **synchronous read-then-load**: you fetch the Ludeo's `DataReader` *first*, and only then do you know **which** run to boot — for a streaming world, the captured world cell / spawn region (`room_x`, `room_y`, read from the reader). So "reach active gameplay" is **not** the first step — it happens **inside the apply**, after the reader is in hand. "Active gameplay" is still the target: the point at which, *without Ludeo's intervention, the player would have been able to start playing* (menus, character-creation / new-game / load, loading, intros all done). For a streaming world there is **no per-level scene to load** — entering gameplay is a state-machine transition (`StartGameBehaviour` → `StateManager.Game`), driven once you've read where to go.
 
-1. Tear down the current Gameplay Session + Room (`GameplaySession_End` → `RemovePlayer` → `Room_Close`).
-2. **Do not** quit to desktop. Ludeo Session stays alive.
-3. Reconstruct the world to the Ludeo's captured state (your existing load-save plumbing is the natural fit — the Ludeo is a "save file from elsewhere").
-4. Open a fresh Room with the Ludeo's `ludeoId`. The standard `OpenRoom → AddPlayer → RoomReady → Begin` chain runs.
-5. `OnRoomReadyCallback` doubles as the **post-Ludeo-load resume** — game unpauses when the player presses Play on the overlay. See [07-RESTORATION-PATTERNS.md §2.4](../07-RESTORATION-PATTERNS.md) and CR-010.
+> 🔴 **`LudeoSelected` very often arrives at the title menu / app startup — where there is no run at all.** This is the *common production case* (the platform and the forced-Ludeo launch fire it at startup), not a rare edge. Restoring there silently no-ops: the load path hits its "no active game" guard (`!HasInstance` / no `SerializablePlayer`), bails, `onComplete` fires, and `Begin` runs at the menu — overlay/recording start with **nothing reconstructed**. Do **not** assume the player is persistent and the apply "just repositions" it — at the menu the player does not exist yet, so you must **create** the run.
 
-For an open-world game, this is closer to "load-while-in-game" than "return-to-menu." If your game has a clean "load this save right now, abort current run" code path, route Ludeo restoration through it.
+Restoration only ever starts from one of **two** states (the game is in player flow or creator flow from launch, by whether a Ludeo ID was provided — it does not switch a creator run into a replay mid-run):
+
+- **No Ludeo run active yet** (startup / menu): drive the game's new-game / load-save entry to **create** the run (`StartGameBehaviour` → `StateManager.Game`), reaching active gameplay.
+- **A Ludeo is already playing** (another `LudeoSelected` arrives during playback or while it awaits Play): tear down the current Ludeo's Gameplay Session + Room (`GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close`; **do not** quit to desktop — the Ludeo Session survives) **and reset prior-Ludeo state** (release the old reader, re-arm `IsRestoring`, swap in the new `ludeoId`), then reach active gameplay for the **new** Ludeo.
+
+From there, both converge on the **synchronous read-then-load** sequence:
+
+1. **Freeze the simulation the instant `LudeoSelected` fires** (sim tick frozen, CR-010) — it may already be frozen at the menu. The freeze holds until the apply.
+2. **Dispatch `GetLudeo(ludeoId)` and `OpenRoom(ludeoId)` now — they race.** `OpenRoom` carries the `ludeoId` (Player Flow) and is called **directly in the handler**, *not* hung off a level-load hook (no level loads yet); `OpenRoom → AddPlayer` run, and the SDK's `RoomReady + PlayerAdded` gate the overlay. The captured **world cell is still unknown** here.
+3. **On `RoomReady`** (the player pressed Play; the apply fires once **both** the reader is cached and `room_ready` is set): **unpause → read the entry identity from the reader (`room_x`, `room_y`, spawn region) → reach active gameplay (drive `StartGameBehaviour` → `StateManager.Game` into that region; create the run if none exists) → overwrite with the captured state** via your existing load-save path (the Ludeo is a "save file from elsewhere"). At the menu there was no run — you **create** it here.
+4. `OnRoomReadyCallback` is the **post-Ludeo-load resume** — the unpause + load + apply above all happen here. See [07-RESTORATION-PATTERNS.md §2](../07-RESTORATION-PATTERNS.md) and CR-010.
+
+The mental model is **"read the Ludeo, then boot the run it points to and overwrite it,"** not "load a save into whatever is on screen" and not "boot a generic run *before* you've read where to go." If your game has a clean "start/load right now, abort current run" path, route Ludeo restoration through it — but make sure that path actually *enters* gameplay, and that you drive it with the cell/region read from the reader; at the menu it must create the run, not assume one.
 
 ## 7. The Sandbox Edge Case (Minecraft / Valheim / 7 Days)
 

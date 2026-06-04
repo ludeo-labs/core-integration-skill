@@ -989,7 +989,9 @@ void OnLevelLoadComplete()
 }
 ```
 
-> **`IsRestoring()` is a forward-compatible seam.** In a tracking-only integration (before restoration is wired in phase 10/11) it has nothing behind it. Add it as a stub on `LudeoManager` that returns `false` (`bool IsRestoring() const { return m_is_restoring; }`, `m_is_restoring` set later by the restoration phase) so this gate is a harmless no-op now and becomes correct once restoration lands — no need to revisit the call site. Don't substitute an ad-hoc "is this a replay" check.
+> **Two distinct gates — don't conflate them.** `IsRestoring()` is the **restore-window** seam (`LudeoSelected` → end of apply): use it to skip batch registration here (in Player Flow the level loads *inside* the restore, so objects come from the snapshot, not from `RegisterAllExistingObjects()`) and to gate pre-match skips (`07 §9.11`). It is a forward-compatible stub: in a tracking-only integration (before restoration is wired in phase 10/11) add `bool IsRestoring() const { return m_is_restoring; }` returning `false`, so this gate is a harmless no-op now and becomes correct once restoration lands — no need to revisit the call site.
+>
+> **Separately, *all* state capture must stay off for the entire Player-Flow replay** — `CreateObject`, `Set*`, and especially **per-tick `CaptureFrame`**. Gate those on a **session-scoped** "is this a Player-Flow replay?" flag (set when this gameplay session's `OpenRoom` carried a `ludeoId`, cleared at session end), **not** on `IsRestoring()`. `IsRestoring()` goes false the instant the snapshot lands, so per-tick capture gated on it alone **resumes mid-replay** and turns the scored replay into a new recording (`06 §7`, `07 §2.3`). Don't substitute an ad-hoc "is this a replay" check for either gate.
 
 ---
 
@@ -1002,7 +1004,7 @@ Actions are discrete gameplay events (`"Kill"`, `"CollectCoin"`, `"ObjectiveComp
 - **Creator Flow (recording):** `SendAction` records each event alongside the state stream.
 - **Player Flow (playback):** the *same* `SendAction` sites fire again as the player replays the captured moment. The SDK uses these to evaluate the Ludeo's **win/fail conditions** — did the player land the kill, finish before the timer, hit the objective? Without action sends during playback, the SDK has no signal to score the player's run.
 
-This means action call sites **must not** be gated behind `IsRestoring()` or any "are we in player flow?" check. They fire identically in both flows. (State writes — `CreateObject`, `Set*`, per-tick capture — *are* gated to Creator Flow only; see `07 §2.3`.)
+This means action call sites **must not** be gated behind `IsRestoring()` or any "are we in player flow?" check. They fire identically in both flows. (State writes — `CreateObject`, `Set*`, per-tick capture, batch registration — *are* off for the **entire** Player-Flow replay: gate them on a **session-scoped** "is this a Player-Flow replay?" flag — set when this gameplay session's `OpenRoom` carried a `ludeoId`, cleared at session end — **not** on `IsRestoring()`, which is only the restore window and goes false mid-replay. See `07 §2.3` and §6.3.)
 
 **Ownership of action work is split across three places — this section owns only the SDK surface:**
 
