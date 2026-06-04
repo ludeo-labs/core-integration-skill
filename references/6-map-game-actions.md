@@ -37,7 +37,7 @@ Read `ludeo-integration-plan/CODE_MAP.json`. Extract:
 Search the web for `"<game_name>" game genre` (e.g., `"Red Eclipse" game genre`). Use the result to identify one or more genres.
 
 **Fallback — if web search fails** (unreleased game, internal project, no results):
-Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is this game? (e.g., shooter, rts, platformer, racing)"
+Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is this game? (e.g., shooter, rts, platformer, racing, rpg, survival/sandbox)"
 
 **Once genre is known:**
 1. Read `ludeo-integration-docs/game-patterns/INDEX.md`
@@ -48,7 +48,7 @@ Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is t
 If no genre pattern file exists for this game's genre, inform the user:
 > "No genre pattern file exists for `<genre>`. I'll use a general search strategy. Consider creating `ludeo-integration-docs/game-patterns/<genre>.md` for future integrations."
 
-Then proceed with a broad search using common gameplay keywords: kill, death, damage, score, pickup, collect, objective, complete, win, lose.
+Then proceed with a broad search spanning common genres: combat (kill, death, damage, score), collection (pickup, collect, loot), progression (objective, complete, quest, levelUp, win, lose), and crafting/building (craft, build, gather) for RPG/survival-leaning games.
 
 ### Step 3: Search Codebase for Action Patterns
 
