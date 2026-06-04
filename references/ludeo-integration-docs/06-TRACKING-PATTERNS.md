@@ -585,6 +585,12 @@ private:
 - **Log failures but continue** (don't crash game)
 - **Call before game object is deleted**
 
+> **Streaming worlds: the destruction hook fires on stream-out too.** If the world streams cells/chunks
+> in and out, this same `OnDestroy`/destructor/`pool.release()` runs when a cell **unloads** — but a
+> streamed-out object isn't dead, so unregistering it would drop it from the replay. Gate
+> `UnregisterFromLudeo` on a real removal signal (death/consume/destroy), not on the raw destructor /
+> pool release alone. See [`game-patterns/open-world-tracking.md`](game-patterns/open-world-tracking.md) §2 (presence ≠ existence).
+
 ---
 
 ## 4. Identity and Reference Mapping
@@ -1361,6 +1367,7 @@ The tables are typical cases, not rules. Clear examples of them being wrong:
 - A **rhythm game** has no meaningful position on most objects; the important state is hit-timing. Most "track position" rows don't apply.
 - An **RTS** has hundreds or thousands of units — over-tracking has real bandwidth cost. Evaluate granularity (track squads rather than individuals if that preserves the experience).
 - A **stealth game** elevates lighting and AI-perception state from "usually skip" to gameplay-critical.
+- An **open-world / streaming game** scopes to the loaded neighborhood and adds world/cell state — see [`game-patterns/open-world-tracking.md`](game-patterns/open-world-tracking.md).
 
 When your game differs from the examples, don't patch the table — re-apply §9.1–§9.3 from scratch.
 

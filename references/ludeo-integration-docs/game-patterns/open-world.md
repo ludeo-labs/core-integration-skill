@@ -119,4 +119,4 @@ The CODE_MAP `session_boundaries` block produced in `phase 1` is the input for t
 
 ## 9. After This File
 
-You still need the **action catalog** and **tracking checklist** for whichever genre(s) the game blends — load the relevant `shooter.md` / `rts.md` / `racing.md`, or compose from multiple. This file decides *when* a Gameplay Session lives; the genre files decide *what* it captures.
+This file decides *when* a Gameplay Session lives. For *what* a streaming world captures — presence ≠ existence, world/cell object types, identity across stream cycles, scope-to-the-moment — read its tracking companion [`open-world-tracking.md`](./open-world-tracking.md) alongside [`06-TRACKING-PATTERNS.md`](../06-TRACKING-PATTERNS.md). You also still need the **action catalog** and genre **tracking checklist** for whichever genre(s) the game blends — load the relevant genre file(s) (`shooter.md` / `rts.md` / `racing.md` / `rpg.md` / `survival-sandbox.md`) via [`INDEX.md`](./INDEX.md), or compose from multiple.
