@@ -9,9 +9,9 @@
 ## Pattern Files Come in Two Shapes
 
 - **Genre patterns** (shooter, rts, racing) describe *what* a Gameplay Session captures — actions, search keywords, tracking checklists.
-- **Structural patterns** (open-world) describe *how* a Gameplay Session is bounded when the genre catalog isn't enough — typically because the game has no per-level scenes.
+- **Structural patterns** (open-world) describe *how* a streaming-world Gameplay Session is bounded (`open-world.md`) and *what* it captures (`open-world-tracking.md`) when the genre catalog isn't enough — typically because the game has no per-level scenes.
 
-A streaming-world RPG loads **both**: `open-world.md` for the session boundary, plus the relevant genre file(s) for actions/tracking.
+A streaming-world RPG loads **both shapes**: `open-world.md` + `open-world-tracking.md` for the structural session boundary and tracking delta, plus the relevant genre file(s) for actions/tracking.
 
 ## Available Patterns
 
@@ -20,20 +20,23 @@ A streaming-world RPG loads **both**: `open-world.md` for the session boundary, 
 | [shooter.md](./shooter.md) | Genre | FPS / TPS / Arena Shooter | Guns, projectiles, health/damage combat, PvE or PvP |
 | [rts.md](./rts.md) | Genre | Real-Time Strategy | Unit production, base building, resources |
 | [racing.md](./racing.md) | Genre | Racing / Kart / Sim Racing | Laps, race finish, overtakes |
-| [open-world.md](./open-world.md) | Structural | Open-world RPG / sandbox / MMO / streaming world | No per-level scenes; session boundaries are state-machine or event-driven, not `LoadLevel`/`LoadScene`/`StartMatch` |
+| [rpg.md](./rpg.md) | Genre | Action RPG / open-world RPG / JRPG / MMORPG / looter | Character stats/leveling, quests, inventory/equipment, dialogue, factions |
+| [survival-sandbox.md](./survival-sandbox.md) | Genre | Survival / crafting / sandbox / base-builder | Gathering, crafting/building, hunger/thirst meters, placing/destroying world structures |
+| [open-world.md](./open-world.md) | Structural (boundaries) | Open-world RPG / sandbox / MMO / streaming world | No per-level scenes; session boundaries are state-machine or event-driven, not `LoadLevel`/`LoadScene`/`StartMatch` |
+| [open-world-tracking.md](./open-world-tracking.md) | Structural (tracking) | Same — when mapping/implementing object tracking | The world streams in/out; you need the streaming-world tracking delta over `06` |
 
 ## How the Agent Should Use These Files
 
-1. **Check the structural axis first.** If the game has no per-level scenes (open-world RPG, sandbox, MMO, streaming world), load [open-world.md](./open-world.md) before any genre file — it answers "where does a Gameplay Session begin and end" for these games.
+1. **Check the structural axis first.** If the game has no per-level scenes (open-world RPG, sandbox, MMO, streaming world), load [open-world.md](./open-world.md) before any genre file — it answers "where does a Gameplay Session begin and end" for these games. When you reach object tracking, also load [open-world-tracking.md](./open-world-tracking.md) for the streaming-world tracking delta (presence ≠ existence, world/cell state, identity across streaming).
 2. **Determine genre** — web search the game name, or ask the user if not findable.
-3. **Load 1-2 matching genre files** — hybrid games may need multiple.
+3. **Load 1-2 matching genre files** — hybrid games may need multiple. Common mappings: open-world RPG (Skyrim-like) → `rpg.md`; survival/sandbox (Valheim/Minecraft) → `survival-sandbox.md`; open-world action (GTA/Red Dead) → `shooter.md` + `racing.md` (driving) + `rpg.md` (progression); MMORPG → `rpg.md`. Always pair these with the structural files from step 1 when the game streams.
 4. **Use the action catalog** as a shopping list — search the codebase for each.
 5. **Use the search keywords** to grep for relevant code patterns.
 6. **Use the tracking checklist** to validate completeness after object tracking is implemented.
 
 ## File Structure (Genre Files)
 
-Genre files (`shooter.md`, `rts.md`, `racing.md`) follow a three-section structure:
+Genre files (`shooter.md`, `rts.md`, `racing.md`, `rpg.md`, `survival-sandbox.md`) follow a three-section structure:
 
 ### Section 1: Actions Catalog
 - Action names, descriptions, Ludeo objective/scoring potential
@@ -49,7 +52,7 @@ Genre files (`shooter.md`, `rts.md`, `racing.md`) follow a three-section structu
 - Used as a validation checklist, not a search guide
 - Reserved for future object tracking commands
 
-**Structural files** (`open-world.md`) have a different shape — they document session-boundary doctrine, the OpenRoom bind-point trade-offs, and pause/restoration interactions for games where the genre catalog alone isn't enough.
+**Structural files** (`open-world.md`, `open-world-tracking.md`) have a different shape — `open-world.md` documents session-boundary doctrine (the OpenRoom bind-point trade-offs, pause/restoration interactions); `open-world-tracking.md` is the streaming-world tracking delta over `06` (presence ≠ existence, world/cell object types, identity across stream cycles). They are loaded *in addition to* a genre file, not instead of one.
 
 ## Adding a New Genre or Structural Pattern
 
