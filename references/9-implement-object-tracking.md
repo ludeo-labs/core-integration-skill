@@ -109,13 +109,13 @@ Critical discipline:
 
 ### Step 6: Wire Batch Registration for Pre-Existing Objects
 
-For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phase 10/11) is wired, this hook won't double-register objects that restoration recreates.
+For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phases 11–12) is wired, this hook won't double-register objects that restoration recreates.
 
-**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 10/11 lands; don't invent a different check:
+**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phases 11–12 lands; don't invent a different check:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
-    // Returns false until restoration (phase 10/11) sets m_is_restoring true while
+    // Returns false until restoration (phases 11–12) sets m_is_restoring true while
     // a Ludeo replay is being reconstructed. Gates batch registration so we don't
     // double-register objects that restoration will recreate.
     bool IsRestoring() const { return m_is_restoring; }
@@ -125,6 +125,8 @@ private:
 ```
 
 Propose this stub as part of the batch-registration change. Do not gate on a pending-ludeo id or other ad-hoc signal — `IsRestoring()` is the seam the later phases expect.
+
+> **⚠️ Capture the world/session ENTRY IDENTITY here — restoration's first step depends on it.** From the `/8` map, emit the singleton world/session metadata object (level/map id, `start_mode`, save slot, or the procedural `RunMetadata` inputs) as one-shot identity captures. The restoration phase reads it back **before** anything else to decide which level to reach (`07 §2.2`, `read_entry_identity`); you can only restore what this phase wrote. **Corollary — adding *or renaming* any captured attribute (here or in a later phase) invalidates every previously captured Ludeo for that attribute: there is no migration.** A Ludeo captured before the entry-identity attribute existed reads back empty — distinct from a genuine "level not found" (see `07`). After any capture-schema change, **re-capture** before testing restore; a fresh run re-samples valid data.
 
 ### Step 7: Reconciliation Wiring (Per-Entity, Only Where the Matrix Says So)
 

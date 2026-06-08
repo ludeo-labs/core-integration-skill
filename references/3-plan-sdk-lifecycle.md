@@ -79,7 +79,7 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - The implementation plan follows LudeoManager wrapper pattern (game code calls wrapper methods, not raw SDK functions)
 - All SDK code in the plan is wrapped in `#if LUDEO_SDK_ENABLED` for conditional compilation
 - The plan covers SDK Lifecycle (initialization, session, tick, shutdown, room management, gameplay sessions) **and the registration + handler bodies for all session-lifetime notifications** (see below).
-- The plan does NOT cover tracking (DataWriter usage) or the *restoration logic* inside the LudeoSelected handler (DataReader-driven spawning, two-pass, etc. — that's phase 10/11). **It does** cover the LudeoSelected handler stub and *all* overlay-control notifications, because those are session-lifetime concerns, not restoration-specific.
+- The plan does NOT cover tracking (DataWriter usage) or the *restoration logic* inside the LudeoSelected handler (DataReader-driven spawning, two-pass, etc. — that's phases 11–12). **It does** cover the LudeoSelected handler stub and *all* overlay-control notifications, because those are session-lifetime concerns, not restoration-specific.
 
 ### Critical Distinctions
 
@@ -93,7 +93,7 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - CloseRoom (from OnPlayerRemovedCallback)
 
 **🔔 Session-lifetime notifications the plan MUST cover** (registered once at session creation; see `05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications"):
-- `LudeoSelected` — register + stub handler (full restoration logic lands in `/11`)
+- `LudeoSelected` — register + stub handler (full restoration logic lands in `/11`–`/12`)
 - `RoomReady` — full handler (gameplay-session-start gate; also post-Ludeo-load resume per CR-010)
 - `PauseGameRequest` — full handler: **freeze the simulation tick** (CR-011 — game must pause while the overlay is up)
 - `ResumeGameRequest` — full handler: unfreeze the sim (CR-011)

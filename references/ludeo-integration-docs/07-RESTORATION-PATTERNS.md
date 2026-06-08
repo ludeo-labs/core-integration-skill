@@ -77,8 +77,8 @@ the captured state there.**
 
 1. **`ludeo_Session_AddNotifyLudeoSelected(...)`** → your `LudeoSessionLudeoSelectedCallback` fires with `params->ludeoId`. (On the SDK notification thread — marshal off it immediately.)
 2. **`ludeo_Session_GetLudeo(session, &params, clientData, callback)`** — set `params.apiVersion = LUDEO_SESSION_GETLUDEO_API_LATEST` and `params.ludeoId = <id from step 1>`. This call is **async** and does **not** return the reader or change session state.
-3. Your **`LudeoSessionGetLudeoCallback`** fires with `const LudeoSessionGetLudeoCallbackParams* data`: check `data->resultCode == LudeoResult::Success`, then **`data->dataReader`** is the `LudeoHDataReader`. **The reader arrives here — there is no synchronous "open reader" function.**
-4. From that callback (marshalled to the main thread): **`ludeo_DataReader_SetCurrent(data->dataReader)`** → run two-pass restoration.
+3. Your **`LudeoSessionGetLudeoCallback`** fires with `const LudeoSessionGetLudeoCallbackParams* data`: check `data->resultCode == LudeoResult::Success`, then **`data->dataReader`** is the `LudeoHDataReader`. **The reader arrives here — there is no synchronous "open reader" function.** But **`Success` means the call produced a valid reader *handle*, not that the Ludeo's data has landed in it** — the callback can fire **repeatedly** (the forced-launch path re-injects `LudeoSelected`), and early cycles hand back a **valid-but-empty** reader. See §2.2.1 — you must validate the reader is *populated* before applying.
+4. From that callback (marshalled to the main thread), **once the reader is populated** (§2.2.1): **`ludeo_DataReader_SetCurrent(data->dataReader)`** → run two-pass restoration.
 
 So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(ludeoId)` *(async)* → `GetLudeo` completion callback delivers the reader → `SetCurrent` → restore. If a signature here ever disagrees with the cloned headers, the headers win — but you should not need to read them for this flow.
 
@@ -132,7 +132,7 @@ on_ludeo_selected(ludeoId):              # SDK notification thread — marshal t
         end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (/11)
     set_restoring(true)                      # arm pre-match skip gating (§9.11) — the skips fire later, during the load
     pending_ludeo_id = ludeoId               # stash the NEW id: used for BOTH GetLudeo (state) and OpenRoom (flow select)
-    pending_reader = null; room_ready = false   # re-arm the single-fire apply gate
+    pending_reader = null; room_ready = false; applied = false; ready_deadline = now() + RESTORE_TIMEOUT   # re-arm gate + readiness retry
     freeze_simulation()                      # FREEZE the instant LudeoSelected fires — may already be frozen at the menu (CR-010)
     suppress_input()
     cancel_in_flight_transitions()
@@ -145,18 +145,31 @@ on_ludeo_selected(ludeoId):              # SDK notification thread — marshal t
     #   OpenRoom is dispatched HERE, not hung off the level-load path: the level does not load until the apply.
     #   on_room_opened → AddPlayer → on_player_added sets player_added=true; TryBegin WAITS (room_ready false)
 
-on_get_ludeo(callbackParams):            # GetLudeo completion — marshal to main thread
+on_get_ludeo(callbackParams):            # may fire REPEATEDLY (forced-launch re-injects LudeoSelected) — marshal to main thread
     if callbackParams.resultCode != Success:
-        abort_restoration(); return
-    pending_reader = callbackParams.dataReader   # cache; do NOT apply yet
-    maybe_apply_restore()                        # fires only if room_ready is also set
+        abort_restoration(); return                       # hard fetch failure — STOP, do not retry
+    if reader_is_populated(callbackParams.dataReader):    # Success + objectsCount > 0 (see §2.2.1)
+        pending_reader = callbackParams.dataReader        # KEEP the populated reader; never let a later empty cycle clobber it
+        maybe_apply_restore()
+    # else: empty/not-ready cycle — ignore it; a populated reader arrives a cycle or two later
+
+reader_is_populated(reader):             # the readiness gate (§2.2.1)
+    info = ludeo_DataReader_GetObjectsInfo(reader)
+    populated = (info.resultCode == Success and info.objectsCount > 0)
+    ludeo_ObjectsInfo_Release(info)                       # pair every GetObjectsInfo with a Release
+    return populated
 
 on_room_ready(callbackParams):           # platform withholds RoomReady until the player presses Play
     room_ready = true
-    maybe_apply_restore()                        # fires only if the reader is also cached
+    maybe_apply_restore()                                 # fires only if a POPULATED reader is also cached
 
-maybe_apply_restore():                   # gate: fire ONCE, when the LAST of {reader cached, room_ready} arrives
-    if not is_restoring or not room_ready or pending_reader == null: return
+update():                                # per-frame fallback — don't depend on the forced-launch re-fire
+    if is_restoring and not applied and now() > ready_deadline:
+        abort_restoration()                               # never populated in time → invalid/empty Ludeo; do NOT Begin
+
+maybe_apply_restore():                   # gate: fire ONCE, when a POPULATED reader is cached AND room_ready
+    if applied or not is_restoring or not room_ready or pending_reader == null: return
+    applied = true
     resume_simulation()                          # UNPAUSE FIRST — the load + apply need the game running
     entry = read_entry_identity(pending_reader)  # read level/map identity FROM the reader (e.g. start_mode, room_x, room_y)
     reach_active_gameplay(entry)                 # load THAT level / boot the run; generic level if the game has no rooms.
@@ -172,6 +185,36 @@ maybe_apply_restore():                   # gate: fire ONCE, when the LAST of {re
 ```
 
 > **On `read_entry_identity` — why the order is read-then-load:** which level/scene to load (or which save / new-game flow to drive) is **read from the cached `DataReader`, inside the apply** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `/9` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. This is exactly why the flow is **synchronous read-then-load**: you must hold the reader before you can decide which level to boot, so `GetLudeo` is dispatched *first* and the load waits for the apply. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `/8`/`/9`, not a missing SDK function.
+>
+> **Procedural / non-deterministic-assembly games** (roguelike / procedural dungeon / wave-survival — `game-patterns/procedural-world.md`): the entry identity is the captured **generation inputs** (room/chunk id, encounter id, wave index, combat level), and "reach active gameplay" means **re-drive the level builder/pool to those inputs with the random re-roll suppressed** (gate the generator's selection on `IsRestoring()`), restoring the scaling counter before any spawn — *not* just loading a level, which here yields an empty container that re-rolls its content. See `procedural-world.md §5`.
+>
+> **Fail loud on the entry identity, and distinguish two failures.** The reader can be **populated** (§2.2.1 passed — `objectsCount > 0`) yet the **entry-identity attribute** specifically reads back **empty/absent**. That is almost always **version skew**: the Ludeo was captured by a build *before* the identity attribute existed (`/9` added it later), so there is nothing to route on. This is **different** from reading a valid id that then **resolves to no level** ("room 'X' not found") — a genuine routing/content bug. Branch them with distinct messages so a stale-Ludeo re-capture isn't chased as a code bug:
+> - entry identity **absent/empty** → log "entry identity missing — Ludeo predates the identity capture; **RE-CAPTURE** on the current build", then `abort_restoration` (do **not** `Begin` a scored replay on a guessed level).
+> - entry identity **present but unresolvable** → log "level/room '<id>' not found — routing/content bug, not version skew".
+>
+> **Corollary (engine-agnostic):** you can only restore what capture wrote, so **adding or renaming any captured attribute invalidates every previously captured Ludeo** for that attribute — there is no migration. After any capture-schema change, **re-capture** before testing restore.
+
+### 2.2.1 Reader readiness — the reader can arrive empty; validate before applying
+
+`GetLudeo`'s callback returning `resultCode == Success` means **the call produced a valid reader handle — not that the Ludeo's data has landed in it.** The captured Ludeo is fetched **asynchronously**; under the **forced-launch path** (`autoStartInLudeo` / the LC-8977 workaround that injects `LudeoSelected` at cold start), `LudeoSelected → GetLudeo` fires **repeatedly**, and the **early cycles return `Success` with an empty reader** — the payload hasn't arrived yet. A populated reader shows up a cycle or two later.
+
+So **`resultCode == Success` and `reader != null` are NOT enough to apply.** Gate the apply on the reader being **populated**, which is a real query:
+
+```pseudo
+reader_is_populated(reader):
+    info = ludeo_DataReader_GetObjectsInfo(reader)        # check ITS result, not just GetLudeo's
+    populated = (info.resultCode == Success and info.objectsCount > 0)
+    ludeo_ObjectsInfo_Release(info)                       # pair every GetObjectsInfo with a Release
+    return populated
+```
+
+What the handler must do as a result:
+- **Validate before accepting the reader.** Only cache + apply a reader that `reader_is_populated`. **Ignore empty cycles** — don't apply on them, and **never let a later empty cycle clobber an already-cached populated reader.**
+- **Retry until ready, bounded — not one-shot.** The populated reader may arrive on a *later* cycle, so re-check on each `GetLudeo` callback **and** drive a per-frame poll from `Update` (the forced-launch re-fire is a workaround, not a contract — don't depend on it re-firing). Cap with a **timeout** (e.g. 15 s).
+- **Three stop conditions.** (1) **populated** reader → apply once, then `Begin`. (2) `GetLudeo` `resultCode != Success` → **hard fetch failure: stop immediately, do not retry.** (3) **timeout still empty** → treat as an invalid/empty Ludeo: **abort — do NOT `Begin` a scored replay on nothing**; run `EndCurrentLudeo` and surface the failure (in forced-launch production, fall back to the normal menu).
+- **Dispatch once.** Repeated `LudeoSelected` must not re-open the room / re-add the player on every fire — guard `OpenRoom` and the handler so they run once per selected Ludeo.
+
+> ⚠️ **`objectsCount == 0` fails silently.** The two-pass loop iterates the reader's objects (§3) — an empty reader makes it a clean **zero-spawn no-op**, so the apply "succeeds," `Begin` runs, and the player is left at the game's **default new-game spawn** with none of the captured state. This has the *same* "0 objects restored" symptom as "restored into a menu" (§2.3, mistake #12) but a *different* root cause — distinguish them via `11-TROUBLESHOOTING`. The `resultCode == Success` check alone will not catch it.
 
 ### 2.3 What the Handler Must NOT Do
 
@@ -198,12 +241,13 @@ Three consequences that decide whether restoration actually works:
 - **The post-restore resume goes through the gameplay-session-start chain — not `ResumeGameRequest`.** After restoration the game sits paused with the **room already open and the player already added** (both happened in the `LudeoSelected` handler, §2.2). The **overlay shows the Play button**, and pressing it makes the platform release **`RoomReady`** — the *only* part of the `OpenRoom → AddPlayer → RoomReady → Begin` chain (documented in `05-LIFECYCLE-MANAGEMENT.md` §6.11) that is Play-gated; the rest already ran. On `RoomReady`, **unpause → apply → `TryBeginGameplaySession()`**; `Begin` fires only because **both** gates are now true (`player_added` from the handler + `room_ready` from Play — `05 §6.6`). Do **not** invent a game-side "press to begin" prompt, do **not** wait on `PlayerReady` (it does not exist in this SDK — GameplaySession exposes only `Begin`/`End`), and do **not** wait on `ResumeGameRequest` (that's the mid-play overlay-closed resume, not the post-restore one).
 - **"Pause" must freeze the simulation (CR-010).** This applies right after a Ludeo loads — the game sits **paused, simulation frozen, while the overlay waits for the player to press Play** — and any time `PauseGameRequest` arrives during playback (the player reopens the overlay). If your pause only blocks input, physics/AI/scripts keep mutating the world — and that is one of the ways a freshly restored snapshot gets overwritten (see §9). Pause = freeze the tick, not just input.
 - **Ending a playback session is split by *who* ends it (`05 §6.11`).** When the **backend** ends the Ludeo — timer hits 0, objective met/failed, or any backend-decided reason — it sends **`PauseGameRequest`** and the game just **pauses (freezes the sim) and waits**. The game does **not** detect end-of-moment, does **not** call `End`, and does **not** submit — the backend owns submission, and `PauseGameRequest` is the universal end-of-moment cue (there is no game-facing "moment ended" callback). The game calls `ludeo_GameplaySession_End` itself **only on a game-initiated interrupt** — another `LudeoSelected` mid-play, `BackToMenuRequest`, or the player quitting — and then with **`isAbort = true`**, followed by `RemovePlayer → CloseRoom`.
+  - **Because the backend-ends path sets `m_freeze_overlay` (via `PauseGameRequest`) and may never send a matching `ResumeGameRequest`,** that bit can be left dirty when the *next* `LudeoSelected` arrives — and a stale `m_freeze_overlay` keeps the next restored Ludeo frozen even after `RoomReady` clears the restore bit, presenting as **dead input**. Reset the pause bits in `EndCurrentLudeo()` *and* at the start of the next `LudeoSelected` handler. See [CR-011](00-CRITICAL-REQUIREMENTS.md) "bits must start clean" and [11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §8.
 
 These notifications are **session-lifetime** (register once at session creation, not per-Ludeo), and they apply to the whole Ludeo experience, not just the moment of restoration.
 
 ### 2.5 Local trigger — `--ludeo=<id>` launch arg
 
-To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `/11` Step 3.5.
+To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `/11` Step 3.
 
 ---
 
@@ -516,7 +560,18 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     persistent player it can "just reposition." This is most acute for state-machine-
     entry games with no per-level scene (DFU): "load the level" doesn't create the
     player/world — only the new-game/`StartGameBehaviour` flow does (§2 intro,
-    `game-patterns/open-world.md` §6).
+    `game-patterns/open-world.md` §6). **Same "0 objects" symptom as #13 but a different
+    cause** — if the run *did* reach active gameplay and the reader was empty, it's #13, not this.
+13. **Applying on an empty / not-yet-populated reader (the player stays at the default spawn).**
+    `GetLudeo`'s callback can fire **repeatedly** (forced-launch re-injects `LudeoSelected`), and
+    early cycles return `resultCode == Success` with an **empty reader** — `Success` means a valid
+    *handle*, not that the data has landed. A one-shot apply gated only on `Success`/`reader != null`
+    runs on that first empty cycle: the two-pass loop spawns **0 objects** (silent no-op), `Begin`
+    fires, and the player is left at the game's default new-game spawn while the real data arrives a
+    cycle later, unapplied. **Gate the apply on the reader being *populated*** — `GetObjectsInfo`
+    `resultCode == Success && objectsCount > 0` — and make it **retry-until-ready with a timeout**,
+    not one-shot; keep the populated reader (don't let a later empty cycle clobber it); on timeout
+    still-empty, abort (don't `Begin`). See §2.2.1 and `11-TROUBLESHOOTING §7`.
 
 ---
 
@@ -533,6 +588,9 @@ Before considering restoration "done" on a game:
       and room, then restores cleanly.
 - [ ] LudeoSelected during a loading screen waits or queues correctly.
 - [ ] Two-pass is exercised: a Ludeo with cross-entity references restores them.
+- [ ] Entry identity is captured (`/8`/`/9`) and read back to route the load; an **absent/empty** entry
+      identity aborts with a distinct "re-capture (version skew)" message vs an unresolvable id's "not found"
+      (§2.2). Re-captured after any capture-schema change.
 - [ ] Deferred properties (animation pose, physics, abilities) appear correct
       after the wait-for-player resume, not just during Pass 2.
 - [ ] Environment matches the original (lighting, world flags).
@@ -549,7 +607,7 @@ Before considering restoration "done" on a game:
 - [ ] Restored values survive: spot-check that the live simulation and the
       level's default init do **not** overwrite restored state after resume (§9.10).
 - [ ] `BackToMenuRequest` returns to the menu and tears down the current Ludeo.
-- [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `/11` Step 3.5).
+- [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `/11` Step 3).
 
 ---
 
@@ -560,4 +618,5 @@ Before considering restoration "done" on a game:
 - `research-context/02D-RESEARCH-ENVIRONMENT.md` → environment inventory
 - `research-context/02F-RESEARCH-SAVE-SYSTEM.md` → group-based strategy selection
 - `commands/10-plan-state-restoration.md` → produces `RESTORATION_PLAN.md`
-- `commands/11-implement-state-restoration.md` → emits the `LudeoStateAdapter`
+- `commands/11-implement-restoration-flow.md` → wires the `LudeoSelected` flow, freeze, apply gate, and wait-for-player (calls the read-back as a stub)
+- `commands/12-implement-state-reconstruction.md` → fills the `LudeoStateAdapter` two-pass read-back

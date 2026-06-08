@@ -693,7 +693,7 @@ On the playback path the platform **withholds `RoomReady` until the player press
 - On the **backend-ends** path, the failure is the game trying to detect end-of-moment itself, or calling `End`/submitting on the backend's behalf — it owns neither. The game's only job is to **freeze on `PauseGameRequest` and wait**. Don't look for a "playback ended" notification; there isn't one.
 - On the **interrupt** path, the failure is `End(isAbort=false)` (marks an aborted run as a real completion) or skipping `End` entirely before teardown.
 
-→ Restoration-side wiring of this lifecycle: [07-RESTORATION-PATTERNS.md §2](./07-RESTORATION-PATTERNS.md), `/10` Steps 3 & 10, `/11` Steps 3 & 8.
+→ Restoration-side wiring of this lifecycle: [07-RESTORATION-PATTERNS.md §2](./07-RESTORATION-PATTERNS.md), `/10` Steps 3 & 10, `/11` Steps 2 & 4 (the player-flow/lifecycle half; the two-pass data read-back is `/12`).
 
 ---
 

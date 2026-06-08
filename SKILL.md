@@ -23,7 +23,7 @@ Activate this skill when the user says any of:
 
 ## Workflow
 
-The integration is a sequential 14-phase workflow (phase 0 through phase 11, including phases 2b and 2c). Phases 0–9 build the **capture** (tracking) side; phases 10–11 add **state restoration**, which is what turns a capture into a playable Ludeo. Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
+The integration is a sequential 15-phase workflow (phase 0 through phase 12, including phases 2b and 2c). Phases 0–9 build the **capture** (tracking) side; phases 10–12 add **state restoration**, which is what turns a capture into a playable Ludeo. State restoration is split into a plan (10), the player-flow/lifecycle wiring (11), and the two-pass data reconstruction (12) — 11 builds the apply lifecycle with the read-back stubbed, then 12 fills it. Always start at phase 0 unless the user explicitly says they have already completed earlier phases. Complete one phase at a time and confirm with the user before advancing.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
@@ -40,7 +40,8 @@ The integration is a sequential 14-phase workflow (phase 0 through phase 11, inc
 | 8 | `references/8-map-game-objects.md` | Discover trackable objects & properties |
 | 9 | `references/9-implement-object-tracking.md` | Wire object registration & capture |
 | 10 | `references/10-plan-state-restoration.md` | Plan the two-pass restoration flow (inverse of tracking) → `RESTORATION_PLAN.md` |
-| 11 | `references/11-implement-state-restoration.md` | Implement restoration: `LudeoStateAdapter` restore path, `LudeoSelected` handling, two-pass `DataReader` reads |
+| 11 | `references/11-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `/4`): `LudeoSelected` handler, freeze (CR-010), `GetLudeo`+`OpenRoom` race, single-fire apply gate, `RoomReady → Begin` resume, overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
+| 12 | `references/12-implement-state-reconstruction.md` | Fill the data half (inverse of `/9`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
 
 ## Important rules
 

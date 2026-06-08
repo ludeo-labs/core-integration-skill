@@ -176,7 +176,7 @@ public:
     const std::string& GetExplicitAuthID()const { return m_explicitAuthId; }
     const std::string& GetBetaBranch()    const { return m_betaBranch; }
     // Debug affordance: if non-empty, the integration synthesizes a LudeoSelected
-    // with this id once the session is active (see /11 Step 3.5). Persistent
+    // with this id once the session is active (see /11 Step 3). Persistent
     // alternative to the --ludeo=<id> launch arg.
     const std::string& GetActivationLudeoId() const { return m_activationLudeoId; }
 
@@ -268,7 +268,7 @@ betaBranch     =
 
 # Debug affordance: if set, the integration auto-fires a LudeoSelected with this id
 # once the session is active (equivalent to passing --ludeo=<id> on the command line,
-# but persistent). Leave blank to disable. See /11 Step 3.5.
+# but persistent). Leave blank to disable. See /11 Step 3.
 activationLudeoId =
 ```
 

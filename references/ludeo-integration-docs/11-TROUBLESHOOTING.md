@@ -126,13 +126,55 @@ Unlike §1–§5, these are **hard crashes** during restoration or playback. Alm
 
 ### 6.7 SDK call before `Activate` (or after `Release`)
 **Stack:** `ludeo_*` returns an invalid handle / null and a downstream deref crashes; or an unhandled exception inside the SDK.
-**Cause:** A handler fires (or the `/11` Step 3.5 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
+**Cause:** A handler fires (or the `/11` Step 3 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
 **Fix:** Gate every SDK call on session state. For the launch-arg dispatch, hold the pending ludeo id until the `Activate` success callback (or first `ludeo_Tick` after activation) before invoking `LudeoSelected`.
 
 ### 6.8 Old Ludeo + new attribute schema (assert on read)
 **Stack:** assert / crash inside `ludeo_DataReader_Get*` (or a reader-side scope guard) on a previously-working playback path.
 **Cause:** `/9` added a new captured attribute (or renamed/retyped one) but the test Ludeo was recorded before that change. The SDK **asserts** when `ReadData` is called for an attribute that doesn't exist in the captured data — it does not gracefully return absent.
 **Fix:** Re-record the Ludeo against the current write-side schema. When the captured-attribute set changes, document it as a breaking change and re-record old test Ludeos.
+
+---
+
+## 7. Restore ran but applied nothing — player at the default spawn (empty / early reader)
+
+### Symptom
+On replay the player spawns at the **new-game / default INI location** with **none** of the captured state, even though capture diagnostics confirm the player + world *were* captured. The restoration log shows `LudeoSelected` firing, `GetLudeo` returning `Success`, and the apply running — but **0 objects spawned / 0 applied** (e.g. `Player.Data len=-1`, `Restoring 0 objects`). No crash; it looks like it "worked."
+
+### Why it happens
+The captured Ludeo is fetched **asynchronously**, and under the **forced-launch path** (`autoStartInLudeo` / the LC-8977 workaround) `LudeoSelected → GetLudeo` fires **repeatedly**. `resultCode == Success` only means a valid reader *handle* arrived — the **early cycles return an empty reader** (payload not landed). If the apply is **one-shot** and gated only on `resultCode == Success` / `reader != null`, it runs on the first empty cycle: the two-pass loop iterates zero objects (a clean no-op), `Begin` fires, and the real data — which arrives a cycle or two later — is never applied. The game's own new-game flow (which booted the run) left the player at the default spawn, and nothing overwrote it.
+
+> **This is NOT the "restored into a menu" failure (`07 §2.3`, mistake #12)** — that one also shows "0 objects" but its cause is applying before active gameplay exists. Tell them apart: did the run actually enter gameplay (player + world live) **and** was the reader empty at apply time? Empty reader → this section. No active gameplay → mistake #12.
+
+### How to catch it
+Log `objectsCount` from `ludeo_DataReader_GetObjectsInfo` **on every `GetLudeo` callback**. You'll see early cycles with `objectsCount == 0` and a later cycle with the real count (e.g. `48`). If the apply fired on a `0` cycle, that's the bug.
+
+### How to fix it
+Gate the apply on the reader being **populated**, not merely non-null: `ludeo_DataReader_GetObjectsInfo` `resultCode == Success && objectsCount > 0` (`07-RESTORATION-PATTERNS.md §2.2.1`). Make the apply **retry-until-ready, not one-shot** — re-check on each `GetLudeo` callback and from `Update`, keep the populated reader (don't let a later empty cycle clobber it), and bound it with a **timeout → abort** (never `Begin` a scored replay on an empty Ludeo). Guard `OpenRoom`/the handler so repeated `LudeoSelected` fires don't re-open the room.
+
+---
+
+## 8. Restored Ludeo plays but the player can't control it ("dead input")
+
+### Symptom
+A Ludeo restores correctly — the right level loads, objects spawn with their captured state, `Begin` fires and SDK recording starts — but the player **can't move or act**. It looks like input is blocked. Usually it isn't: the cause is most often a **frozen simulation tick**, which presents *identically* to dead input (events may even be delivered, but with the tick at zero nothing advances).
+
+### Why it happens
+"Dead input on playback" has **three independent gates**, and any one of them left engaged produces the same symptom. Check all three — not just the obvious one:
+
+1. **Input still suppressed.** `SetRestoring(true)` / `suppress_input()` was armed at `LudeoSelected` (CR-010) and the matching lift never ran on this path. The sim ticks, but input is filtered out.
+2. **Engine still paused** — `m_freeze_restore || m_freeze_overlay` is still true (the two-bit pause model, [CR-011](00-CRITICAL-REQUIREMENTS.md)). The most common case is a **stale `m_freeze_overlay`**: a prior playback was ended **by the backend via `PauseGameRequest`** (the game froze and waited, `05 §6.11`) with **no matching `ResumeGameRequest`**, and `EndCurrentLudeo()` didn't clear that bit (or wasn't called) before the next `LudeoSelected`. The new restore clears `m_freeze_restore` on `RoomReady`, but `m_freeze_overlay` keeps the tick frozen — so the freshly restored Ludeo never resumes.
+3. **Per-entity control locks.** If the game disables the player controller while restoring/spawning (so it can't drive off the snapshot before `Begin`) and re-enables it at gameplay-start, a missed re-enable leaves the entity inert even with input flowing and the sim ticking.
+
+`LudeoManager` is a **long-lived singleton** for the whole app run, so any mutable lifecycle bit it holds carries between Ludeos within that run — gate (2) is exactly that hazard.
+
+### How to catch it
+At the apply's unpause point, log the **resolved pause state** — `m_freeze_restore`, `m_freeze_overlay`, and the engine's effective `paused` bool — plus whether input suppression and control locks are still active. The tell for an inherited stale bit: the engine is paused with `m_freeze_overlay == true` but **no `PauseGameRequest` fired this play** — i.e. nothing this run set it, so it was carried in from a prior (backend-ended) play.
+
+### How to fix it
+- **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`/11` Step 5), but a backend-ended play may not have routed through it; re-arm the bits at the **start of the `LudeoSelected` handler** too (alongside `m_room_ready`/`m_applied`), clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
+- **Lift input suppression and control locks at `Begin`**, not earlier — but make sure they *are* lifted on every restore path.
+- The two-bit model itself is correct ([CR-011](00-CRITICAL-REQUIREMENTS.md)); the failure here is a bit left dirty across plays, not a collapsed shared flag.
 
 ---
 
