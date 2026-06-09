@@ -105,7 +105,28 @@ case ItemType::Coin:
 **File already has `#if LUDEO_SDK_ENABLED` blocks:**
 If there's an adjacent block, consider merging rather than adding a separate guard.
 
-### Step 5: Summary
+**Non-ludeoable area boundaries:**
+Insert the enter/exit pair from the map's **Non-Ludeoable Boundaries** category at the area's open/close hooks, using the same `SendAction` call as any other action — e.g. `ShopEntered` in `ShopUI::Open`, `ShopExited` in `ShopUI::Close`:
+
+```cpp
+void ShopUI::Open()
+{
+    // ... existing logic ...
+#if LUDEO_SDK_ENABLED
+    LudeoManager::Get().SendAction("ShopEntered");
+#endif
+}
+```
+
+These are emitted exactly like combat/collection actions: never gated, and they do **not** pause tracking — capture keeps running through the area. The backend, not the game, decides the window is non-ludeoable (see Step 5 and `06 §7.3`).
+
+### Step 5: Surface the one-time platform-trigger step
+
+If the map included a **Non-Ludeoable Boundaries** category, the boundary actions now *emit* — but that alone does nothing until they are connected to the global triggers on Ludeo's platform. This is out-of-code configuration the agent cannot do from the codebase. Surface it to the user explicitly:
+
+> "`ShopEntered`/`ShopExited` (and any other boundary actions) are now firing. To make those windows non-ludeoable, connect each enter/exit action to the corresponding **global trigger** on Ludeo's platform. Until that one-time mapping is done, the backend will not exclude those segments."
+
+### Step 6: Summary
 
 After all actions are inserted, output a summary:
 
@@ -136,6 +157,7 @@ After all actions are inserted, output a summary:
 - Action calls go AFTER game logic, not before
 - **Actions fire in BOTH Creator Flow (recording) and Player Flow (playback)** — never gate `SendAction` behind `IsRestoring()` or any "are we in playback?" check. Player Flow re-fires the same sites so the SDK can score win/fail conditions. See `06 §7` for the dual-flow contract; state writes *are* gated to Creator Flow only, action writes are not.
 - Do NOT modify game logic — only add SDK calls
+- **Non-ludeoable area boundaries are ordinary actions** — emit the enter/exit pair at the area's open/close hooks, never gate them, and never pause tracking for them. The backend marks the window once the actions are wired to global triggers on the platform (Step 5). See `06 §7.3`.
 - If a file needs `#include "LudeoManager.h"` (or equivalent), add it inside `#if LUDEO_SDK_ENABLED` guards
 - This command uses direct `LudeoManager::Get().SendAction()` calls, not macros. A future phase will replace these with a `LUDEO_ACTION` macro.
 

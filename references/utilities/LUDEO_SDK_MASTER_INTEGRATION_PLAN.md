@@ -244,13 +244,11 @@ Before starting integration, the AI agent must investigate and document the foll
 ```markdown
 ## Research Questions: Non-Ludeoable Areas & Pause/Resume
 
-### Non-Ludeoable Areas
-- [ ] Are there tutorial sections that shouldn't be captured as Ludeos?
-- [ ] Are there menu screens or lobby areas during gameplay?
-- [ ] Are there loading screens or transition areas?
-- [ ] Are there story/narrative sections that shouldn't be playable moments?
-- [ ] Are there "safe zones" or non-combat areas?
-- [ ] How can we identify when the player is in a non-ludeoable area?
+### Non-Ludeoable Areas (backend-controlled — marked by boundary actions, see `06 §7.3`)
+- [ ] Which in-gameplay segments should never become a Ludeo? (tutorials, shops/stalls, NPC dialogue, in-game menus, safe zones)
+- [ ] What are the enter/exit hooks (file:function) for each? (so `/6`–`/7` can emit boundary actions)
+- [ ] What enter/exit action names will mark each boundary? (e.g. `ShopEntered`/`ShopExited`)
+- [ ] Note: these do NOT pause tracking — capture runs through them; main menu/lobby/loading sit outside any session so need nothing.
 
 ### Cutscenes
 - [ ] Does the game have cutscenes or cinematics?
@@ -266,9 +264,9 @@ Before starting integration, the AI agent must investigate and document the foll
 - [ ] Are there "soft pauses" (slow-mo, dialogue) vs "hard pauses" (menu)?
 
 ### Implementation Hooks
-- [ ] What function/callback indicates entering a non-ludeoable area?
-- [ ] What function/callback indicates leaving a non-ludeoable area?
-- [ ] Is there a central "game state" that tracks ludeoable vs non-ludeoable?
+- [ ] What function/callback fires when entering each non-ludeoable area? (→ emit the enter action)
+- [ ] What function/callback fires when leaving it? (→ emit the exit action)
+- [ ] One-time platform step: connect each enter/exit action to its global trigger on Ludeo's platform.
 ```
 
 #### Ludeo Actions (Critical for Experience)
@@ -1270,9 +1268,12 @@ Document and implement actions from these categories based on your game:
 | **Survival** | PlayerDeath, Respawn, UseContinue | Survival challenges |
 | **Social** | Revive, Trade, Assist, TeamKill | Multiplayer objectives |
 
-### 8.6 Non-Ludeoable Areas, Pause, and Cutscenes
+### 8.6 Pause/Cutscene (local capture hygiene) — and a note on non-ludeoable areas
 
-Some parts of gameplay should NOT be captured or should pause Ludeo tracking:
+Two different things, often confused:
+
+- **Local capture-hygiene pause** (this section): genuinely freeze capture during a true (sim-frozen) game pause or a cutscene, so scripted/cosmetic motion isn't recorded as gameplay state.
+- **Non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): these do **NOT** pause tracking — capture keeps running. They are **backend-controlled**, marked by enter/exit boundary actions wired once to global triggers on the platform. See `06-TRACKING-PATTERNS.md §7.3` and `/6`–`/7`. Do not implement them with local flags.
 
 #### LudeoManager State for Pause/Resume
 
@@ -1281,7 +1282,6 @@ class LudeoManager {
 private:
     bool m_tracking_paused = false;
     bool m_in_cutscene = false;
-    bool m_in_non_ludeoable_area = false;
     
 public:
     // Check if tracking is currently active
@@ -1289,8 +1289,7 @@ public:
     {
         return m_gameplay_session_active 
             && !m_tracking_paused 
-            && !m_in_cutscene 
-            && !m_in_non_ludeoable_area;
+            && !m_in_cutscene;
     }
     
     // Pause/Resume tracking (e.g., when game is paused)
@@ -1321,18 +1320,6 @@ public:
         LogInfo("[Ludeo] Cutscene ended - tracking resumed");
     }
     
-    // Non-ludeoable area handling (tutorial, menu areas, safe zones)
-    void EnterNonLudeoableArea(const char* areaName)
-    {
-        m_in_non_ludeoable_area = true;
-        LogInfo("[Ludeo] Entered non-ludeoable area: %s", areaName);
-    }
-    
-    void ExitNonLudeoableArea()
-    {
-        m_in_non_ludeoable_area = false;
-        LogInfo("[Ludeo] Exited non-ludeoable area");
-    }
 };
 ```
 
@@ -1351,7 +1338,7 @@ public:
 static void CaptureFloat(T* obj, LudeoObjectId objId, ...)
 {
     if (!LudeoManager::Get().IsTrackingActive()) {
-        return;  // Skip capture during pause/cutscene/non-ludeoable
+        return;  // Skip capture during pause/cutscene
     }
     // ... rest of capture
 }
@@ -1397,39 +1384,11 @@ void CutsceneManager::OnCutsceneComplete()
     LudeoManager::Get().OnCutsceneEnd();
 #endif
 }
-
-// In level/area system - when entering tutorial or safe zone
-void AreaManager::OnPlayerEnterArea(Area* area)
-{
-#if LUDEO_SDK_ENABLED
-    if (area->IsNonLudeoable()) {
-        LudeoManager::Get().EnterNonLudeoableArea(area->GetName());
-    }
-#endif
-}
-
-void AreaManager::OnPlayerExitArea(Area* area)
-{
-#if LUDEO_SDK_ENABLED
-    if (area->IsNonLudeoable()) {
-        LudeoManager::Get().ExitNonLudeoableArea();
-    }
-#endif
-}
 ```
 
-#### Examples of Non-Ludeoable Areas
+#### Non-ludeoable areas are handled via boundary actions, not local flags
 
-| Area Type | Reason | How to Detect |
-|-----------|--------|---------------|
-| **Tutorial** | Players learning, not playing | Level ID, area flag, or game state |
-| **Main Menu** | Not gameplay | Scene/screen type |
-| **Lobby/Waiting Room** | Pre-game, not actual gameplay | Game state machine |
-| **Loading Screen** | Technical transition | Loading flag |
-| **Shop/Inventory** | Menu, not action | UI state |
-| **Safe Zone/Hub** | Non-combat area by design | Area trigger/flag |
-| **Cutscene/Cinematic** | Passive viewing | Cutscene system state |
-| **Debug/Cheat Mode** | Not legitimate gameplay | Debug flags |
+Shops, NPC dialogue, tutorials, safe zones, and in-game menus should never become a Ludeo — but tracking keeps running through them. Mark their boundaries with enter/exit Ludeo actions (`ShopEntered`/`ShopExited`, etc.) wired once to the global triggers on the platform; the backend excludes those windows. See `06-TRACKING-PATTERNS.md §7.3` and `/6`–`/7`. (Main menu, lobby, and loading sit outside any gameplay session, so nothing tracks them regardless.)
 
 ---
 
@@ -2828,13 +2787,14 @@ private:
 - [ ] No duplicate or missing actions
 - [ ] Action names are consistent and meaningful
 
-### Pause/Resume & Non-Ludeoable
+### Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 - [ ] Tracking pauses when game paused
 - [ ] Tracking resumes when game unpaused
 - [ ] Cutscenes suspend tracking
-- [ ] Non-ludeoable areas don't track
+- [ ] Non-ludeoable area boundary actions fire (enter/exit) — tracking keeps running through them
+- [ ] Boundary actions wired to global triggers on the platform
 - [ ] State consistency after resume (no data loss)
-- [ ] Ludeos don't contain paused/cutscene/tutorial content
+- [ ] Ludeos don't contain paused/cutscene content; backend excludes non-ludeoable windows
 
 ### LudeoSelected from Any State (Critical!)
 - [ ] LudeoSelected works from main menu
@@ -2957,14 +2917,13 @@ private:
 - [ ] Progression actions tracked (objectives, unlocks)
 - [ ] Actions have meaningful names for objectives/scoring
 
-### Pause/Resume & Non-Ludeoable
+### Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 
 - [ ] Tracking pauses when game is paused
 - [ ] Tracking resumes when game unpauses
 - [ ] Cutscenes suspend tracking
-- [ ] Non-ludeoable areas identified and handled
-- [ ] Tutorial/menu areas don't capture Ludeos
-- [ ] `IsTrackingActive()` check in capture macros (optional)
+- [ ] Non-ludeoable area boundaries emit enter/exit actions wired to global triggers (tracking is not paused for them)
+- [ ] `IsTrackingActive()` check in capture macros (optional, for the pause/cutscene cases)
 
 ### Error Handling
 
@@ -3020,12 +2979,12 @@ private:
 - [ ] Document actions for objective/scoring potential
 - [ ] Test action delivery to SDK
 
-### Phase 7: Pause/Resume & Non-Ludeoable
+### Phase 7: Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 - [ ] Implement PauseTracking/ResumeTracking
 - [ ] Hook game pause/resume events
 - [ ] Implement cutscene start/end handlers
-- [ ] Identify and flag non-ludeoable areas
-- [ ] Test tracking suspension in all cases
+- [ ] Emit enter/exit boundary actions for non-ludeoable areas + wire them to global triggers (06 §7.3)
+- [ ] Test tracking suspension (pause/cutscene) and boundary-action emission
 
 ### Phase 8: Restoration
 - [ ] Handle LudeoSelected notification

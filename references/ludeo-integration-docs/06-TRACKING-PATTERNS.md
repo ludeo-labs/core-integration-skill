@@ -1097,6 +1097,17 @@ The macro compiles to nothing when `LUDEO_SDK_ENABLED=0`. Callers do not need to
 
 **Note:** `/7-implement-game-actions` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
 
+### 7.3 Non-ludeoable area boundary actions
+
+Some segments of live play should never become a Ludeo — shops, NPC dialogue, tutorials, safe zones, in-game menus. These are **non-ludeoable areas**, and they are handled entirely through the action stream, **not** by pausing tracking (tracking keeps running normally through them — see §8.5).
+
+The integration's responsibility is two things, and nothing more:
+
+1. **Emit boundary actions.** Send an ordinary action at each edge of the area — e.g. `ShopEntered` when the player opens the shop and `ShopExited` when they leave; `DialogueStarted` / `DialogueEnded` around NPC conversations; `MenuOpened` / `MenuClosed` for an in-game menu. They go through the exact same `SendAction` path as every other action (§7.1) — there is nothing special about them in code, and they are **never** gated.
+2. **Connect them once to the global triggers** on Ludeo's platform. This is a one-time, out-of-code configuration step: map each enter/exit action onto the platform's non-ludeoable-area start/end triggers. From then on the **backend** marks those time windows and excludes them from Ludeo creation.
+
+Discovery of these boundaries belongs to `/6` (they are an action category), emission to `/7`. The platform-trigger wiring is a manual step the agent cannot do from the codebase — flag it for the user.
+
 ---
 
 ## 8. Tracking State Management
@@ -1104,11 +1115,11 @@ The macro compiles to nothing when `LUDEO_SDK_ENABLED=0`. Callers do not need to
 ### 8.1 When to Pause Tracking
 
 Tracking should be paused during:
-- Game pause menu open
-- Cutscenes or cinematics playing
-- Tutorial sections (non-ludeoable areas)
+- Game pause menu open (simulation frozen)
+- Cutscenes or cinematics playing (scripted/cosmetic motion, not gameplay state)
 - Loading screens or transitions
-- Menu overlays (inventory, shop, etc.)
+
+These are **local capture-hygiene** pauses tied to the gameplay-session lifecycle. They are a different thing from **non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): those are backend-controlled, do **not** pause tracking, and are handled via boundary actions — see §7.3 and phases `/6`–`/7`.
 
 ### 8.2 Tracking State Manager
 
@@ -1118,7 +1129,6 @@ class LudeoManager
 private:
     bool m_tracking_paused = false;
     bool m_in_cutscene = false;
-    bool m_in_non_ludeoable_area = false;
 
 public:
     // Check if tracking is currently active
@@ -1126,8 +1136,7 @@ public:
     {
         return m_gameplay_session_active 
             && !m_tracking_paused 
-            && !m_in_cutscene 
-            && !m_in_non_ludeoable_area;
+            && !m_in_cutscene;
     }
     
     // Pause/Resume (game pause menu)
@@ -1157,19 +1166,6 @@ public:
         m_in_cutscene = false;
         LogInfo("[LUDEO] Cutscene ended - tracking resumed");
     }
-    
-    // Non-ludeoable area handling
-    void EnterNonLudeoableArea(const char* areaName)
-    {
-        m_in_non_ludeoable_area = true;
-        LogInfo("[LUDEO] Entered non-ludeoable area: %s", areaName);
-    }
-    
-    void ExitNonLudeoableArea()
-    {
-        m_in_non_ludeoable_area = false;
-        LogInfo("[LUDEO] Exited non-ludeoable area");
-    }
 };
 ```
 
@@ -1192,7 +1188,7 @@ public:
 static void CaptureFloat(T* obj, LudeoObjectId objId, const char* attrName, float value)
 {
     if (!LudeoManager::Get().IsTrackingActive()) {
-        return;  // Skip capture during pause/cutscene/non-ludeoable
+        return;  // Skip capture during pause/cutscene
     }
     
     LudeoHDataWriter writer = LudeoManager::Get().GetDataWriter();
@@ -1242,38 +1238,11 @@ void CutsceneManager::OnCutsceneComplete()
     LudeoManager::Get().OnCutsceneEnd();
 #endif
 }
-
-// In area/trigger system
-void AreaTrigger::OnPlayerEnter(Player* player)
-{
-#if LUDEO_SDK_ENABLED
-    if (m_is_tutorial_area || m_is_safe_zone) {
-        LudeoManager::Get().EnterNonLudeoableArea(m_area_name.c_str());
-    }
-#endif
-}
-
-void AreaTrigger::OnPlayerExit(Player* player)
-{
-#if LUDEO_SDK_ENABLED
-    if (m_is_tutorial_area || m_is_safe_zone) {
-        LudeoManager::Get().ExitNonLudeoableArea();
-    }
-#endif
-}
 ```
 
-### 8.5 Non-Ludeoable Areas
+### 8.5 Non-ludeoable areas are NOT a tracking concern
 
-| Area Type | Reason | Detection Method |
-|-----------|--------|------------------|
-| **Tutorial** | Players learning, not playing | Level ID, area flag, or game state |
-| **Main Menu** | Not gameplay | Scene/screen type |
-| **Lobby/Waiting Room** | Pre-game area | Game state machine |
-| **Loading Screen** | Technical transition | Loading flag |
-| **Shop/Inventory** | Menu overlay | UI state |
-| **Safe Zone/Hub** | Non-combat by design | Area trigger/flag |
-| **Cutscene** | Passive viewing | Cutscene system state |
+"Non-ludeoable areas" — shops, NPC dialogue, tutorials, safe zones, in-game menus — are **backend-controlled**. They do **not** pause or alter local tracking: capture keeps running through them. You mark their **boundaries** by sending ordinary Ludeo **actions** (e.g. `ShopEntered` / `ShopExited`) and connecting those actions, once, to the **global triggers** on Ludeo's platform; the backend then excludes those time windows from Ludeo creation. This is an *actions* task — see §7.3 and phases `/6`–`/7`. Do **not** implement it with the local tracking-pause flags above.
 
 ---
 
@@ -1576,8 +1545,7 @@ Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERE
 **Tracking State:**
 - [ ] Tracking pauses when game paused
 - [ ] Tracking suspends during cutscenes
-- [ ] Non-ludeoable areas identified and handled
-- [ ] Tutorial/menu areas don't capture Ludeos
+- [ ] Non-ludeoable area boundaries (shop/NPC/menu/tutorial/safe-zone) emit enter/exit Ludeo actions (§7.3, `/6`–`/7`) — tracking is *not* paused for them
 
 **Performance:**
 - [ ] Measured frame-time impact against the game's budget
@@ -1607,7 +1575,7 @@ Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERE
 **State Management:**
 - [ ] Tracking pauses/resumes correctly
 - [ ] Cutscenes don't track state
-- [ ] Non-ludeoable areas don't create Ludeos
+- [ ] Non-ludeoable area boundary actions fire (enter/exit) and are connected to global triggers so the backend excludes those windows
 - [ ] State consistency after resume
 
 **Performance:**

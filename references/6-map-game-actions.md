@@ -79,6 +79,8 @@ For each found gameplay event function:
 Also check for **gaps**: review the genre action catalog for expected actions that were NOT found in the code. Flag these as:
 > "Expected `<ActionName>` for this genre but no matching code found. This may be named differently or handled in a non-obvious way. Manual review recommended."
 
+**Also map non-ludeoable area boundaries.** Search for places the player enters/leaves a segment that should not become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus. Map each as an **enter/exit action pair** (e.g. `ShopEntered`/`ShopExited`, `DialogueStarted`/`DialogueEnded`, `MenuOpened`/`MenuClosed`) under a dedicated **Non-Ludeoable Boundaries** category. These are emitted like any other action in `/7`, then connected once to the global triggers on Ludeo's platform so the backend excludes those windows from Ludeo creation. They do **not** pause tracking — capture keeps running through them. See `06-TRACKING-PATTERNS.md §7.3`.
+
 ### Step 5: Produce Output
 
 Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
@@ -101,6 +103,13 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 | Headshot | Kill via headshot | CombatManager::OnEnemyKilled (headshot branch) | src/combat/CombatManager.cpp:252 | high | Get 5 headshots | +50 bonus |
 
 ### [Other Categories...]
+
+### Non-Ludeoable Boundaries
+
+| Action Name | Description | Source Function | File:Line | Confidence | Boundary |
+|-------------|-------------|----------------|-----------|------------|----------|
+| ShopEntered | Player opens the shop | ShopUI::Open | src/ui/ShopUI.cpp:88 | high | enter |
+| ShopExited | Player closes the shop | ShopUI::Close | src/ui/ShopUI.cpp:140 | high | exit |
 
 ## Gaps
 
@@ -127,6 +136,7 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 - **Multiple genre files** can be loaded for hybrid games — merge and deduplicate
 - **Game-specific actions** are expected — not everything will match the genre catalog
 - **Gaps are valuable** — they tell the user what's missing, not that something is wrong
+- **Non-ludeoable areas are an action category, not a tracking pause.** Shops, NPC dialogue, tutorials, safe zones, and in-game menus are marked by enter/exit boundary actions wired to global triggers on the platform — capture keeps running through them. See `06 §7.3`.
 - The output of this command feeds into future implementation commands
 
 ## Related Phases
