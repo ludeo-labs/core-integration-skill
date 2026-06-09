@@ -1432,22 +1432,28 @@ void LudeoManager::OnLudeoSelectedCallback(const LudeoSessionLudeoSelectedCallba
     }
 }
 
-// Callback with DataReader for restoration
+// Callback with DataReader for restoration.
+// ⚠️ May fire REPEATEDLY (forced-launch re-injects LudeoSelected); early cycles return Success + EMPTY reader.
 void LudeoManager::OnLudeoDataReceivedCallback(const LudeoSessionGetLudeoCallbackParams* data)
 {
     auto* manager = static_cast<LudeoManager*>(data->clientData);
     
     if (data->resultCode != LudeoResult::Success) {
-        LogError("[Ludeo] Failed to get Ludeo data: %d", data->resultCode);
+        LogError("[Ludeo] Failed to get Ludeo data: %d", data->resultCode);  // hard failure — abort, no retry
         return;
     }
-    
-    manager->m_data_reader = data->dataReader;
-    
-    LogInfo("[Ludeo] DataReader ready for restoration");
-    
-    // Trigger game to load the appropriate level
-    // The restoration will happen after the level loads
+
+    // Success means a valid reader HANDLE, not that the data has landed. Validate it is populated
+    // before accepting — otherwise we restore on an empty reader and the player stays at the default
+    // spawn. See 07-RESTORATION-PATTERNS §2.2.1.
+    if (!manager->ReaderIsPopulated(data->dataReader)) {
+        return;  // empty/not-ready cycle — ignore; a populated reader arrives a cycle or two later
+    }
+
+    manager->m_data_reader = data->dataReader;   // KEEP the populated reader; never let a later empty cycle clobber it
+    LogInfo("[Ludeo] DataReader populated, ready for restoration");
+
+    // Restoration runs from the apply (gated on populated reader + RoomReady), retry-until-ready + timeout.
     LudeoStateAdapter::Get().BeginRestoration(data->dataReader);
 }
 ```
@@ -1610,8 +1616,9 @@ public:
        (OpenRoom carries the ludeoId = Player Flow; dispatched HERE, not off a level-load hook —
         the target level is UNKNOWN until the reader is in hand)
 
-2. DataReader received
-   └── OnLudeoDataReceivedCallback() — CACHE the reader; do NOT apply yet
+2. DataReader received (callback may fire REPEATEDLY; early cycles return Success + EMPTY reader)
+   └── OnLudeoDataReceivedCallback() — validate populated (GetObjectsInfo Success && objectsCount>0);
+       ignore empty cycles, CACHE only a populated reader (don't clobber); do NOT apply yet; retry-until-ready + timeout
 
 3. Player clicks "Play"
    └── OnRoomReadyCallback() fires — the platform withheld RoomReady until Play
@@ -1655,7 +1662,16 @@ void LudeoStateAdapter::RestoreFromLudeoData(LudeoHDataReader reader)
         LogError("[Ludeo] Failed to get objects info: %d", result);
         return;
     }
-    
+
+    // ⚠️ Success is NOT enough. Under the forced-launch path GetLudeo fires repeatedly and the
+    //    EARLY cycles hand back an EMPTY reader (data not landed yet). objectsCount == 0 here is
+    //    "not ready", NOT "nothing to restore" — applying anyway is a silent zero-spawn no-op that
+    //    leaves the player at the default new-game spawn. Bail and let the caller retry-until-ready
+    //    (with a timeout → abort). See 07-RESTORATION-PATTERNS §2.2.1.
+    if (objects_info->objectsCount == 0) {
+        ludeo_ObjectsInfo_Release(objects_info);    // release before bailing
+        return;                                     // reader not populated yet — do NOT apply
+    }
     LogInfo("[Ludeo] Restoring %d objects", objects_info->objectsCount);
     
     // Set current reader for operations
