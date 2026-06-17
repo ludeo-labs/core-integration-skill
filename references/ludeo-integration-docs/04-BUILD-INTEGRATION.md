@@ -146,6 +146,13 @@ Ludeo runtime values (API key, game version, Steam auth fields, platform URL, de
 
 > **Extension:** `ludeo.ini` is the skill default — `.ini` matches the on-disk format (key=value + `#` comments) and gets editor syntax highlighting out of the box. **If the game already ships its own config-file convention (`.cfg`, `.conf`, etc.), match that instead** — consistency with the host project beats the default.
 
+> **Unity sibling note:** the Unity skill carries the same "QA/ops change values without rebuilding"
+> doctrine, but Unity bakes its config (`LudeoSettings.asset`) into the build, so it can't use this
+> file-as-canonical model wholesale. There, the external file (`ludeo-dev.ini`) is a **`LUDEO_DEV`-gated
+> dev/QA override** of the three test knobs (launcher mode / user id / auto-start ludeo) while the baked
+> asset stays the production source of truth. Keep the shared doctrine in sync; **do not** unify the
+> mechanisms — the gating difference is deliberate (engine model + Unity's baked-value ship gate).
+
 #### `LudeoConfig.h`
 
 ```cpp
