@@ -549,6 +549,17 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     so they silently no-op. `IsRestoring` is cleared only at the end of the apply, after the
     snapshot lands. The Ludeo must start *exactly* at the captured state on the first visible
     frame — which is the first frame *after Play*, once the level has loaded and the snapshot applied.
+    This is the **state-clobbering** category: mechanisms that overwrite restored values, so the Ludeo
+    loads at the *wrong* state. A second, distinct category is **flow-blocking** UI: gates that stall
+    progression to the playable frame **without** touching state — "press start"/"press any key"/"click
+    to continue" gates, modal popups (daily-reward, news, "what's new"), EULA/login/age-gate prompts,
+    tutorial overlays, confirmation dialogs, between-segment reward/shop screens. These don't corrupt the
+    snapshot — they stand *in front of* it, so the Ludeo loads at the *right* state but never becomes
+    **interactive** (the player faces a popup instead of the captured moment). Gate **both** categories on
+    `IsRestoring()` (or equivalent) so that on the playback flow the game runs straight from `LudeoSelected`
+    to the first interactive frame of the captured state. When enumerating mechanisms during planning, do
+    not filter the scan to state-touching ones and miss a blocking modal — the playback flow must suppress
+    *everything* between launch and that first interactive frame.
 12. **Restoring into a menu instead of reaching active gameplay first.** When
     `LudeoSelected` fires at the title menu / app startup (the common production
     case), there is **no player or world** to restore into. If the play flow runs

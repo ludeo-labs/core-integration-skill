@@ -59,7 +59,7 @@ Read `ludeo-integration-plan/RESTORATION_PLAN.md`. Extract the **flow** rows (th
 - The **wait-for-player** mechanism (reuse game pause vs build a minimal tick-freeze) and the **post-restore resume hook** (`OnRoomReadyCallback → TryBeginGameplaySession()`).
 - The **mid-play overlay hooks** (`PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` → file:function).
 - The **playback-end** handling (backend-ends vs game-initiated interrupt).
-- The **pre-match / location-override suppression** list (intro cutscenes, countdowns, slow-mo, fly-in cameras, default-spawn teleports, respawn-on-load, scripted level-start events) and the `IsRestoring()` gate for each.
+- The **start-of-run suppression** list — *both* categories (07 §9.11): state-clobbering (intro cutscenes, countdowns, slow-mo, fly-in cameras, default-spawn teleports, respawn-on-load, scripted level-start events) **and** flow-blocking (press-start/click-to-continue gates, modal popups, EULA/login/age-gate, tutorial overlays, confirmation dialogs) — and the `IsRestoring()` gate for each.
 - The **entry-identity → level-boot** decision (which attributes name the target level; how the game reaches active gameplay from the menu).
 
 Skip flow rows with unresolved Open Questions — confirm with the user before generating code for them.
@@ -166,7 +166,7 @@ Wait for the player's confirmation on both steps 5 and 6 before declaring phase 
 - **`OpenRoom` carries the `ludeoId`.** `nullptr` silently makes the rerun an unscored new recording (`05 §6.2`).
 - **Validate the reader is populated before caching** (`GetObjectsInfo` Success && objectsCount>0). Early `GetLudeo` cycles return Success with an empty reader; ignore them, don't clobber a good one, timeout→abort (`07 §2.2.1`).
 - **The overlay drives pause/resume — register it (07 §2.4).** `PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` are session-lifetime notifications registered at session creation. The **post-restore resume is separate** — it comes through `RoomReady → Begin`. There is no `PlayerReady`.
-- **Suppress pre-match and location-override mechanisms during playback (07 §9.11).** `SetRestoring(true)` is set in Step 2 *before* the level loads, so intro cutscenes, countdowns, default-spawn teleports, etc. fire during the load and silently skip via the gate.
+- **Suppress start-of-run mechanisms during playback — both categories (07 §9.11).** `SetRestoring(true)` is set in Step 2 *before* the level loads, so **state-clobbering** mechanisms (intro cutscenes, countdowns, default-spawn teleports, etc.) fire during the load and silently skip via the gate. Gate **flow-blocking** UI on the same flag (press-start/click-to-continue gates, modal popups, EULA/login/age-gate, tutorial overlays, confirmation dialogs) so the Ludeo loads at the captured state *and* is interactive on the first visible frame — not stalled behind a popup. Don't filter to state-touching mechanisms and leave a blocking modal in place.
 - **Clean reset at every end-of-Ludeo path (Step 5).** Centralize in `EndCurrentLudeo()`; a stuck flag corrupts the next play.
 - **Never block the SDK notification thread.** `LudeoSelected` arrives on the SDK's thread — marshal immediately.
 - Every SDK call wrapped in `#if LUDEO_SDK_ENABLED` (CR-001).
