@@ -63,6 +63,35 @@ Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/buil
 - **Development builds:** For testing only, NOT for shipping (larger, slower, extra logging)
 - **Release builds:** Required for shipping to customers
 
+### Release-build guard — never ship a dev/debug build or reachable cheats
+A shipped build runs on the **Ludeo cloud, played by end users (Ludeo viewers), not developers**. A
+Development/Debug configuration, or any reachable cheat / debug console / dev menu, **corrupts captures**
+(a cheated or debug-instrumented session yields an invalid Ludeo), exposes internal UI, and is an abuse
+surface on a public machine. **Layer the defense — no single check is sufficient:**
+
+1. **Ship the Release configuration + the Release SDK binary.** Build Release (Unreal: **Shipping**;
+   C++: Release / `NDEBUG`), and link/copy `*-Release.dll`/`.so`/`.dylib`, **never** the `*-Development`
+   variant. Confirm the binary that actually shipped, not just the IDE's selected config.
+2. **Gate debug behavior on the build configuration, not a runtime data flag (strongest).** Wrap cheats,
+   debug consoles, dev menus, and verbose logging in `#if !UE_BUILD_SHIPPING` (Unreal) / `#ifdef NDEBUG`
+   (or your release define) so a release build **cannot** run them even if someone forgets a setting. A
+   runtime `if (cheatsEnabled)` flag still **ships the code** and can be reached — not sufficient on its own.
+3. **Assert data-driven debug flags off at build/package time — don't auto-fix.** For flags that genuinely
+   live in data/config, fail the build (throw / error out) when shipping with any on; auto-fixing hides the
+   mistake and dirties source. **Allowlist** legitimate non-default config so the assertion doesn't clobber
+   intentional values.
+4. **Verify the baked/actual value, not the source.** A project setting or header default is only an
+   inference of what shipped — config can be overridden at build time. Assert on the real artifact (which
+   binary was copied, what the build log/CI reports), or bake a runtime-readable release marker.
+5. **CI is the real guarantee.** A developer's local config switch should never be able to produce a
+   shipping artifact — ship only from a scripted CI build that sets the configuration explicitly and runs
+   these checks.
+
+> **Engine note:** the Unity sibling skill enforces this with an editor build hook
+> (`IPreprocessBuildWithReport`) that reads the *baked* build options and hard-fails a Development Build,
+> profiler/script-debugging hooks, or debug flags before an artifact exists. The native/Unreal equivalent
+> is the build system + CI (above); the principle is identical.
+
 ---
 
 ## 3. Directory Structure
