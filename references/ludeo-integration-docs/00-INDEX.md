@@ -45,7 +45,7 @@ Time: 20 min
 
 **"I need to implement object tracking"**
 ```
-Load: [06-TRACKING-PATTERNS.md] + [08-CODE-PATTERNS.md] + [03-SDK-FUNDAMENTALS.md]
+Load: [06-TRACKING-PATTERNS.md] + [03-SDK-FUNDAMENTALS.md]
 Time: 25-30 min
 ```
 
@@ -57,7 +57,7 @@ Time: 20-25 min
 
 **"I need to write tests and validate"**
 ```
-Load: [10-TESTING-VALIDATION.md] + [99-QUICK-REFERENCE.md]
+Load: [04-BUILD-INTEGRATION.md] (section 8, Verification) + [00-CRITICAL-REQUIREMENTS.md]
 Time: 15 min
 ```
 
@@ -73,7 +73,7 @@ Time: 10-20 min
 
 **"I need to validate my implementation"**
 ```
-Load: [00-CRITICAL-REQUIREMENTS.md] + [10-TESTING-VALIDATION.md]
+Load: [00-CRITICAL-REQUIREMENTS.md] + [04-BUILD-INTEGRATION.md] (section 8, Verification)
 Time: 15 min
 ```
 
@@ -83,7 +83,7 @@ Time: 15 min
 
 **"I need a quick answer (naming convention, API signature, checklist)"**
 ```
-Load: [99-QUICK-REFERENCE.md] ONLY
+Load: [12-SDK-API-REFERENCE.md] ONLY
 Time: 5 min
 ```
 
@@ -118,26 +118,18 @@ Understanding which files reference each other:
     │   └── 06-TRACKING-PATTERNS.md
     │
     ├── 04-BUILD-INTEGRATION.md
-    │   └── Needs: 03-SDK-FUNDAMENTALS.md, 08-CODE-PATTERNS.md
+    │   └── Needs: 03-SDK-FUNDAMENTALS.md
     │
     ├── 05-LIFECYCLE-MANAGEMENT.md
     │   └── Needs: 03-SDK-FUNDAMENTALS.md
     │
     ├── 06-TRACKING-PATTERNS.md
-    │   └── Needs: 03-SDK-FUNDAMENTALS.md, 08-CODE-PATTERNS.md
+    │   └── Needs: 03-SDK-FUNDAMENTALS.md
     │
     ├── 07-RESTORATION-PATTERNS.md
     │   └── Needs: 06-TRACKING-PATTERNS.md, 03-SDK-FUNDAMENTALS.md
     │
-    ├── 08-CODE-PATTERNS.md
-    │   └── Needs: 03-SDK-FUNDAMENTALS.md
-    │
-    ├── 10-TESTING-VALIDATION.md
-    │   └── Needs: 00-CRITICAL-REQUIREMENTS.md
-    │
-    ├── 11-TROUBLESHOOTING.md (standalone, references all)
-    │
-    └── 99-QUICK-REFERENCE.md (standalone)
+    └── 11-TROUBLESHOOTING.md (standalone, references all)
 ```
 
 ---
@@ -159,10 +151,7 @@ Understanding which files reference each other:
 | **05-LIFECYCLE-MANAGEMENT** | SDK init, sessions, game flow | Implementing SDK lifecycle | 20 min |
 | **06-TRACKING-PATTERNS** | Object tracking, actions, pause | Implementing tracking | 25 min |
 | **07-RESTORATION-PATTERNS** | State restoration, LudeoSelected | Implementing restoration | 20 min |
-| **08-CODE-PATTERNS** | Macros, capture helpers, RAII | Writing integration code | 20 min |
-| **10-TESTING-VALIDATION** | Tests, checklists, validation | Testing phase | 15 min |
 | **11-TROUBLESHOOTING** | Common errors, solutions | When debugging | 10-20 min |
-| **99-QUICK-REFERENCE** | Checklists, conventions, quick lookup | Quick lookups | 5 min |
 
 ---
 
@@ -194,7 +183,7 @@ Total: 2-3 files
 **Workflow 2: Tracking Implementation**
 ```
 Context: 00-CRITICAL-REQUIREMENTS.md (keep always)
-Load: 06-TRACKING-PATTERNS.md, 08-CODE-PATTERNS.md
+Load: 06-TRACKING-PATTERNS.md
 Reference: 03-SDK-FUNDAMENTALS.md (when needed)
 Total: 3-4 files
 ```
@@ -214,19 +203,19 @@ Use these tags to find relevant files quickly:
 
 ### By Topic
 - `#architecture` → 03-SDK-FUNDAMENTALS, 05-LIFECYCLE-MANAGEMENT
-- `#build` → 04-BUILD-INTEGRATION, 08-CODE-PATTERNS
-- `#tracking` → 06-TRACKING-PATTERNS, 08-CODE-PATTERNS
+- `#build` → 04-BUILD-INTEGRATION
+- `#tracking` → 06-TRACKING-PATTERNS
 - `#restoration` → 07-RESTORATION-PATTERNS
 - `#actions` → 06-TRACKING-PATTERNS (Section 7)
 - `#pause` → 06-TRACKING-PATTERNS (Section 8)
-- `#testing` → 10-TESTING-VALIDATION
+- `#testing` → 04-BUILD-INTEGRATION (section 8)
 - `#errors` → 11-TROUBLESHOOTING
-- `#macros` → 08-CODE-PATTERNS
+- `#macros` → 06-TRACKING-PATTERNS
 
 ### By Priority
 - `#critical` → 00-CRITICAL-REQUIREMENTS
 - `#mustread` → 00-CRITICAL-REQUIREMENTS, 01-AI-AGENT-GUIDE
-- `#reference` → 99-QUICK-REFERENCE
+- `#reference` → 12-SDK-API-REFERENCE
 
 ### By Phase
 - `#planning` → 01-AI-AGENT-GUIDE
@@ -234,7 +223,7 @@ Use these tags to find relevant files quickly:
 - `#setup` → 04-BUILD-INTEGRATION
 - `#implementing` → 05, 06, 07, 08, 09
 - `#debugging` → 11-TROUBLESHOOTING
-- `#validating` → 10-TESTING-VALIDATION
+- `#validating` → 04-BUILD-INTEGRATION (section 8)
 
 ### By Agent
 - `#lifecycle-agent` → research-context/02A, 05-LIFECYCLE-MANAGEMENT
@@ -277,7 +266,7 @@ Files use these markers for references:
 3. Load relevant implementation file
 
 ### For Quick Lookup:
-1. Load `99-QUICK-REFERENCE.md` ONLY
+1. Load `12-SDK-API-REFERENCE.md` ONLY
 
 ---
 
@@ -300,7 +289,7 @@ Files use these markers for references:
 → Read [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md)
 
 **Need a quick answer?**
-→ Read [99-QUICK-REFERENCE.md](./99-QUICK-REFERENCE.md)
+→ Read [12-SDK-API-REFERENCE.md](./12-SDK-API-REFERENCE.md)
 
 **Starting from scratch?**
 → Follow "Starting a New Integration" above

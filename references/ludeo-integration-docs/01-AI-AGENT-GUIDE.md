@@ -245,7 +245,7 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 
 > **Note:** Each macro and helper requires separate proposal and user confirmation.
 
-**Load:** `00-CRITICAL-REQUIREMENTS.md`, `08-CODE-PATTERNS.md`, `03-SDK-FUNDAMENTALS.md` (reference)
+**Load:** `00-CRITICAL-REQUIREMENTS.md`, `06-TRACKING-PATTERNS.md`, `03-SDK-FUNDAMENTALS.md` (reference)
 
 **Tasks:** Create `LudeoCaptureMacros.h` with RAII ObjectScope helper, type-safe capture functions, capture macros (`LUDEO_CAPTURE_FLOAT`, etc.), action macro (`LUDEO_ACTION`). Test macros compile to no-op when SDK disabled.
 
@@ -257,7 +257,7 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 
 > **Note:** Each object type requires separate tracking implementation with user confirmation. Expect 20-30+ individual propose-confirm cycles.
 
-**Load:** `00-CRITICAL-REQUIREMENTS.md`, `06-TRACKING-PATTERNS.md`, `08-CODE-PATTERNS.md` (reference)
+**Load:** `00-CRITICAL-REQUIREMENTS.md`, `06-TRACKING-PATTERNS.md` (reference)
 
 **Tasks:** Add `LudeoObjectId` to objects, implement `RegisterWithLudeo()`/`UnregisterFromLudeo()` per type, add capture macros to property setters, track environment metadata, implement ID mapping, register objects on gameplay start, identify/implement actions, add `LUDEO_ACTION` calls, implement pause/resume tracking (local capture hygiene), emit enter/exit boundary actions for non-ludeoable areas (06 §7.3 — backend-controlled, tracking keeps running).
 
@@ -285,7 +285,7 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 
 > **Note:** Testing is primarily user-driven. Agent assists with test setup and analysis.
 
-**Load:** `00-CRITICAL-REQUIREMENTS.md`, `10-TESTING-VALIDATION.md`, `99-QUICK-REFERENCE.md` (reference)
+**Load:** `00-CRITICAL-REQUIREMENTS.md`, `04-BUILD-INTEGRATION.md` (section 8), `12-SDK-API-REFERENCE.md` (reference)
 
 **Tasks:** Run test checklists, verify SDK lifecycle, test tracking/actions/pause-resume/restoration/LudeoSelected/wait-for-player/error handling, review code against checklist.
 
@@ -301,10 +301,10 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 - Stage 0 (Prep): `02-RESEARCH-TEMPLATE.md`
 - Stage 0 (Build): `04-BUILD-INTEGRATION.md` + `03-SDK-FUNDAMENTALS.md`
 - Phase 1: `05-LIFECYCLE-MANAGEMENT.md` + `03-SDK-FUNDAMENTALS.md`
-- Phase 2: `08-CODE-PATTERNS.md` + `03-SDK-FUNDAMENTALS.md`
-- Phase 3: `06-TRACKING-PATTERNS.md` + `08-CODE-PATTERNS.md`
+- Phase 2: `06-TRACKING-PATTERNS.md` + `03-SDK-FUNDAMENTALS.md`
+- Phase 3: `06-TRACKING-PATTERNS.md`
 - Phase 4: `07-RESTORATION-PATTERNS.md` + `06-TRACKING-PATTERNS.md`
-- Phase 5: `10-TESTING-VALIDATION.md` + `99-QUICK-REFERENCE.md`
+- Phase 5: `04-BUILD-INTEGRATION.md` (section 8) + `12-SDK-API-REFERENCE.md`
 
 **Maximum 3-4 files per phase.** Reload when moving phases, following cross-references, debugging, or validating. Drop when changing phases, context full, or no longer relevant.
 
@@ -500,8 +500,8 @@ void OnRoomOpenedCallback(const LudeoSessionOpenRoomCallbackParams* data) {
 
 **Critical:** [00-CRITICAL-REQUIREMENTS.md](./00-CRITICAL-REQUIREMENTS.md), [00-INDEX.md](./00-INDEX.md)
 
-**Phase-Specific:** [02-RESEARCH-TEMPLATE.md](./02-RESEARCH-TEMPLATE.md), [04-BUILD-INTEGRATION.md](./04-BUILD-INTEGRATION.md), [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md), [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md), [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md), [08-CODE-PATTERNS.md](./08-CODE-PATTERNS.md)
+**Phase-Specific:** [02-RESEARCH-TEMPLATE.md](./02-RESEARCH-TEMPLATE.md), [04-BUILD-INTEGRATION.md](./04-BUILD-INTEGRATION.md), [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md), [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md), [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md)
 
-**Support:** [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md), [99-QUICK-REFERENCE.md](./99-QUICK-REFERENCE.md)
+**Support:** [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md), [12-SDK-API-REFERENCE.md](./12-SDK-API-REFERENCE.md)
 
 **Remember:** Research first, code second. Validate constantly. Ask for help when stuck. **Next Step:** Complete [02-RESEARCH-TEMPLATE.md](./02-RESEARCH-TEMPLATE.md) before writing any code.

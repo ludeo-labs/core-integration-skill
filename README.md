@@ -77,7 +77,6 @@ Sequential six-phase workflow under [`references/`](references):
 Reference material lives alongside the workflow files:
 
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, genre playbooks).
-- `references/utilities/` — supporting docs (master integration plan, PM guide, prompt prototype).
 
 ## Supported agents
 
