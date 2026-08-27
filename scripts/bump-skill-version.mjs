@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Stamps the next release version into SKILL.md frontmatter (metadata.version).
+// Stamps the next release version into SKILL.md — both frontmatter (metadata.version,
+// for tooling) and the visible "**Skill version:** X.Y.Z" line in the body
+// (visual freshness check for users / agents reading the installed file).
 // Invoked by @semantic-release/exec during the prepare step.
 //
 // Usage: node scripts/bump-skill-version.mjs <version>
@@ -42,7 +44,16 @@ if (/^metadata:\s*$/m.test(fmBody)) {
   newFmBody = `${fmBody.trimEnd()}\nmetadata:\n  version: ${version}`;
 }
 
-const updated = text.replace(fmMatch[0], `${openFence}${newFmBody}${closeFence}`);
+let updated = text.replace(fmMatch[0], `${openFence}${newFmBody}${closeFence}`);
+
+// Also stamp the visible "**Skill version:** X.Y.Z" line in the body.
+const bodyLine = /\*\*Skill version:\*\*\s+\d+\.\d+\.\d+(-[\w.]+)?/;
+if (bodyLine.test(updated)) {
+  updated = updated.replace(bodyLine, `**Skill version:** ${version}`);
+} else {
+  console.warn("WARN: visible '**Skill version:** X.Y.Z' line not found in SKILL.md body; only frontmatter stamped.");
+}
+
 writeFileSync(SKILL_PATH, updated, "utf8");
 
-console.log(`Stamped SKILL.md metadata.version = ${version}`);
+console.log(`Stamped SKILL.md version = ${version} (frontmatter + body)`);

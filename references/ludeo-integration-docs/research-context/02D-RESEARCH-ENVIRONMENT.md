@@ -118,25 +118,17 @@ Complete this questionnaire to identify:
 
 ### 8.1 Non-Ludeoable Areas
 
-**Are there areas/sections that should NOT be captured as Ludeos?**
+**Which in-gameplay segments should never become a Ludeo?** These are **backend-controlled**, not a local capture gate: tracking keeps running through them, and you mark their boundaries with enter/exit Ludeo actions wired once to the global triggers on the platform (`06 §7.3`, `/6`–`/7`). Do **not** build an `IsLudeoableArea()` check or stop tracking — record the boundary hooks so `/6`–`/7` can emit the actions.
 
-| Area Type | Why Not Ludeoable | How to Detect |
-|-----------|-------------------|---------------|
-| Tutorial | Teaching, not playing | Level ID == "tutorial" |
-| Main Menu | Not gameplay | GameState == MainMenu |
-| Lobby | Waiting, not playing | GameState == Lobby |
-| Loading Screen | Technical transition | IsLoading() |
-| Cutscene | Passive viewing | CutsceneManager::IsPlaying() |
-| Safe Zone | No combat allowed | Area::IsSafeZone() |
-| Shop/Inventory | Menu, not action | UIState == Shop |
-| | | |
+| Area | Enter hook (file:function) | Exit hook (file:function) | Enter/exit action names |
+|------|----------------------------|----------------------------|-------------------------|
+| Shop / stall | | | ShopEntered / ShopExited |
+| NPC dialogue | | | DialogueStarted / DialogueEnded |
+| In-game menu | | | MenuOpened / MenuClosed |
+| Tutorial | | | TutorialEntered / TutorialExited |
+| Safe zone / hub | | | SafeZoneEntered / SafeZoneExited |
 
-**Function to check if currently in ludeoable area:**
-```cpp
-bool IsLudeoableArea() {
-    // How to implement this check?
-}
-```
+> Main menu, lobby, and loading screens are **not** non-ludeoable areas — they sit outside any gameplay session, so nothing tracks them and no action is needed. Cutscenes are handled as a local **capture-hygiene** pause (§8.2), separate from this.
 
 ---
 
@@ -172,6 +164,8 @@ Function/Event:
 [ ] Orders/build queue  
 [ ] Other:
 
+> Note: dialogue, inventory, map, and shop screens are usually **non-ludeoable areas** (§8.1), handled by boundary actions — not tracking pauses. Only flag something here if it freezes the simulation (true pause) or is a cutscene; those are the local capture-hygiene cases.
+
 **How to detect when game is truly paused vs just UI overlay?**  
 Check:  
 
@@ -190,16 +184,14 @@ File:
 ### 8.4 Tracking State Decision Tree
 
 ```
-Is game paused?
-├─ Yes → Pause tracking
+Is the game truly paused (sim frozen) or in a cutscene?
+├─ Yes → Pause tracking (local capture hygiene; resume after)
 │
-└─ No → Is in cutscene?
-    ├─ Yes → Pause tracking
+└─ No → Is this a non-ludeoable area (shop / NPC dialogue / tutorial / menu / safe zone)?
+    ├─ Yes → KEEP TRACKING. Do not stop tracking or end the session.
+    │         Emit enter/exit boundary actions; the backend excludes the window (06 §7.3).
     │
-    └─ No → Is in non-ludeoable area?
-        ├─ Yes → Don't track (or end session)
-        │
-        └─ No → Track normally
+    └─ No → Track normally
 ```
 
 ---
@@ -232,8 +224,8 @@ Before moving to implementation:
 - [ ] Level metadata documented
 - [ ] Camera properties identified
 - [ ] World state components listed
-- [ ] Non-ludeoable areas identified
-- [ ] Detection method for each non-ludeoable area
+- [ ] Non-ludeoable areas identified with enter/exit boundary hooks (for actions, not a local gate)
+- [ ] Boundary action names assigned + platform global-trigger wiring noted as a follow-up
 - [ ] Cutscene handling planned
 - [ ] Pause/resume hooks identified
 - [ ] Restoration context requirements documented

@@ -88,8 +88,8 @@ After all research is complete, verify:
 
 ### Environment (02D)
 - [ ] Level metadata documented
-- [ ] Non-ludeoable areas identified
-- [ ] Pause/resume hooks identified
+- [ ] Non-ludeoable areas identified with enter/exit boundary hooks (marked via actions, not a local gate)
+- [ ] Pause/resume hooks identified (local capture hygiene — distinct from non-ludeoable areas)
 
 ### Technical (02E)
 - [ ] Threading model understood

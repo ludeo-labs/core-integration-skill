@@ -4,10 +4,7 @@ Creates a detailed SDK lifecycle implementation plan from the outputs of previou
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 3 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 3 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -16,6 +13,7 @@ Creates a detailed SDK lifecycle implementation plan from the outputs of previou
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` - Critical rules (async callbacks, tick requirements)
 - `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` - SDK lifecycle phases, LudeoManager requirement, callback flow
 - `ludeo-integration-docs/01-AI-AGENT-GUIDE.md` - LudeoManager implementation steps and patterns
+- **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (open-world / streaming / sandbox / state-machine-driven game with no per-level scenes), also read `ludeo-integration-docs/game-patterns/open-world.md`. This is the phase where the **OpenRoom bind point** is decided; without `open-world.md` the agent has no doctrine for picking among multiple start sites and will either pick wrong (binding to a state that fires too late or too often) or stall asking the integrator who doesn't know the SDK.
 
 ## Prerequisites
 
@@ -81,7 +79,7 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - The implementation plan follows LudeoManager wrapper pattern (game code calls wrapper methods, not raw SDK functions)
 - All SDK code in the plan is wrapped in `#if LUDEO_SDK_ENABLED` for conditional compilation
 - The plan covers SDK Lifecycle (initialization, session, tick, shutdown, room management, gameplay sessions) **and the registration + handler bodies for all session-lifetime notifications** (see below).
-- The plan does NOT cover tracking (DataWriter usage) or the *restoration logic* inside the LudeoSelected handler (DataReader-driven spawning, two-pass, etc. — that's phase 10/11). **It does** cover the LudeoSelected handler stub and *all* overlay-control notifications, because those are session-lifetime concerns, not restoration-specific.
+- The plan does NOT cover tracking (DataWriter usage) or the *restoration logic* inside the LudeoSelected handler (DataReader-driven spawning, two-pass, etc. — that's phases 11–12). **It does** cover the LudeoSelected handler stub and *all* overlay-control notifications, because those are session-lifetime concerns, not restoration-specific.
 
 ### Critical Distinctions
 
@@ -95,7 +93,7 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 - CloseRoom (from OnPlayerRemovedCallback)
 
 **🔔 Session-lifetime notifications the plan MUST cover** (registered once at session creation; see `05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications"):
-- `LudeoSelected` — register + stub handler (full restoration logic lands in `/11`)
+- `LudeoSelected` — register + stub handler (full restoration logic lands in `/11`–`/12`)
 - `RoomReady` — full handler (gameplay-session-start gate; also post-Ludeo-load resume per CR-010)
 - `PauseGameRequest` — full handler: **freeze the simulation tick** (CR-011 — game must pause while the overlay is up)
 - `ResumeGameRequest` — full handler: unfreeze the sim (CR-011)

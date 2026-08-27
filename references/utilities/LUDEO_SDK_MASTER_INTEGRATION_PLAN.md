@@ -148,7 +148,7 @@ Before starting integration, the AI agent must investigate and document the foll
 - [ ] How can the game interrupt and restart from ANY state? (menu, gameplay, loading, cutscene)
 - [ ] What cleanup is needed when aborting current activity?
 - [ ] How to gracefully end current gameplay session if one is active?
-- [ ] How can the game pause after loading and wait for player input?
+- [ ] How can the game freeze the simulation at `LudeoSelected` and wait for player input? (the level loads on Play, not before — read-then-load, 07 §2)
 - [ ] Does the game have a "ready to play" or "press to start" screen?
 - [ ] Where is the game simulation paused/unpaused?
 - [ ] How to integrate with SDK's "player ready" callback?
@@ -244,13 +244,11 @@ Before starting integration, the AI agent must investigate and document the foll
 ```markdown
 ## Research Questions: Non-Ludeoable Areas & Pause/Resume
 
-### Non-Ludeoable Areas
-- [ ] Are there tutorial sections that shouldn't be captured as Ludeos?
-- [ ] Are there menu screens or lobby areas during gameplay?
-- [ ] Are there loading screens or transition areas?
-- [ ] Are there story/narrative sections that shouldn't be playable moments?
-- [ ] Are there "safe zones" or non-combat areas?
-- [ ] How can we identify when the player is in a non-ludeoable area?
+### Non-Ludeoable Areas (backend-controlled — marked by boundary actions, see `06 §7.3`)
+- [ ] Which in-gameplay segments should never become a Ludeo? (tutorials, shops/stalls, NPC dialogue, in-game menus, safe zones)
+- [ ] What are the enter/exit hooks (file:function) for each? (so `/6`–`/7` can emit boundary actions)
+- [ ] What enter/exit action names will mark each boundary? (e.g. `ShopEntered`/`ShopExited`)
+- [ ] Note: these do NOT pause tracking — capture runs through them; main menu/lobby/loading sit outside any session so need nothing.
 
 ### Cutscenes
 - [ ] Does the game have cutscenes or cinematics?
@@ -266,9 +264,9 @@ Before starting integration, the AI agent must investigate and document the foll
 - [ ] Are there "soft pauses" (slow-mo, dialogue) vs "hard pauses" (menu)?
 
 ### Implementation Hooks
-- [ ] What function/callback indicates entering a non-ludeoable area?
-- [ ] What function/callback indicates leaving a non-ludeoable area?
-- [ ] Is there a central "game state" that tracks ludeoable vs non-ludeoable?
+- [ ] What function/callback fires when entering each non-ludeoable area? (→ emit the enter action)
+- [ ] What function/callback fires when leaving it? (→ emit the exit action)
+- [ ] One-time platform step: connect each enter/exit action to its global trigger on Ludeo's platform.
 ```
 
 #### Ludeo Actions (Critical for Experience)
@@ -1270,9 +1268,12 @@ Document and implement actions from these categories based on your game:
 | **Survival** | PlayerDeath, Respawn, UseContinue | Survival challenges |
 | **Social** | Revive, Trade, Assist, TeamKill | Multiplayer objectives |
 
-### 8.6 Non-Ludeoable Areas, Pause, and Cutscenes
+### 8.6 Pause/Cutscene (local capture hygiene) — and a note on non-ludeoable areas
 
-Some parts of gameplay should NOT be captured or should pause Ludeo tracking:
+Two different things, often confused:
+
+- **Local capture-hygiene pause** (this section): genuinely freeze capture during a true (sim-frozen) game pause or a cutscene, so scripted/cosmetic motion isn't recorded as gameplay state.
+- **Non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): these do **NOT** pause tracking — capture keeps running. They are **backend-controlled**, marked by enter/exit boundary actions wired once to global triggers on the platform. See `06-TRACKING-PATTERNS.md §7.3` and `/6`–`/7`. Do not implement them with local flags.
 
 #### LudeoManager State for Pause/Resume
 
@@ -1281,7 +1282,6 @@ class LudeoManager {
 private:
     bool m_tracking_paused = false;
     bool m_in_cutscene = false;
-    bool m_in_non_ludeoable_area = false;
     
 public:
     // Check if tracking is currently active
@@ -1289,8 +1289,7 @@ public:
     {
         return m_gameplay_session_active 
             && !m_tracking_paused 
-            && !m_in_cutscene 
-            && !m_in_non_ludeoable_area;
+            && !m_in_cutscene;
     }
     
     // Pause/Resume tracking (e.g., when game is paused)
@@ -1321,18 +1320,6 @@ public:
         LogInfo("[Ludeo] Cutscene ended - tracking resumed");
     }
     
-    // Non-ludeoable area handling (tutorial, menu areas, safe zones)
-    void EnterNonLudeoableArea(const char* areaName)
-    {
-        m_in_non_ludeoable_area = true;
-        LogInfo("[Ludeo] Entered non-ludeoable area: %s", areaName);
-    }
-    
-    void ExitNonLudeoableArea()
-    {
-        m_in_non_ludeoable_area = false;
-        LogInfo("[Ludeo] Exited non-ludeoable area");
-    }
 };
 ```
 
@@ -1351,7 +1338,7 @@ public:
 static void CaptureFloat(T* obj, LudeoObjectId objId, ...)
 {
     if (!LudeoManager::Get().IsTrackingActive()) {
-        return;  // Skip capture during pause/cutscene/non-ludeoable
+        return;  // Skip capture during pause/cutscene
     }
     // ... rest of capture
 }
@@ -1397,39 +1384,11 @@ void CutsceneManager::OnCutsceneComplete()
     LudeoManager::Get().OnCutsceneEnd();
 #endif
 }
-
-// In level/area system - when entering tutorial or safe zone
-void AreaManager::OnPlayerEnterArea(Area* area)
-{
-#if LUDEO_SDK_ENABLED
-    if (area->IsNonLudeoable()) {
-        LudeoManager::Get().EnterNonLudeoableArea(area->GetName());
-    }
-#endif
-}
-
-void AreaManager::OnPlayerExitArea(Area* area)
-{
-#if LUDEO_SDK_ENABLED
-    if (area->IsNonLudeoable()) {
-        LudeoManager::Get().ExitNonLudeoableArea();
-    }
-#endif
-}
 ```
 
-#### Examples of Non-Ludeoable Areas
+#### Non-ludeoable areas are handled via boundary actions, not local flags
 
-| Area Type | Reason | How to Detect |
-|-----------|--------|---------------|
-| **Tutorial** | Players learning, not playing | Level ID, area flag, or game state |
-| **Main Menu** | Not gameplay | Scene/screen type |
-| **Lobby/Waiting Room** | Pre-game, not actual gameplay | Game state machine |
-| **Loading Screen** | Technical transition | Loading flag |
-| **Shop/Inventory** | Menu, not action | UI state |
-| **Safe Zone/Hub** | Non-combat area by design | Area trigger/flag |
-| **Cutscene/Cinematic** | Passive viewing | Cutscene system state |
-| **Debug/Cheat Mode** | Not legitimate gameplay | Debug flags |
+Shops, NPC dialogue, tutorials, safe zones, and in-game menus should never become a Ludeo — but tracking keeps running through them. Mark their boundaries with enter/exit Ludeo actions (`ShopEntered`/`ShopExited`, etc.) wired once to the global triggers on the platform; the backend excludes those windows. See `06-TRACKING-PATTERNS.md §7.3` and `/6`–`/7`. (Main menu, lobby, and loading sit outside any gameplay session, so nothing tracks them regardless.)
 
 ---
 
@@ -1473,22 +1432,28 @@ void LudeoManager::OnLudeoSelectedCallback(const LudeoSessionLudeoSelectedCallba
     }
 }
 
-// Callback with DataReader for restoration
+// Callback with DataReader for restoration.
+// ⚠️ May fire REPEATEDLY (forced-launch re-injects LudeoSelected); early cycles return Success + EMPTY reader.
 void LudeoManager::OnLudeoDataReceivedCallback(const LudeoSessionGetLudeoCallbackParams* data)
 {
     auto* manager = static_cast<LudeoManager*>(data->clientData);
     
     if (data->resultCode != LudeoResult::Success) {
-        LogError("[Ludeo] Failed to get Ludeo data: %d", data->resultCode);
+        LogError("[Ludeo] Failed to get Ludeo data: %d", data->resultCode);  // hard failure — abort, no retry
         return;
     }
-    
-    manager->m_data_reader = data->dataReader;
-    
-    LogInfo("[Ludeo] DataReader ready for restoration");
-    
-    // Trigger game to load the appropriate level
-    // The restoration will happen after the level loads
+
+    // Success means a valid reader HANDLE, not that the data has landed. Validate it is populated
+    // before accepting — otherwise we restore on an empty reader and the player stays at the default
+    // spawn. See 07-RESTORATION-PATTERNS §2.2.1.
+    if (!manager->ReaderIsPopulated(data->dataReader)) {
+        return;  // empty/not-ready cycle — ignore; a populated reader arrives a cycle or two later
+    }
+
+    manager->m_data_reader = data->dataReader;   // KEEP the populated reader; never let a later empty cycle clobber it
+    LogInfo("[Ludeo] DataReader populated, ready for restoration");
+
+    // Restoration runs from the apply (gated on populated reader + RoomReady), retry-until-ready + timeout.
     LudeoStateAdapter::Get().BeginRestoration(data->dataReader);
 }
 ```
@@ -1592,9 +1557,10 @@ public:
         GameSimulation::Get().SetPaused(true);
         
         // The Ludeo OVERLAY shows the Play button — do NOT draw your own.
-        // The player pressing Play causes the SDK to run OpenRoom→AddPlayer→RoomReady→Begin
-        // (the same chain used for tracking-start; see 05-LIFECYCLE-MANAGEMENT.md).
-        // The game UNPAUSES in OnRoomReadyCallback (which calls TryBeginGameplaySession).
+        // The room was already opened (with the selected ludeoId — Player Flow) and the player
+        // added during the LudeoSelected handler; only RoomReady is withheld until the player
+        // presses Play. On RoomReady the game UNPAUSES and TryBeginGameplaySession() issues Begin
+        // once BOTH player_added and room_ready are set (either order; see 05-LIFECYCLE-MANAGEMENT.md §6.6/§6.11).
         LogInfo("[Ludeo] Restoration complete - frozen, waiting for RoomReady");
     }
 
@@ -1643,39 +1609,36 @@ public:
 **Playback Timeline:**
 
 ```
-1. User selects Ludeo to play
-   └── OnLudeoSelectedCallback() fires
-   
-2. Game requests Ludeo data
-   └── ludeo_Session_GetLudeo() async call
-   
-3. DataReader received
-   └── OnLudeoDataReceivedCallback() fires
-   └── Read level metadata, determine what to load
-   
-4. Game loads appropriate level
-   └── Level loading begins
-   
-5. Level load complete, restore state
-   └── Two-pass restoration executes
-   └── All objects created and properties restored
-   
-6. PAUSE - Wait for player (CRITICAL!)
-   └── Game is paused
-   └── SDK overlay shows "Play" button
-   └── Player sees the restored state frozen
-   
-7. Player clicks "Play"
-   └── OnRoomReadyCallback() fires from SDK (player pressed Play on the overlay → OpenRoom→AddPlayer→RoomReady→Begin)
-   └── Game unpauses
-   └── BeginGameplaySession() called
+1. LudeoSelected fires
+   └── OnLudeoSelectedCallback() — marshal off the SDK notification thread
+   └── FREEZE the simulation (may already be frozen at the menu); SetRestoring(true)
+   └── Dispatch ludeo_Session_GetLudeo(ludeoId) AND OpenRoom(ludeoId) — they race, no ordering guarantee
+       (OpenRoom carries the ludeoId = Player Flow; dispatched HERE, not off a level-load hook —
+        the target level is UNKNOWN until the reader is in hand)
+
+2. DataReader received (callback may fire REPEATEDLY; early cycles return Success + EMPTY reader)
+   └── OnLudeoDataReceivedCallback() — validate populated (GetObjectsInfo Success && objectsCount>0);
+       ignore empty cycles, CACHE only a populated reader (don't clobber); do NOT apply yet; retry-until-ready + timeout
+
+3. Player clicks "Play"
+   └── OnRoomReadyCallback() fires — the platform withheld RoomReady until Play
+       (the room was opened with the ludeoId and the player added back in the handler, not now)
+
+4. Apply — fires ONCE, on the last of {reader cached, room_ready}; in this exact order:
+   └── Unpause FIRST (load + apply need the sim running)
+   └── Read level metadata from the reader → determine + LOAD the level (generic level if no rooms)
+   └── Two-pass restoration executes — all objects created and properties restored
+   └── BeginGameplaySession() — once both player_added && room_ready (either order, 05 §6.6); AFTER apply
    └── Normal gameplay begins
+
+   ✅ This is the authoritative synchronous read-then-load order (CR-010, 07 §2): freeze at
+   LudeoSelected; GetLudeo + OpenRoom dispatched in the handler; the level loads + state restores
+   INSIDE the apply on RoomReady (after the unpause); then Begin. The level is NOT loaded before Play.
 ```
 
 **Why This Matters:**
-- Gives player time to orient themselves in the restored state
-- SDK overlay may show objectives, score targets, etc.
-- Ensures player consciously starts the Ludeo challenge
+- The SDK overlay shows objectives, score targets, and the Play button while the game is frozen
+- Ensures the player consciously starts the Ludeo challenge (the restored world appears on Play, when the level loads + state restores)
 - Allows SDK to properly time the gameplay session
 
 ### 9.3 Two-Pass Restoration
@@ -1699,7 +1662,16 @@ void LudeoStateAdapter::RestoreFromLudeoData(LudeoHDataReader reader)
         LogError("[Ludeo] Failed to get objects info: %d", result);
         return;
     }
-    
+
+    // ⚠️ Success is NOT enough. Under the forced-launch path GetLudeo fires repeatedly and the
+    //    EARLY cycles hand back an EMPTY reader (data not landed yet). objectsCount == 0 here is
+    //    "not ready", NOT "nothing to restore" — applying anyway is a silent zero-spawn no-op that
+    //    leaves the player at the default new-game spawn. Bail and let the caller retry-until-ready
+    //    (with a timeout → abort). See 07-RESTORATION-PATTERNS §2.2.1.
+    if (objects_info->objectsCount == 0) {
+        ludeo_ObjectsInfo_Release(objects_info);    // release before bailing
+        return;                                     // reader not populated yet — do NOT apply
+    }
     LogInfo("[Ludeo] Restoring %d objects", objects_info->objectsCount);
     
     // Set current reader for operations
@@ -2831,13 +2803,14 @@ private:
 - [ ] No duplicate or missing actions
 - [ ] Action names are consistent and meaningful
 
-### Pause/Resume & Non-Ludeoable
+### Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 - [ ] Tracking pauses when game paused
 - [ ] Tracking resumes when game unpaused
 - [ ] Cutscenes suspend tracking
-- [ ] Non-ludeoable areas don't track
+- [ ] Non-ludeoable area boundary actions fire (enter/exit) — tracking keeps running through them
+- [ ] Boundary actions wired to global triggers on the platform
 - [ ] State consistency after resume (no data loss)
-- [ ] Ludeos don't contain paused/cutscene/tutorial content
+- [ ] Ludeos don't contain paused/cutscene content; backend excludes non-ludeoable windows
 
 ### LudeoSelected from Any State (Critical!)
 - [ ] LudeoSelected works from main menu
@@ -2960,14 +2933,13 @@ private:
 - [ ] Progression actions tracked (objectives, unlocks)
 - [ ] Actions have meaningful names for objectives/scoring
 
-### Pause/Resume & Non-Ludeoable
+### Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 
 - [ ] Tracking pauses when game is paused
 - [ ] Tracking resumes when game unpauses
 - [ ] Cutscenes suspend tracking
-- [ ] Non-ludeoable areas identified and handled
-- [ ] Tutorial/menu areas don't capture Ludeos
-- [ ] `IsTrackingActive()` check in capture macros (optional)
+- [ ] Non-ludeoable area boundaries emit enter/exit actions wired to global triggers (tracking is not paused for them)
+- [ ] `IsTrackingActive()` check in capture macros (optional, for the pause/cutscene cases)
 
 ### Error Handling
 
@@ -3023,12 +2995,12 @@ private:
 - [ ] Document actions for objective/scoring potential
 - [ ] Test action delivery to SDK
 
-### Phase 7: Pause/Resume & Non-Ludeoable
+### Phase 7: Pause/Cutscene (capture hygiene) & Non-Ludeoable Areas
 - [ ] Implement PauseTracking/ResumeTracking
 - [ ] Hook game pause/resume events
 - [ ] Implement cutscene start/end handlers
-- [ ] Identify and flag non-ludeoable areas
-- [ ] Test tracking suspension in all cases
+- [ ] Emit enter/exit boundary actions for non-ludeoable areas + wire them to global triggers (06 §7.3)
+- [ ] Test tracking suspension (pause/cutscene) and boundary-action emission
 
 ### Phase 8: Restoration
 - [ ] Handle LudeoSelected notification

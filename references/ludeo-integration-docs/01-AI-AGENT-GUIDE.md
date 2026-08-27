@@ -259,11 +259,11 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 
 **Load:** `00-CRITICAL-REQUIREMENTS.md`, `06-TRACKING-PATTERNS.md`, `08-CODE-PATTERNS.md` (reference)
 
-**Tasks:** Add `LudeoObjectId` to objects, implement `RegisterWithLudeo()`/`UnregisterFromLudeo()` per type, add capture macros to property setters, track environment metadata, implement ID mapping, register objects on gameplay start, identify/implement actions, add `LUDEO_ACTION` calls, implement pause/resume tracking, handle non-ludeoable areas.
+**Tasks:** Add `LudeoObjectId` to objects, implement `RegisterWithLudeo()`/`UnregisterFromLudeo()` per type, add capture macros to property setters, track environment metadata, implement ID mapping, register objects on gameplay start, identify/implement actions, add `LUDEO_ACTION` calls, implement pause/resume tracking (local capture hygiene), emit enter/exit boundary actions for non-ludeoable areas (06 §7.3 — backend-controlled, tracking keeps running).
 
 **Code modifications:** Every game object class, object managers, property setters, game events, pause/cutscene handlers.
 
-**Validation:** All objects register, properties tracked, environment tracked, actions fire, tracking pauses correctly, non-ludeoable areas excluded, destruction tracked, SDK logs show activity.
+**Validation:** All objects register, properties tracked, environment tracked, actions fire, tracking pauses correctly, non-ludeoable area boundary actions fire (backend excludes those windows; tracking is not paused for them), destruction tracked, SDK logs show activity.
 
 ---
 
@@ -354,16 +354,16 @@ Does it happen once at a moment in time?
 
 ### "Should tracking pause here?"
 ```
-Is this a cutscene, tutorial, or menu?
-├─ Yes → Pause tracking
+Is this a cutscene, a loading screen, or a true (sim-frozen) game pause?
+├─ Yes → Is gameplay still simulating in the background?
+│         ├─ Yes → Continue tracking
+│         └─ No  → Pause tracking (local capture hygiene)
 │
-├─ Is gameplay continuing in the background?
-│   ├─ Yes → Continue tracking
-│   └─ No → Pause tracking
-│
-└─ Is the player actively playing?
-    ├─ Yes → Continue tracking
-    └─ No → Pause tracking
+└─ No → Is this a shop / NPC dialogue / tutorial / in-game menu / safe zone?
+          ├─ Yes → Do NOT pause. It is a non-ludeoable AREA, not a tracking pause:
+          │         keep tracking and emit enter/exit boundary actions wired to
+          │         global triggers on the platform (06 §7.3, /6–/7).
+          └─ No  → Continue tracking (player is actively playing).
 ```
 
 ### "Which restoration pass does this belong to?"

@@ -4,10 +4,7 @@ Produce a TDD (Technical Design Document) from the CODE_MAP and SDK integration 
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 2b there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 2b in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 2b** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -59,7 +56,7 @@ This is the strategic section. Based on the CODE_MAP analysis, define:
 - Design the capture flow based on `CODE_MAP.event_systems` and `CODE_MAP.lifecycle_hooks`
 - Create a mermaid sequence diagram showing the capture flow for this specific game
 - **Object Lifecycle Management:** Based on `CODE_MAP.core_classes` — how will objects be detected, tracked, and marked as destroyed?
-- **Non-Ludeoable Areas:** Identify from code: menus, loading screens, cutscenes, pause screens, debug overlays
+- **Non-Ludeoable Areas:** Identify from code the segments that should never become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones, in-game menus. These are **not** a capture concern (tracking runs through them); they are marked by enter/exit **boundary actions** wired to global triggers on Ludeo's platform. Note the boundary hooks here so `/6`–`/7` can emit the actions. See `06 §7.3`.
 - **Actions Capture:** Based on `CODE_MAP.event_systems` — how will player actions be captured? Reference genre patterns if applicable
 
 #### State Reconstruction Solution

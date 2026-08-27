@@ -4,10 +4,7 @@ Execute the SDK lifecycle implementation plan: create all Ludeo files and modify
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 4 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -77,25 +74,28 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 3. **Steam Credentials** (Question 3) → Only if Explicit mode chosen
 
 **Implementation Notes:**
-- Store all values to inject into `LudeoConfig.h` or config file
-- Use placeholders with `// TODO` comments if user skips
-- **BOTH** auth modes will be implemented in code (if/else structure)
-- User's choice in Question 1 sets which mode is the **default**
-- **Always set placeholder values for BOTH modes in LudeoConfig**, even if the user chose Implicit. If Implicit chosen: `authId = "STEAM_USER_ID_HERE"`, `betaBranch = "STEAM_BRANCH_HERE"` (with `// TODO` comments). The Explicit code path must never have empty strings — always placeholders or real values.
+- **Write the collected values into `ludeo.ini` (next to the game executable), NOT into the `LudeoConfig.h` constructor.** The header holds only placeholder fallbacks; the runtime values come from the file. This is so QA / ops / end users can change `apiKey`, `betaBranch`, etc. without rebuilding. See `04-BUILD-INTEGRATION.md §4` for the canonical layout and the key=value parser.
+- If the user skips a question, leave the value blank in `ludeo.ini` (or omit the line); the header's placeholder defaults take over.
+- **BOTH** auth modes will be implemented in code (if/else structure). User's choice in Question 1 just sets the default `authMode` value in the shipped `ludeo.ini`.
+- Wire `LudeoConfig::Instance().LoadFromFile("ludeo.ini")` once at startup, before `Session_Activate` (typically the first line of `LudeoManager::Initialize`). All later reads go through the `GetXxx()` getters — no literal values in the SDK call path.
+- The build must copy `ludeo.ini` to the output directory (same as SDK DLLs — see `/0` Step 7). Without the file, the game falls back to placeholders and Activate rejects the unset API key.
 
-**Example implementation** (both modes supported):
+**Example implementation** (both modes supported — *every* field flows through `LudeoConfig`, no literals in the activation path):
 ```cpp
 // In ActivateSession() - supports both modes
 if (config.GetAuthMode() == LudeoAuthMode::Explicit) {
-    steamAuthDetails.authId = config.GetAuthID().c_str();
-    steamAuthDetails.currentBetaName = config.GetBetaBranch().c_str();
+    steamAuthDetails.authId          = config.GetExplicitAuthID().c_str();
+    steamAuthDetails.currentBetaName = config.GetBetaBranch().empty()
+                                         ? nullptr
+                                         : config.GetBetaBranch().c_str();
     steamAuthDetails.authType = LudeoAuthType::Steam;
     params.authDetails = &steamAuthDetails;
 } else {
     // Implicit mode - Ludeo handles Steam initialization
     params.authDetails = nullptr;
 }
-params.apiKey = "provided-key-here";
+params.apiKey      = config.GetApiKey().c_str();       // ← same config-driven treatment as betaBranch
+params.gameVersion = config.GetGameVersion().c_str();
 ```
 
 **Reference:** See `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` Section 5 (lines 178-256) for detailed authentication documentation.
@@ -109,9 +109,11 @@ params.apiKey = "provided-key-here";
 
 | File | Purpose |
 |------|---------|
-| `LudeoConfig.h` | **OVERWRITE** stub with full version - conditional compilation, fallback types, logging macros |
+| `LudeoConfig.h` | **OVERWRITE** stub with full version - conditional compilation, fallback types, logging macros, `LudeoConfig` class (placeholder defaults; values come from `ludeo.ini`) |
+| `LudeoConfig.cpp` | `LudeoConfig::LoadFromFile` — key=value parser (see `04 §4`) |
 | `LudeoManager.h` | Singleton class declaration, lifecycle methods, callback handlers |
-| `LudeoManager.cpp` | Full implementation: singleton, Initialize, ActivateSession, Tick, Shutdown, OpenRoom, EndGameplaySession, all callbacks |
+| `LudeoManager.cpp` | Full implementation: singleton, Initialize (calls `LudeoConfig::LoadFromFile("ludeo.ini")` FIRST), ActivateSession, Tick, Shutdown, OpenRoom, EndGameplaySession, all callbacks |
+| `ludeo.ini` | Shipped alongside the executable. Contains the runtime values from Step 1.1. Build must copy it to output (same as DLLs) |
 
 Use the paths specified in the plan (typically `src/core/ludeo/` or similar). Copy code **exactly** from plan.
 
@@ -173,6 +175,17 @@ mv file.bak file
 rm -rf src/core/ludeo/   # or wherever the plan specified
 ```
 
-## Next Step
+## Next Step — rebuild + run gate (REQUIRED — do not advance without it)
 
-Run `phase 5` to build and fix any compilation errors.
+This phase edited source files but **deliberately did not compile** — `phase 5` is its exit gate, and it
+is **mandatory**, not optional. The integration is **not done** until it builds and runs, and the agent
+cannot see a running game, so this falls to the integrator:
+
+1. Run `phase 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
+   fix build errors with phase 5's loop and read the build log.
+2. **Run the game** — confirm the lifecycle opens a gameplay session (the first end-to-end proof), with
+   no SDK errors or crashes in the log.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word. **Do not advance until the user
+confirms both** (or explicitly skips).

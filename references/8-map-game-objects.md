@@ -4,10 +4,7 @@ Analyze the game codebase to produce an Object Tracking Plan: codebase pattern, 
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 8 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 8 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 8** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -56,6 +53,8 @@ For each pattern identified, record from §2:
 Same flow as `phase 6`:
 - Web search `"<game_name>" game genre`; ask the user if web search fails.
 - Read `game-patterns/INDEX.md`, load matching genre file(s).
+- **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (no per-level scenes), also load **both** structural files: `game-patterns/open-world.md` and `game-patterns/open-world-tracking.md`. They are structural, not genre — they don't replace the genre tracking checklist. `open-world.md` tells you the session spans the whole live run, which affects how `pre-existing-at-load` is interpreted (the run's "load" is the new-game / load-save moment, not a level load) and which entities are pre-existing vs. dynamically spawned during the run. `open-world-tracking.md` is the tracking delta you need *here*: presence ≠ existence (don't unregister on stream-out), world/cell object types, persistent-world-ID identity across stream cycles, and scoping the tracked set to the loaded neighborhood rather than the whole save.
+- **If `CODE_MAP.session_boundaries.assembly == "procedural"`** (roguelike / procedural dungeon / wave-survival — the level is a container, content assembled at load from data + RNG), also load `game-patterns/procedural-world.md`. The tracking delta you need *here*: capturing "which level" can't relocate the moment (reload yields an empty container and **re-rolls** content), so add a singleton **`RunMetadata`** object type (§3) capturing the **generation inputs** — selection id (room/chunk/seed), sub-roll id (encounter/wave-set), progress cursor (wave/depth), scaling counter (combat level) — as **stable game ids/values**, and decide seed-vs-resolved capture (§4, default resolved). First answer §2.1's decisive question: if **one** room is live at a time, `RunMetadata` alone is the container; if **several** rooms stay live/navigable, this is **procedural ∩ open-world** — also load `open-world-tracking.md` and add the **layout/connectivity** + per-room **`RoomDelta`** object types, or back-tracking restores into empty rooms.
 
 Use §3 (Tracking Checklist) of each genre file as a **validation checklist** — what *should* be tracked for this genre. Actual hook sites and field names still come from the codebase.
 
@@ -64,6 +63,8 @@ Use §3 (Tracking Checklist) of each genre file as a **validation checklist** �
 Combine genre checklist with codebase discovery. Apply `06-TRACKING-PATTERNS.md §9.2` decision flow to each candidate: visible? influences a tracked object? referenced by a tracked object? If any → track. Otherwise skip.
 
 For each entity, record class, file:line, spawn pattern (dynamic / placed / both), and whether it has dynamically-attached sub-components (these often defeat reflection-based serialization).
+
+> **⚠️ Always map a world/session ENTRY-IDENTITY object — every game, not just procedural/open-world.** Restoration's first action inside the apply is **reaching active gameplay** — loading *which* level/map or booting *which* run (`07 §2.2`, `read_entry_identity`). The handler reads that target **from the captured Ludeo**, so capture must include it: the level/map id (or `start_mode` / `room_x` / `room_y` / save slot) for scene/state-machine games — the procedural `RunMetadata` selection id and the open-world persistent-region id are the genre-specific shapes of the same thing. Record it here as a singleton **world/session metadata object type** so `/9` captures it; without it the play flow has no way to know which level to reach, and the failure surfaces only at restore as an empty entry identity. This is a `/8`-`/9` capture requirement, **not** a `/10` afterthought.
 
 ### Step 5: Pin a Stable ID per Entity Type
 
@@ -116,6 +117,7 @@ Write `ludeo-integration-plan/OBJECT_TRACKING.md`:
 **Engine:** <name>
 **Save-system group:** <1 | 2 | 3>
 **Codebase patterns:** <e.g., §2.1+§2.2 for entities, §2.4 for projectiles>
+**Assembly:** <authored | procedural (RunMetadata captured)>
 **Entities:** X   **Properties:** Y   **Pending human review**
 
 ## Codebase Pattern Summary
@@ -193,6 +195,7 @@ May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 - **Pattern classification is foundational** — get §2 right or every downstream hook decision is wrong.
 - **Stable game IDs only** — restoration cannot resolve pointers across sessions.
 - **When in doubt, track it** — over-tracking is cheap; under-tracking produces silently broken replays (06 §9.1).
+- **Full state tracking is Ludeo's defining purpose, not a scoping choice** (06 §1.1). Do **not** ask the user "do you want full or partial tracking?" — the SDK exists for perfect replay from the player's POV. For large games, a "critical state now, full coverage in the next wave" staging plan in `OBJECT_TRACKING.md` is legitimate; the negotiation is about *order of rollout*, not whether to reach complete coverage.
 - **Genre checklists are validation lists** — what to verify is covered, not how to find it in the code.
 - **Mixed patterns per game are normal** — classify per subsystem.
 

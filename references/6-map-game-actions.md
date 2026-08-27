@@ -4,10 +4,7 @@ Analyze the game codebase to identify where Ludeo actions (`LUDEO_ACTION()`) sho
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 6 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 6 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 6** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Prerequisites
 
@@ -40,17 +37,18 @@ Read `ludeo-integration-plan/CODE_MAP.json`. Extract:
 Search the web for `"<game_name>" game genre` (e.g., `"Red Eclipse" game genre`). Use the result to identify one or more genres.
 
 **Fallback — if web search fails** (unreleased game, internal project, no results):
-Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is this game? (e.g., shooter, rts, platformer, racing)"
+Ask the user: "I couldn't determine the genre for `<game_name>`. What genre is this game? (e.g., shooter, rts, platformer, racing, rpg, survival/sandbox)"
 
 **Once genre is known:**
 1. Read `ludeo-integration-docs/game-patterns/INDEX.md`
-2. Load the matching genre pattern file(s) from `ludeo-integration-docs/game-patterns/`
-3. For hybrid games, load multiple pattern files and merge their action catalogs and search keywords
+2. **Check the structural axis first.** If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }` (open-world / streaming / sandbox / state-machine-driven — no per-level scenes), load `game-patterns/open-world.md` in addition to the genre file(s). It is **structural**, not genre — it tells you that "one run = one Gameplay Session," which means actions accumulate across the whole live run rather than resetting per level. The genre file still provides the action catalog.
+3. Load the matching genre pattern file(s) from `ludeo-integration-docs/game-patterns/`
+4. For hybrid games, load multiple pattern files and merge their action catalogs and search keywords
 
 If no genre pattern file exists for this game's genre, inform the user:
 > "No genre pattern file exists for `<genre>`. I'll use a general search strategy. Consider creating `ludeo-integration-docs/game-patterns/<genre>.md` for future integrations."
 
-Then proceed with a broad search using common gameplay keywords: kill, death, damage, score, pickup, collect, objective, complete, win, lose.
+Then proceed with a broad search spanning common genres: combat (kill, death, damage, score), collection (pickup, collect, loot), progression (objective, complete, quest, levelUp, win, lose), and crafting/building (craft, build, gather) for RPG/survival-leaning games.
 
 ### Step 3: Search Codebase for Action Patterns
 
@@ -81,6 +79,8 @@ For each found gameplay event function:
 Also check for **gaps**: review the genre action catalog for expected actions that were NOT found in the code. Flag these as:
 > "Expected `<ActionName>` for this genre but no matching code found. This may be named differently or handled in a non-obvious way. Manual review recommended."
 
+**Also map non-ludeoable area boundaries.** Search for places the player enters/leaves a segment that should not become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus. Map each as an **enter/exit action pair** (e.g. `ShopEntered`/`ShopExited`, `DialogueStarted`/`DialogueEnded`, `MenuOpened`/`MenuClosed`) under a dedicated **Non-Ludeoable Boundaries** category. These are emitted like any other action in `/7`, then connected once to the global triggers on Ludeo's platform so the backend excludes those windows from Ludeo creation. They do **not** pause tracking — capture keeps running through them. See `06-TRACKING-PATTERNS.md §7.3`.
+
 ### Step 5: Produce Output
 
 Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
@@ -103,6 +103,13 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 | Headshot | Kill via headshot | CombatManager::OnEnemyKilled (headshot branch) | src/combat/CombatManager.cpp:252 | high | Get 5 headshots | +50 bonus |
 
 ### [Other Categories...]
+
+### Non-Ludeoable Boundaries
+
+| Action Name | Description | Source Function | File:Line | Confidence | Boundary |
+|-------------|-------------|----------------|-----------|------------|----------|
+| ShopEntered | Player opens the shop | ShopUI::Open | src/ui/ShopUI.cpp:88 | high | enter |
+| ShopExited | Player closes the shop | ShopUI::Close | src/ui/ShopUI.cpp:140 | high | exit |
 
 ## Gaps
 
@@ -129,6 +136,7 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 - **Multiple genre files** can be loaded for hybrid games — merge and deduplicate
 - **Game-specific actions** are expected — not everything will match the genre catalog
 - **Gaps are valuable** — they tell the user what's missing, not that something is wrong
+- **Non-ludeoable areas are an action category, not a tracking pause.** Shops, NPC dialogue, tutorials, safe zones, and in-game menus are marked by enter/exit boundary actions wired to global triggers on the platform — capture keeps running through them. See `06 §7.3`.
 - The output of this command feeds into future implementation commands
 
 ## Related Phases

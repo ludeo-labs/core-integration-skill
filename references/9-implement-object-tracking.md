@@ -4,10 +4,7 @@ Read the Object Tracking Plan produced by `phase 8` and emit registration + prop
 
 ## 🚦 Fresh Context Check
 
-**Before proceeding, verify this is a fresh agent session:**
-- If you see prior tool calls, game analysis, or CODE_MAP references in this conversation, **STOP** and tell the user:
-  > "This chat has prior context. For best results, please start a fresh agent session and continue with phase 9 there."
-- If this is a fresh conversation, proceed.
+This is a sequential workflow — continuing to phase 9 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 9** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -112,13 +109,13 @@ Critical discipline:
 
 ### Step 6: Wire Batch Registration for Pre-Existing Objects
 
-For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phase 10/11) is wired, this hook won't double-register objects that restoration recreates.
+For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phases 11–12) is wired, this hook won't double-register objects that restoration recreates.
 
-**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 10/11 lands; don't invent a different check:
+**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phases 11–12 lands; don't invent a different check:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
-    // Returns false until restoration (phase 10/11) sets m_is_restoring true while
+    // Returns false until restoration (phases 11–12) sets m_is_restoring true while
     // a Ludeo replay is being reconstructed. Gates batch registration so we don't
     // double-register objects that restoration will recreate.
     bool IsRestoring() const { return m_is_restoring; }
@@ -128,6 +125,8 @@ private:
 ```
 
 Propose this stub as part of the batch-registration change. Do not gate on a pending-ludeo id or other ad-hoc signal — `IsRestoring()` is the seam the later phases expect.
+
+> **⚠️ Capture the world/session ENTRY IDENTITY here — restoration's first step depends on it.** From the `/8` map, emit the singleton world/session metadata object (level/map id, `start_mode`, save slot, or the procedural `RunMetadata` inputs) as one-shot identity captures. The restoration phase reads it back **before** anything else to decide which level to reach (`07 §2.2`, `read_entry_identity`); you can only restore what this phase wrote. **Corollary — adding *or renaming* any captured attribute (here or in a later phase) invalidates every previously captured Ludeo for that attribute: there is no migration.** A Ludeo captured before the entry-identity attribute existed reads back empty — distinct from a genuine "level not found" (see `07`). After any capture-schema change, **re-capture** before testing restore; a fresh run re-samples valid data.
 
 ### Step 7: Reconciliation Wiring (Per-Entity, Only Where the Matrix Says So)
 
@@ -178,10 +177,19 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 - `phase 5` — run after to verify compilation
 - `phase 10` — consumes the same plan + stable-ID strategy
 
-## Next Steps
+## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
-After running this command:
-1. Run `phase 5` with `LUDEO_SDK_ENABLED=1` and `=0`
-2. Run the game; verify registration logs at gameplay session begin
-3. Sample a **real capture** and confirm planned objects + attributes are present — and that none were dropped. Check the log for `Expected type` (server-side type-locking; `11-TROUBLESHOOTING.md §1`).
-4. Run `phase 10`
+This phase edited source files, so it is **not done** until the game still builds and runs. The agent
+cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+
+1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+   loop in `phase 5` and read the build log.
+2. **Run the game and confirm it still runs** — enter gameplay, verify registration logs at gameplay
+   session begin, then sample a **real capture** and confirm planned objects + attributes are present
+   (and none were dropped). Check the log for `Expected type` (server-side type-locking;
+   `11-TROUBLESHOOTING.md §1`). A clean build does **not** prove tracking works — the log is the evidence.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
+run `phase 10`.

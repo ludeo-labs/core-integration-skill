@@ -72,8 +72,9 @@ Do NOT rename DLLs, static libraries, or shared libraries. Use the platform/buil
 <project_root>/
 ├── external/ludeo/LudeoCoreSDK_X_X_X/    # SDK location
 │   ├── Include/Ludeo/                     # Headers
-│   ├── Lib/<platform>/{Development|Release}/  # Static libraries
-│   └── Bin/<platform>/{Development|Release}/  # Dynamic libraries
+│   ├── Lib/<platform>/{Development|Release}/                    # Static libraries
+│   ├── Bin/<platform>/{Development|Release}/                    # SDK runtime binary
+│   └── ThirdParty/<platform>/{Development|Release}/Bin/         # 3rd-party runtime deps — copy whole dir to output
 │
 ├── src/core/ludeo/                        # Integration files
 │   ├── LudeoConfig.h                      # ⭐ CREATE THIS
@@ -139,9 +140,20 @@ Create `src/core/ludeo/LudeoConfig.h`:
 #define LogError(...)   /* YourGame::Log(Error, __VA_ARGS__) */
 ```
 
-### Optional: Runtime Configuration
+### Runtime Configuration (REQUIRED — file-based)
 
-For file-based configuration, add to `LudeoConfig.h`:
+Ludeo runtime values (API key, game version, Steam auth fields, platform URL, debug-activation ludeo id) **must be loaded from an external file at startup** — `ludeo.ini` next to the executable by default — so QA, ops, and end users can change them **without rebuilding the game**. The values in the header are placeholder fallbacks only.
+
+> **Extension:** `ludeo.ini` is the skill default — `.ini` matches the on-disk format (key=value + `#` comments) and gets editor syntax highlighting out of the box. **If the game already ships its own config-file convention (`.cfg`, `.conf`, etc.), match that instead** — consistency with the host project beats the default.
+
+> **Unity sibling note:** the Unity skill carries the same "QA/ops change values without rebuilding"
+> doctrine, but Unity bakes its config (`LudeoSettings.asset`) into the build, so it can't use this
+> file-as-canonical model wholesale. There, the external file (`ludeo-dev.ini`) is a **`LUDEO_DEV`-gated
+> dev/QA override** of the three test knobs (launcher mode / user id / auto-start ludeo) while the baked
+> asset stays the production source of truth. Keep the shared doctrine in sync; **do not** unify the
+> mechanisms — the gating difference is deliberate (engine model + Unity's baked-value ship gate).
+
+#### `LudeoConfig.h`
 
 ```cpp
 #include <string>
@@ -155,22 +167,123 @@ public:
         static LudeoConfig instance;
         return instance;
     }
-    
+
+    // Load runtime values from a key=value file (typically `ludeo.ini` next to
+    // the executable). Returns false if the file is absent / unreadable; in
+    // that case the constructor placeholders below remain in effect. Call ONCE
+    // at startup, BEFORE any Ludeo API call.
     bool LoadFromFile(const std::string& filepath);
-    
-    LudeoAuthMode GetAuthMode() const { return m_authMode; }
-    const std::string& GetApiKey() const { return m_apiKey; }
-    const std::string& GetGameVersion() const { return m_gameVersion; }
-    
+
+    // Required (used in BOTH modes)
+    LudeoAuthMode GetAuthMode()           const { return m_authMode; }
+    const std::string& GetApiKey()        const { return m_apiKey; }
+    const std::string& GetGameVersion()   const { return m_gameVersion; }
+    const std::string& GetPlatformUrl()   const { return m_platformUrl; }
+    // Explicit-mode-only Steam fields. Empty string ⇒ "not set" (SDK call site passes nullptr).
+    const std::string& GetExplicitAuthID()const { return m_explicitAuthId; }
+    const std::string& GetBetaBranch()    const { return m_betaBranch; }
+    // Debug affordance: if non-empty, the integration synthesizes a LudeoSelected
+    // with this id once the session is active (see /11 Step 3). Persistent
+    // alternative to the --ludeo=<id> launch arg.
+    const std::string& GetActivationLudeoId() const { return m_activationLudeoId; }
+
 private:
-    LudeoConfig() : m_authMode(LudeoAuthMode::Implicit), 
-                    m_apiKey("YOUR_API_KEY"), m_gameVersion("1.0") {}
-    
+    // Defaults are PLACEHOLDERS — real values come from ludeo.ini at startup.
+    LudeoConfig()
+        : m_authMode(LudeoAuthMode::Implicit),
+          m_apiKey("YOUR_API_KEY"),
+          m_gameVersion("1.0"),
+          m_platformUrl("https://services.ludeo.com"),
+          m_explicitAuthId(""),       // empty ⇒ unset
+          m_betaBranch(""),           // empty ⇒ no branch
+          m_activationLudeoId("") {}  // empty ⇒ disabled
+
     LudeoAuthMode m_authMode;
     std::string m_apiKey;
     std::string m_gameVersion;
+    std::string m_platformUrl;
+    std::string m_explicitAuthId;
+    std::string m_betaBranch;
+    std::string m_activationLudeoId;
 };
 ```
+
+#### `LudeoConfig.cpp` (key=value parser — no third-party lib)
+
+```cpp
+#include "LudeoConfig.h"
+#include <algorithm>
+#include <cctype>
+
+bool LudeoConfig::LoadFromFile(const std::string& filepath) {
+    std::ifstream in(filepath);
+    if (!in) {
+        LogWarning("[Ludeo] Config file not found: %s — using built-in placeholder defaults", filepath.c_str());
+        return false;
+    }
+    auto trim = [](std::string& s) {
+        size_t a = s.find_first_not_of(" \t\r\n");
+        size_t b = s.find_last_not_of(" \t\r\n");
+        s = (a == std::string::npos) ? "" : s.substr(a, b - a + 1);
+    };
+    auto iequals = [](std::string a, std::string b) {
+        std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c){ return std::tolower(c); });
+        std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c){ return std::tolower(c); });
+        return a == b;
+    };
+    std::string line;
+    while (std::getline(in, line)) {
+        auto hash = line.find('#'); if (hash != std::string::npos) line.erase(hash);
+        auto eq   = line.find('='); if (eq   == std::string::npos) continue;
+        std::string key = line.substr(0, eq);
+        std::string val = line.substr(eq + 1);
+        trim(key); trim(val);
+        if      (key == "apiKey")             m_apiKey            = val;
+        else if (key == "gameVersion")        m_gameVersion       = val;
+        else if (key == "platformUrl")        m_platformUrl       = val;
+        else if (key == "authMode")           m_authMode          = iequals(val, "explicit") ? LudeoAuthMode::Explicit : LudeoAuthMode::Implicit;
+        else if (key == "explicitAuthId")     m_explicitAuthId    = val;
+        else if (key == "betaBranch")         m_betaBranch        = val;
+        else if (key == "activationLudeoId")  m_activationLudeoId = val;
+    }
+    return true;
+}
+```
+
+#### Sample `ludeo.ini` (shipped alongside the game executable)
+
+```ini
+# Ludeo SDK runtime configuration.
+# Edit these values to change Ludeo behavior WITHOUT rebuilding the game.
+# Format: key = value. Lines starting with '#' are comments.
+
+# REQUIRED — your Ludeo API key. Until set, Session_Activate fails with InvalidAuth.
+apiKey       = YOUR_API_KEY_HERE
+
+# Game version recorded with each Ludeo. Leave blank to fall back to the placeholder.
+gameVersion  = 1.0
+
+# Ludeo platform endpoint (staging vs production).
+platformUrl  = https://services.ludeo.com
+
+# Auth mode: 'implicit' (Ludeo initializes Steam itself) | 'explicit' (you supply Steam creds below).
+authMode     = implicit
+
+# Explicit-mode-only fields. Leave empty if authMode = implicit.
+explicitAuthId =
+betaBranch     =
+
+# Debug affordance: if set, the integration auto-fires a LudeoSelected with this id
+# once the session is active (equivalent to passing --ludeo=<id> on the command line,
+# but persistent). Leave blank to disable. See /11 Step 3.
+activationLudeoId =
+```
+
+#### Wiring it up
+
+Call `LudeoConfig::Instance().LoadFromFile("ludeo.ini")` **once at startup**, before `ludeo_Session_Activate` (typically the first line of `LudeoManager::Initialize`). Every later read goes through the getters — there are no literal values anywhere in the SDK call path.
+
+**Build-side note:** ship `ludeo.ini` to the game's output directory the same way the SDK DLLs are copied (see §5). Without the file present, the game falls back to the placeholder defaults and `Session_Activate` will reject the unset API key.
 
 ### Usage
 ```cpp
@@ -208,16 +321,25 @@ if(LUDEO_SDK_ENABLED)
         message(FATAL_ERROR "Ludeo SDK not found at: ${LUDEO_SDK_ROOT}")
     endif()
     
-    # Platform configuration
+    # Platform configuration. LUDEO_BIN_DIR holds the Ludeo SDK runtime binary;
+    # LUDEO_THIRDPARTY_BIN_DIR holds the third-party runtime deps the SDK ships
+    # for the matching configuration — overlay UI (cohtml + v8 family), video
+    # capture (libx264), media decode, HTTP, and audio. Copy the WHOLE ThirdParty
+    # Bin/ directory to the game's output dir (don't cherry-pick); missing common
+    # ones — at minimum cohtml and libx264 — crashes the game at startup with a
+    # missing-DLL error, and copying the directory is forward-compatible if the
+    # SDK adds or renames deps in future releases.
     if(WIN32)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Development")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Development")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Win64/Development/Bin")
             set(LUDEO_LIB_FILE "LudeoSDK-Win64-Development.lib")
             set(LUDEO_DLL_FILE "LudeoSDK-Win64-Development.dll")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Win64/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Win64/Release")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Win64/Release/Bin")
             set(LUDEO_LIB_FILE "LudeoSDK-Win64-Release.lib")
             set(LUDEO_DLL_FILE "LudeoSDK-Win64-Release.dll")
         endif()
@@ -225,11 +347,13 @@ if(LUDEO_SDK_ENABLED)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Development")
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Development")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Development")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Linux/Development/Bin")
             set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Development.so")
             set(LUDEO_SO_FILE "libLudeoSDK-Linux-Development.so")
         else()
             set(LUDEO_LIB_DIR "${LUDEO_SDK_ROOT}/Lib/Linux/Release")
             set(LUDEO_BIN_DIR "${LUDEO_SDK_ROOT}/Bin/Linux/Release")
+            set(LUDEO_THIRDPARTY_BIN_DIR "${LUDEO_SDK_ROOT}/ThirdParty/Linux/Release/Bin")
             set(LUDEO_LIB_FILE "libLudeoSDK-Linux-Release.so")
             set(LUDEO_SO_FILE "libLudeoSDK-Linux-Release.so")
         endif()
@@ -247,16 +371,26 @@ if(LUDEO_SDK_ENABLED)
     target_include_directories(YourGameName PRIVATE "${LUDEO_SDK_ROOT}/Include")
     target_link_libraries(YourGameName PRIVATE "${LUDEO_LIB_DIR}/${LUDEO_LIB_FILE}")
     
-    # Copy DLL/SO to output
+    # Copy SDK + third-party runtime binaries to output.
+    # Third-party deps (cohtml, libx264, MediaDecoders, HttpServer, RenoirCore,
+    # openAL32, v8 family) are runtime deps the Ludeo SDK loads on startup.
+    # `copy_directory` the WHOLE ThirdParty Bin/ — don't cherry-pick — to avoid
+    # the "missing cohtml/libx264 at startup" failure and to stay forward-compatible.
     if(WIN32)
         add_custom_command(TARGET YourGameName POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${LUDEO_BIN_DIR}/${LUDEO_DLL_FILE}"
+                "$<TARGET_FILE_DIR:YourGameName>"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${LUDEO_THIRDPARTY_BIN_DIR}"
                 "$<TARGET_FILE_DIR:YourGameName>")
     elseif(UNIX AND NOT APPLE)
         add_custom_command(TARGET YourGameName POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${LUDEO_BIN_DIR}/${LUDEO_SO_FILE}"
+                "$<TARGET_FILE_DIR:YourGameName>"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${LUDEO_THIRDPARTY_BIN_DIR}"
                 "$<TARGET_FILE_DIR:YourGameName>")
     endif()
 else()

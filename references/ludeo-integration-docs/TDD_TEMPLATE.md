@@ -110,9 +110,9 @@ EXAMPLE:
 
 <!--
 
-DESCRIPTION: Areas or scenarios where state capture is not applicable or should be excluded
+DESCRIPTION: Segments that should never become a Ludeo (shops, NPC dialogue, tutorials, safe zones, in-game menus). NOT a capture concern — tracking runs through them. They are marked by enter/exit boundary actions wired to global triggers on Ludeo's platform. List the boundary hooks here so /6–/7 can emit the actions. See 06 §7.3.
 
-EXAMPLE: Cut scenes (pre-rendered content), UI interactions (menu navigation), debug systems (performance overlays), platform-specific features (Steam overlay)
+EXAMPLE: Shop open/close (ShopEntered/ShopExited), NPC dialogue start/end (DialogueStarted/DialogueEnded), in-game menu open/close (MenuOpened/MenuClosed), tutorial enter/exit
 
 -->
 
