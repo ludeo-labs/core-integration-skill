@@ -35,7 +35,7 @@ Open your game repo in your AI agent and ask it:
 
 > Integrate Ludeo into my game using the `ludeo-integration` skill.
 
-The agent reads `SKILL.md`, picks up the six-phase workflow, and walks you through each phase. It pauses for confirmation between phases.
+The agent reads `SKILL.md`, picks up the seven-phase workflow, and walks you through each phase. It pauses for confirmation between phases.
 
 You can also jump to a specific phase:
 
@@ -54,7 +54,7 @@ Phase numbers match the Unity and Unreal skills, so "phase 5" means the same sta
 | `scripts/` | `validate-skill.mjs`, `bump-skill-version.mjs` (used by CI / release pipeline) |
 | `.github/` | Validation + release workflows |
 
-Sequential six-phase workflow under [`references/`](references):
+Sequential seven-phase workflow under [`references/`](references):
 
 | Phase | File | Purpose |
 | --- | --- | --- |
@@ -73,6 +73,7 @@ Sequential six-phase workflow under [`references/`](references):
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the two-pass `DataReader` read-back |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
+| 7 | `references/7-upload-build.md` | Verify the Release build, then upload it to the Ludeo platform |
 
 Reference material lives alongside the workflow files:
 
