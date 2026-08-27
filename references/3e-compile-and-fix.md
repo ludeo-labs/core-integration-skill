@@ -19,7 +19,7 @@ This is a sequential workflow — continuing to phase 3 · task 5 in the **same 
 
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` - Critical requirements for SDK integration
 - `ludeo-integration-docs/03-SDK-FUNDAMENTALS.md` - SDK API patterns and signatures
-- `ludeo-integration-docs/04-BUILD-INTEGRATION.md` - Build system troubleshooting (Section 10.3)
+- `ludeo-integration-docs/04-BUILD-INTEGRATION.md` - Build system troubleshooting (Section 8.3)
 
 ## Prerequisites
 

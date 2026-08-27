@@ -48,8 +48,8 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 - Section 2: Agent Automation Guide (detection strategies)
 - Section 3: Directory Structure
 - Section 4: Configuration Header (LudeoConfig.h)
-- Section 5-9: Build System Integration (CMake/VS/Makefile/Unity/Unreal)
-- Section 10: Verification
+- Section 5-7: Build System Integration (CMake/VS/Makefile)
+- Section 8: Verification
 
 **Critical Requirements:** `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`
 - CR-001: Macro-based conditional compilation is MANDATORY
@@ -73,7 +73,9 @@ Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:
 
 ### Step 1: Detect Build System
 Follow **Section 2.1** of `04-BUILD-INTEGRATION.md`:
-- Check for CMakeLists.txt, .sln, Makefile, Unity, or Unreal Engine
+- Check for CMakeLists.txt, .sln, or Makefile
+- If you find `*.uproject`/`Source/*.Build.cs` (Unreal) or `Assets/`+`ProjectSettings/` (Unity),
+  stop and switch to that engine's skill — this one is for proprietary C++ engines
 - Report detected build system and primary build file
 
 ### Step 2: Obtain the SDK
@@ -102,7 +104,7 @@ Follow **Section 2.4** of `04-BUILD-INTEGRATION.md`:
 
 ### Step 5: Create Directory Structure
 Follow **Section 3** of `04-BUILD-INTEGRATION.md`:
-- Create `src/core/ludeo/` (or `Source/Core/Ludeo/` for Unreal)
+- Create `src/core/ludeo/` (or wherever the engine keeps core subsystems)
 - Verify SDK in `external/ludeo/LudeoCoreSDK_X_X_X/` (or update build config if elsewhere)
 
 ### Step 6: Generate Stub LudeoConfig.h
@@ -122,8 +124,10 @@ Follow the appropriate section based on build system:
 - **CMake:** Section 5 - Add SDK option, configure target **for selected OS only**, link libraries, copy DLL/SO
 - **Visual Studio:** Section 6 - Create property sheet or modify project settings **for selected OS only**
 - **Makefile:** Section 7 - Add SDK variables and build rules **for selected OS only**
-- **Unity:** Section 8 - Create plugin structure and configure DLL **for selected OS only**
-- **Unreal:** Section 9 - Create plugin and configure Build.cs **for selected OS only**
+
+If the build system turns out to be Unity or Unreal, stop — those engines have their own skills
+(`ludeo-unity-integration`, `ludeo-unreal-integration`) which install a real engine plugin. Do not
+hand-roll one here.
 
 **IMPORTANT:** 
 - Create backups of original build files before modifying!
@@ -131,7 +135,7 @@ Follow the appropriate section based on build system:
 - **Copy the third-party runtime DLLs too, not just the Ludeo SDK DLL.** The SDK ships its runtime deps in `<SDK>/ThirdParty/<platform>/<config>/Bin/` (cohtml, libx264, MediaDecoders, HttpServer, RenoirCore, openAL32, v8 family). `copy_directory` the whole folder to the game's output dir alongside the SDK DLL — cherry-picking is the root cause of the "agent shipped a build that crashes on launch with missing cohtml/libx264" failure mode. See `04 §5` for the CMake snippet.
 
 ### Step 8: Build Game WITHOUT SDK First (Baseline Verification)
-Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
+Follow **Section 8.1** of `04-BUILD-INTEGRATION.md`:
 - **CRITICAL:** Build with `LUDEO_SDK_ENABLED=OFF` (or equivalent) **BEFORE** building with SDK enabled
 - Verify compilation succeeds - this establishes the baseline
 - Verify game runs correctly without SDK
@@ -139,15 +143,15 @@ Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
 - If build fails, fix issues before proceeding to SDK-enabled build
 
 ### Step 9: Build Game WITH SDK Enabled
-Follow **Section 10.1** of `04-BUILD-INTEGRATION.md`:
+Follow **Section 8.1** of `04-BUILD-INTEGRATION.md`:
 - Build with `LUDEO_SDK_ENABLED=ON` (or equivalent)
 - Verify compilation succeeds
 - Verify SDK DLL/SO **and the entire `ThirdParty/<platform>/<config>/Bin/` directory** copied to output (cherry-picking causes missing-DLL crashes on launch — see Step 7)
 - Compare with baseline build - should behave identically at runtime
-- If build fails, follow **Section 10.3** (Error Handling)
+- If build fails, follow **Section 8.3** (Error Handling)
 
 ### Step 10: Runtime Verification
-Follow **Section 10.2** of `04-BUILD-INTEGRATION.md`:
+Follow **Section 8.2** of `04-BUILD-INTEGRATION.md`:
 - **First:** Launch game WITHOUT SDK - verify baseline behavior
 - **Then:** Launch game WITH SDK enabled - verify no crashes, no DLL errors
 - Verify DLL/SO loads (use `dumpbin /DEPENDENTS` or `ldd`)
@@ -174,7 +178,7 @@ Follow **Section 10.2** of `04-BUILD-INTEGRATION.md`:
 
 If any step fails:
 1. Capture error details (message, logs, file paths)
-2. Check **Section 10.3** for common issues and solutions
+2. Check **Section 8.3** for common issues and solutions
 3. Rollback if needed (restore backup files)
 4. Report to user what failed and what's needed
 

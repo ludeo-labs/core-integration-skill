@@ -1,6 +1,9 @@
 # Ludeo SDK Integration Skill
 
-An open Agent Skill that walks an AI coding agent through integrating the [Ludeo](https://ludeo.com) SDK into a C++, Unity, or Unreal game — from build setup all the way through action mapping and runtime verification.
+An open Agent Skill that walks an AI coding agent through integrating the [Ludeo](https://ludeo.com) SDK into a game built on a **proprietary C++ engine** — from build setup all the way through state restoration, action mapping and runtime verification.
+
+> Using **Unity** or **Unreal**? Those engines have their own skills — `ludeo-unity-integration` and
+> `ludeo-unreal-integration` — which install a real engine plugin instead of wiring the C API by hand.
 
 Works with **Claude Code, Cursor, GitHub Copilot, Codex, Windsurf, Cline, Continue, Gemini CLI**, and 45+ other agents that support the open agent-skills spec.
 

@@ -55,12 +55,6 @@ Load: [07-RESTORATION-PATTERNS.md] + [06-TRACKING-PATTERNS.md]
 Time: 20-25 min
 ```
 
-**"I need platform-specific implementation (Unity/Unreal/C++)"**
-```
-Load: [09-PLATFORM-SPECIFIC.md] + relevant implementation file
-Time: 15 min
-```
-
 **"I need to write tests and validate"**
 ```
 Load: [10-TESTING-VALIDATION.md] + [99-QUICK-REFERENCE.md]
@@ -138,9 +132,6 @@ Understanding which files reference each other:
     ├── 08-CODE-PATTERNS.md
     │   └── Needs: 03-SDK-FUNDAMENTALS.md
     │
-    ├── 09-PLATFORM-SPECIFIC.md
-    │   └── Needs: Any implementation file based on task
-    │
     ├── 10-TESTING-VALIDATION.md
     │   └── Needs: 00-CRITICAL-REQUIREMENTS.md
     │
@@ -169,7 +160,6 @@ Understanding which files reference each other:
 | **06-TRACKING-PATTERNS** | Object tracking, actions, pause | Implementing tracking | 25 min |
 | **07-RESTORATION-PATTERNS** | State restoration, LudeoSelected | Implementing restoration | 20 min |
 | **08-CODE-PATTERNS** | Macros, capture helpers, RAII | Writing integration code | 20 min |
-| **09-PLATFORM-SPECIFIC** | Unity, Unreal, C++ patterns | Platform-specific work | 15 min |
 | **10-TESTING-VALIDATION** | Tests, checklists, validation | Testing phase | 15 min |
 | **11-TROUBLESHOOTING** | Common errors, solutions | When debugging | 10-20 min |
 | **99-QUICK-REFERENCE** | Checklists, conventions, quick lookup | Quick lookups | 5 min |
@@ -231,8 +221,6 @@ Use these tags to find relevant files quickly:
 - `#pause` → 06-TRACKING-PATTERNS (Section 8)
 - `#testing` → 10-TESTING-VALIDATION
 - `#errors` → 11-TROUBLESHOOTING
-- `#unity` → 09-PLATFORM-SPECIFIC
-- `#unreal` → 09-PLATFORM-SPECIFIC
 - `#macros` → 08-CODE-PATTERNS
 
 ### By Priority

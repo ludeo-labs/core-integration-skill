@@ -1,6 +1,6 @@
 ---
 name: ludeo-integration
-description: Integrate the Ludeo SDK into a C++, Unity, or Unreal game. Sets up the build with conditional compilation, wires the SDK lifecycle, maps and implements game actions, maps and tracks game objects, and verifies the integration. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into their game.
+description: Integrate the Ludeo SDK into a game built on a proprietary C++ engine (CMake, Visual Studio, or Makefile). Sets up the build with conditional compilation, wires the SDK lifecycle, maps and tracks game objects, restores state for playable Ludeos, and maps and implements game actions. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into a C++ game. Do NOT use for Unity (use ludeo-unity-integration) or Unreal (use ludeo-unreal-integration).
 metadata:
   version: 1.2.0
 ---
@@ -11,6 +11,11 @@ metadata:
 
 This skill walks the agent through integrating the Ludeo SDK into a game project, from build configuration to action mapping and runtime verification.
 
+> **Scope: proprietary C++ engines.** This is the skill for a game with its own engine and a
+> CMake / Visual Studio / Makefile build, using the SDK's C API directly. **Unity and Unreal have
+> their own skills** — `ludeo-unity-integration` and `ludeo-unreal-integration` — which install a
+> real engine plugin and speak that engine's idioms. Do not hand-roll a plugin here.
+
 ## When to use
 
 Activate this skill when the user says any of:
@@ -20,6 +25,9 @@ Activate this skill when the user says any of:
 - "Add Ludeo action tracking"
 - "Build my game with the Ludeo SDK"
 - "Wire up Ludeo lifecycle"
+
+**First, confirm the engine.** If the project has `Assets/` + `ProjectSettings/` (Unity) or a
+`*.uproject` + `Source/` (Unreal), stop and point the user at that engine's skill.
 
 ## Workflow
 

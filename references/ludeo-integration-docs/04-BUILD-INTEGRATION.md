@@ -16,9 +16,7 @@
 5. [CMake Integration](#5-cmake-integration)
 6. [Visual Studio Integration](#6-visual-studio-integration)
 7. [Makefile Integration](#7-makefile-integration)
-8. [Unity Integration](#8-unity-integration)
-9. [Unreal Engine Integration](#9-unreal-engine-integration)
-10. [Verification](#10-verification)
+8. [Verification](#8-verification)
 
 **For AI Agents:** See [build-integration/04A-AGENT-AUTOMATION.md](./build-integration/04A-AGENT-AUTOMATION.md) for programmatic detection and automation.
 
@@ -513,96 +511,7 @@ endif
 
 ---
 
-## 8. Unity Integration
-
-### Plugin Structure
-```
-Assets/Plugins/
-├── Ludeo/
-│   ├── x86_64/
-│   │   ├── LudeoSDK-Win64-Development.dll
-│   │   └── LudeoSDK-Win64-Release.dll
-│   └── Android/
-│       └── libLudeoSDK-Android-Release.so
-└── LudeoIntegration/
-    └── LudeoNative.cs
-```
-
-### Native Wrapper
-```csharp
-using System.Runtime.InteropServices;
-
-public static class LudeoNative
-{
-#if LUDEO_SDK_ENABLED
-    // Use actual DLL name (without extension)
-    const string DLL_NAME = "LudeoSDK-Win64-Release";
-    
-    [DllImport(DLL_NAME)]
-    public static extern int ludeo_Initialize(IntPtr initParams);
-    
-    [DllImport(DLL_NAME)]
-    public static extern void ludeo_Tick();
-#endif
-}
-```
-
-### Enable/Disable
-- **Enable:** Project Settings → Player → Scripting Define Symbols → Add `LUDEO_SDK_ENABLED`
-- **Disable:** Remove `LUDEO_SDK_ENABLED` from Scripting Define Symbols
-
----
-
-## 9. Unreal Engine Integration
-
-### Plugin Structure
-```
-Plugins/Ludeo/
-├── Ludeo.uplugin
-├── Source/Ludeo/
-│   ├── Ludeo.Build.cs
-│   ├── Private/
-│   └── Public/
-└── ThirdParty/LudeoSDK/
-    ├── Include/
-    ├── Lib/Win64/
-    └── Bin/Win64/
-```
-
-### Build.cs
-```csharp
-public class Ludeo : ModuleRules
-{
-    public Ludeo(ReadOnlyTargetRules Target) : base(Target)
-    {
-        bool bEnableLudeoSDK = true;
-        
-        if (bEnableLudeoSDK)
-        {
-            PublicDefinitions.Add("LUDEO_SDK_ENABLED=1");
-            
-            string SDKPath = Path.Combine(ModuleDirectory, "../../ThirdParty/LudeoSDK");
-            PublicIncludePaths.Add(Path.Combine(SDKPath, "Include"));
-            
-            string LibName = (Target.Configuration == UnrealTargetConfiguration.Debug
-                          || Target.Configuration == UnrealTargetConfiguration.Development)
-                ? "LudeoSDK-Win64-Development.lib" 
-                : "LudeoSDK-Win64-Release.lib";
-            
-            PublicAdditionalLibraries.Add(Path.Combine(SDKPath, "Lib/Win64", LibName));
-            RuntimeDependencies.Add(Path.Combine(SDKPath, "Bin/Win64/*.dll"));
-        }
-        else
-        {
-            PublicDefinitions.Add("LUDEO_SDK_ENABLED=0");
-        }
-    }
-}
-```
-
----
-
-## 10. Verification
+## 8. Verification
 
 ### Compilation Tests
 

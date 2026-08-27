@@ -108,11 +108,8 @@ Grep "(NSUserDefaults|SharedPreferences)"
 # Checkpoint systems
 Grep "(Checkpoint|SavePoint|AutoSave|QuickSave|HardSave)"
 
-# Per-property opt-in (UE)
-Grep "UPROPERTY\s*\([^)]*SaveGame"
-
-# Per-property opt-in (Unity)
-Grep "\[SerializeField\]" --glob="*.cs" -B 1   # often paired with custom serializer
+# Per-property opt-in (annotation/macro-driven serializers)
+Grep "(SERIALIZE|SAVEGAME|PERSIST|REFLECT)\s*\("   # whatever macro marks a field as saved
 
 # Custom serializers / blockers
 Grep "(FFastArraySerializer|NetDeltaSerialize|Custom.*Serializer)"
