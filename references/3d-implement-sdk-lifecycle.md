@@ -1,10 +1,10 @@
-﻿# Implement SDK Lifecycle - Create Files and Modify Hooks
+﻿# Phase 3 · Task 4 — Implement SDK Lifecycle
 
-Execute the SDK lifecycle implementation plan: create all Ludeo files and modify game hook points. Does NOT compile - that's `phase 5`.
+Execute the SDK lifecycle implementation plan: create all Ludeo files and modify game hook points. Does NOT compile - that's `phase 3 · task 5`.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 3 · task 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3 · task 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -15,9 +15,9 @@ This is a sequential workflow — continuing to phase 4 in the **same session as
 
 ## Prerequisites
 
-- `phase 0` completed (build system configured)
-- `phase 2b` completed (TDD exists at `ludeo-integration-plan/TDD_<GameName>.md`)
-- `phase 3` completed (plan exists at `ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md`)
+- `phase 1` completed (build system configured)
+- `phase 3 · task 2` completed (TDD exists at `ludeo-integration-plan/TDD_<GameName>.md`)
+- `phase 3 · task 3` completed (plan exists at `ludeo-integration-plan/SDK_LIFECYCLE_PLAN_<GameName>.md`)
 
 ## Your Task
 
@@ -78,7 +78,7 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 - If the user skips a question, leave the value blank in `ludeo.ini` (or omit the line); the header's placeholder defaults take over.
 - **BOTH** auth modes will be implemented in code (if/else structure). User's choice in Question 1 just sets the default `authMode` value in the shipped `ludeo.ini`.
 - Wire `LudeoConfig::Instance().LoadFromFile("ludeo.ini")` once at startup, before `Session_Activate` (typically the first line of `LudeoManager::Initialize`). All later reads go through the `GetXxx()` getters — no literal values in the SDK call path.
-- The build must copy `ludeo.ini` to the output directory (same as SDK DLLs — see `/0` Step 7). Without the file, the game falls back to placeholders and Activate rejects the unset API key.
+- The build must copy `ludeo.ini` to the output directory (same as SDK DLLs — see `phase 1` Step 7). Without the file, the game falls back to placeholders and Activate rejects the unset API key.
 
 **Example implementation** (both modes supported — *every* field flows through `LudeoConfig`, no literals in the activation path):
 ```cpp
@@ -104,7 +104,7 @@ params.gameVersion = config.GetGameVersion().c_str();
 
 **Backup any existing files first!**
 
-> **Note:** `LudeoConfig.h` may already exist as a stub from `phase 0`.
+> **Note:** `LudeoConfig.h` may already exist as a stub from `phase 1`.
 > **Overwrite it** with the full version from the plan.
 
 | File | Purpose |
@@ -135,7 +135,7 @@ Follow the plan's hook points. Example modifications (actual files vary by game)
 
 ### 3.5. Required: Session Notification Registration (enforce, even if the plan is silent)
 
-After session creation and **before** session activation, the LudeoManager **must** register these notifications. They are session-lifetime — register once, not per-Ludeo. **If the plan from `/3` doesn't include them, add them anyway** — this is a hard requirement, not a plan-driven detail.
+After session creation and **before** session activation, the LudeoManager **must** register these notifications. They are session-lifetime — register once, not per-Ludeo. **If the plan from `phase 3 · task 3` doesn't include them, add them anyway** — this is a hard requirement, not a plan-driven detail.
 
 | Notification | Required? | If missing, the symptom is… |
 |---|---|---|
@@ -163,7 +163,7 @@ After session creation and **before** session activation, the LudeoManager **mus
 Report on completion:
 1. List of files created (with paths)
 2. List of files modified (with backup paths)
-3. Ready for `phase 5`
+3. Ready for `phase 3 · task 5`
 
 ## Rollback (if needed)
 
@@ -177,12 +177,12 @@ rm -rf src/core/ludeo/   # or wherever the plan specified
 
 ## Next Step — rebuild + run gate (REQUIRED — do not advance without it)
 
-This phase edited source files but **deliberately did not compile** — `phase 5` is its exit gate, and it
+This phase edited source files but **deliberately did not compile** — `phase 3 · task 5` is its exit gate, and it
 is **mandatory**, not optional. The integration is **not done** until it builds and runs, and the agent
 cannot see a running game, so this falls to the integrator:
 
-1. Run `phase 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
-   fix build errors with phase 5's loop and read the build log.
+1. Run `phase 3 · task 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
+   fix build errors with phase 3 · task 5's loop and read the build log.
 2. **Run the game** — confirm the lifecycle opens a gameplay session (the first end-to-end proof), with
    no SDK errors or crashes in the log.
 

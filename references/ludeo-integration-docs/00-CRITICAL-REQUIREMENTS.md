@@ -371,7 +371,7 @@ From the moment `LudeoSelected` fires until the apply runs on `RoomReady`, the g
 
 **Sequence (mirrors `07 §2.1`):**
 
-1. `LudeoSelected` fires → **`SetRestoring(true)` FIRST** (arms the pre-match skips in `/11` — cutscenes, countdowns, default-spawn teleports, etc.; they fire later, during the level load in the apply). **Stash `params->ludeoId`** (feeds both `GetLudeo` and `OpenRoom`). **Freeze the simulation now** (may already be frozen at the menu). If a run is live, tear it down (`EndCurrentLudeo`, interrupt = `End(isAbort=true)`); suppress input.
+1. `LudeoSelected` fires → **`SetRestoring(true)` FIRST** (arms the pre-match skips in `phase 5 · task 3` — cutscenes, countdowns, default-spawn teleports, etc.; they fire later, during the level load in the apply). **Stash `params->ludeoId`** (feeds both `GetLudeo` and `OpenRoom`). **Freeze the simulation now** (may already be frozen at the menu). If a run is live, tear it down (`EndCurrentLudeo`, interrupt = `End(isAbort=true)`); suppress input.
 2. **Dispatch `GetLudeo(ludeoId)` and `OpenRoom(ludeoId)` now — they race.** The target level is **unknown** at this point — nothing about which level loads is decided until the reader is in hand. `OpenRoom` **must carry the stashed `ludeoId`** (Player Flow; `nullptr` = a new recording, not a scored replay — `05 §6.2`) and is dispatched **here in the handler**, *not* hung off the level-load path (the level does not load until the apply). `OpenRoom → AddPlayer → OnPlayerAdded` set `player_added`.
 3. Cache the `DataReader` from `GetLudeo`'s completion callback. Game stays frozen; only the apply gate (`reader cached && room_ready`) remains.
 4. Overlay shows Play → player presses it → the platform **releases `RoomReady`** (withheld until Play). The room and player were opened/added in step 2 — the SDK does **not** open the room on the Play press.
@@ -463,7 +463,7 @@ void MaybeApplyRestore() {
 
 > **⚠️ THE #1 MID-PLAY FAILURE:** "the game keeps running while the overlay covers it — the player sees a game they can't see, playing itself."
 
-Distinct from CR-010 (the *post-Ludeo-load* pause until `RoomReady`). This is the **ongoing runtime contract**: every time the Ludeo overlay opens during an active playback session, the game must pause; when it closes, the game must resume. The SDK drives both transitions through session-lifetime notifications — register them once at session creation, alongside `LudeoSelected` and `RoomReady` (see [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" and phase 4 §3.5). Missing these registrations is the most common cause of the failure.
+Distinct from CR-010 (the *post-Ludeo-load* pause until `RoomReady`). This is the **ongoing runtime contract**: every time the Ludeo overlay opens during an active playback session, the game must pause; when it closes, the game must resume. The SDK drives both transitions through session-lifetime notifications — register them once at session creation, alongside `LudeoSelected` and `RoomReady` (see [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" and phase 3 · task 4 §3.5). Missing these registrations is the most common cause of the failure.
 
 **Required:**
 ```cpp
@@ -492,7 +492,7 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 ```
 
 **Validation:**
-- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`/4` §3.5).
+- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`phase 3 · task 4` §3.5).
 - [ ] Opening the Ludeo overlay during an active playback session **freezes the simulation tick** (not just input).
 - [ ] Closing the overlay **resumes** the game.
 - [ ] Repeated open/close cycles behave the same — handlers are idempotent across multiple toggles.
@@ -518,7 +518,7 @@ void UpdateEnginePause() { engine.SetPaused(m_freeze_restore || m_freeze_overlay
 
 `RoomReady` clears `m_freeze_restore` only; `ResumeGameRequest` clears `m_freeze_overlay` only. The engine stays paused if either source still wants it.
 
-> **The bits must also start clean each Ludeo, not just stay separate.** `LudeoManager` is a long-lived singleton, so a bit left dirty by a prior play carries into the next one. The classic case: the **backend ends a Ludeo via `PauseGameRequest`** (`05 §6.11`) — the game freezes and waits, setting `m_freeze_overlay` — with **no matching `ResumeGameRequest`**. The next `LudeoSelected` restores fine and clears `m_freeze_restore` on `RoomReady`, but the stale `m_freeze_overlay` keeps the tick frozen, so the new Ludeo loads and **never resumes — presenting exactly like dead input.** Reset the bits in `EndCurrentLudeo()` on every exit path (`/11` Step 5) *and* re-arm them at the start of the `LudeoSelected` handler; don't assume the prior cleanup ran. Diagnostic: [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md) §8.
+> **The bits must also start clean each Ludeo, not just stay separate.** `LudeoManager` is a long-lived singleton, so a bit left dirty by a prior play carries into the next one. The classic case: the **backend ends a Ludeo via `PauseGameRequest`** (`05 §6.11`) — the game freezes and waits, setting `m_freeze_overlay` — with **no matching `ResumeGameRequest`**. The next `LudeoSelected` restores fine and clears `m_freeze_restore` on `RoomReady`, but the stale `m_freeze_overlay` keeps the tick frozen, so the new Ludeo loads and **never resumes — presenting exactly like dead input.** Reset the bits in `EndCurrentLudeo()` on every exit path (`phase 5 · task 3` Step 5) *and* re-arm them at the start of the `LudeoSelected` handler; don't assume the prior cleanup ran. Diagnostic: [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md) §8.
 
 **→ See:** [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) "Registering Notifications" · [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.4 · CR-010 (post-Ludeo-load pause)
 

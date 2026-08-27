@@ -168,7 +168,7 @@ gone), each room re-rolls its encounter on load, and the reload resets the run's
 **single-active-room** regime — the captured moment is one container. (If instead several rooms stayed
 navigable, you'd add the layout + `RoomDelta` captures from §2.1.)
 
-| Capture (`/8`,`/9`) | Source (game) | Restore (`/10`,`/11`) |
+| Capture (`phase 4`,`phase 5 · task 1`) | Source (game) | Restore (`phase 5 · task 2`,`phase 5 · task 3`) |
 |---|---|---|
 | `room_id` (selection identity) | active room/chunk definition's stable id | read in read-entry-identity; re-drive the selection pool to load *that* room under `IsRestoring()`, not a random pick |
 | `encounter_id` (sub-roll) | resolved encounter definition's id | force the encounter selector to return *that* encounter under `IsRestoring()` |
@@ -182,9 +182,9 @@ currently alive in the room (enemies, projectiles, pickups) are captured/restore
 ## 7. After This File
 
 Capture the generation inputs as a `RunMetadata` object type in
-[`/8`](../../4-map-game-objects.md)/[`/9`](../../5b-implement-object-tracking.md) (data model:
+[`phase 4`](../../4-map-game-objects.md)/[`phase 5 · task 1`](../../5b-implement-object-tracking.md) (data model:
 [`06-TRACKING-PATTERNS.md`](../06-TRACKING-PATTERNS.md)); plan + implement the re-drive-the-generator
-restore in [`/10`](../../5c-plan-state-restoration.md)/[`/11`](../../5d-implement-restoration-flow.md)/[`/12`](../../5e-implement-state-reconstruction.md) on
+restore in [`phase 5 · task 2`](../../5c-plan-state-restoration.md)/[`phase 5 · task 3`](../../5d-implement-restoration-flow.md)/[`phase 5 · task 4`](../../5e-implement-state-reconstruction.md) on
 top of [`07 §2`](../07-RESTORATION-PATTERNS.md) (read-then-load) and [`07 §8`](../07-RESTORATION-PATTERNS.md)
 (world restore). You still need the **action catalog** and **tracking checklist** for whichever genre(s)
 the run blends (combat → `shooter.md`/`rpg.md`), via [`INDEX.md`](./INDEX.md). If several rooms are live at

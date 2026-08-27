@@ -1,10 +1,10 @@
-# Implement Object Tracking - Wire Registration & Capture Calls
+# Phase 5 · Task 1 — Implement Object Tracking
 
-Read the Object Tracking Plan produced by `phase 8` and emit registration + property-capture code at the hook sites identified in the plan. Follow the propose-confirm-execute cycle.
+Read the Object Tracking Plan produced by `phase 4` and emit registration + property-capture code at the hook sites identified in the plan. Follow the propose-confirm-execute cycle.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 9 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 9** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 5 · task 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -13,8 +13,8 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 0 complete — LudeoManager exists and SDK lifecycle works
-> 2. `phase 8` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
+> 1. Phase 1 complete — LudeoManager exists and SDK lifecycle works
+> 2. `phase 4` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
 > 3. User has reviewed and approved the plan
 
 ## Context Files
@@ -109,13 +109,13 @@ Critical discipline:
 
 ### Step 6: Wire Batch Registration for Pre-Existing Objects
 
-For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phases 11–12) is wired, this hook won't double-register objects that restoration recreates.
+For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phase 5 · tasks 3–4) is wired, this hook won't double-register objects that restoration recreates.
 
-**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phases 11–12 lands; don't invent a different check:
+**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 5 · tasks 3–4 lands; don't invent a different check:
 
 ```cpp
 #if LUDEO_SDK_ENABLED
-    // Returns false until restoration (phases 11–12) sets m_is_restoring true while
+    // Returns false until restoration (phase 5 · tasks 3–4) sets m_is_restoring true while
     // a Ludeo replay is being reconstructed. Gates batch registration so we don't
     // double-register objects that restoration will recreate.
     bool IsRestoring() const { return m_is_restoring; }
@@ -126,7 +126,7 @@ private:
 
 Propose this stub as part of the batch-registration change. Do not gate on a pending-ludeo id or other ad-hoc signal — `IsRestoring()` is the seam the later phases expect.
 
-> **⚠️ Capture the world/session ENTRY IDENTITY here — restoration's first step depends on it.** From the `/8` map, emit the singleton world/session metadata object (level/map id, `start_mode`, save slot, or the procedural `RunMetadata` inputs) as one-shot identity captures. The restoration phase reads it back **before** anything else to decide which level to reach (`07 §2.2`, `read_entry_identity`); you can only restore what this phase wrote. **Corollary — adding *or renaming* any captured attribute (here or in a later phase) invalidates every previously captured Ludeo for that attribute: there is no migration.** A Ludeo captured before the entry-identity attribute existed reads back empty — distinct from a genuine "level not found" (see `07`). After any capture-schema change, **re-capture** before testing restore; a fresh run re-samples valid data.
+> **⚠️ Capture the world/session ENTRY IDENTITY here — restoration's first step depends on it.** From the `phase 4` map, emit the singleton world/session metadata object (level/map id, `start_mode`, save slot, or the procedural `RunMetadata` inputs) as one-shot identity captures. The restoration phase reads it back **before** anything else to decide which level to reach (`07 §2.2`, `read_entry_identity`); you can only restore what this phase wrote. **Corollary — adding *or renaming* any captured attribute (here or in a later phase) invalidates every previously captured Ludeo for that attribute: there is no migration.** A Ludeo captured before the entry-identity attribute existed reads back empty — distinct from a genuine "level not found" (see `07`). After any capture-schema change, **re-capture** before testing restore; a fresh run re-samples valid data.
 
 ### Step 7: Reconciliation Wiring (Per-Entity, Only Where the Matrix Says So)
 
@@ -155,9 +155,9 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 ...
 
 ### Next
-1. Run `phase 5` to verify clean compile both with and without LUDEO_SDK_ENABLED
+1. Run `phase 3 · task 5` to verify clean compile both with and without LUDEO_SDK_ENABLED
 2. Capture a real session and verify it contains the expected objects + attributes — a clean compile does not prove tracking works. Search the capture/session log for `Expected type` (attribute type-lock mismatches are dropped silently at runtime; see `11-TROUBLESHOOTING.md §1`).
-3. Run `phase 10` next
+3. Run `phase 5 · task 2` next
 ```
 
 ## Important Notes
@@ -173,9 +173,9 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 
 ## Related Phases
 
-- `phase 8` — produces the plan this command consumes (run FIRST)
-- `phase 5` — run after to verify compilation
-- `phase 10` — consumes the same plan + stable-ID strategy
+- `phase 4` — produces the plan this command consumes (run FIRST)
+- `phase 3 · task 5` — run after to verify compilation
+- `phase 5 · task 2` — consumes the same plan + stable-ID strategy
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
@@ -183,7 +183,7 @@ This phase edited source files, so it is **not done** until the game still build
 cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
 
 1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
-   loop in `phase 5` and read the build log.
+   loop in `phase 3 · task 5` and read the build log.
 2. **Run the game and confirm it still runs** — enter gameplay, verify registration logs at gameplay
    session begin, then sample a **real capture** and confirm planned objects + attributes are present
    (and none were dropped). Check the log for `Expected type` (server-side type-locking;
@@ -192,4 +192,4 @@ cannot see a running game, so this gate falls to the integrator — make the ask
 The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
 on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
 that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
-run `phase 10`.
+run `phase 5 · task 2`.

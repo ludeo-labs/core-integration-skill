@@ -1,16 +1,16 @@
-# Compile and Fix - Build Loop Until Success
+# Phase 3 · Task 5 — Compile and Fix
 
 Build the game with SDK integration and fix compilation errors iteratively until both SDK-disabled and SDK-enabled builds succeed.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 5 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 3 · task 5 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3 · task 5** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📦 Ludeo SDK Location
 
 > **REQUIRED:** This command needs the Ludeo SDK distribution for compilation.
 >
-> The SDK location should already be configured by `phase 0`.
+> The SDK location should already be configured by `phase 1`.
 > If build fails with SDK path errors, verify SDK location and update build configuration.
 
 ## 📚 Context Files
@@ -23,8 +23,8 @@ This is a sequential workflow — continuing to phase 5 in the **same session as
 
 ## Prerequisites
 
-- `phase 0` completed (build system configured)
-- `phase 4` completed (Ludeo files created, hooks modified)
+- `phase 1` completed (build system configured)
+- `phase 3 · task 4` completed (Ludeo files created, hooks modified)
 
 ## Your Task
 
@@ -118,5 +118,5 @@ If the same error persists after multiple attempts:
 After successful build:
 1. Run game with `LUDEO_SDK_ENABLED=0` - verify baseline behavior
 2. Run game with `LUDEO_SDK_ENABLED=1` - verify SDK loads (check logs)
-3. Proceed to tracking/restoration phases (future commands)
+3. Run `phase 4` to map the game's trackable objects
 

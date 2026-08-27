@@ -1,10 +1,10 @@
-# Build Game with SDK - Build Environment Setup
+# Phase 1 — Build Game with SDK
 
 Set up the Ludeo SDK build environment, create directory structure, configure build system, and verify the game compiles **without the SDK first**, then **with the SDK enabled**.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 0 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 0** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📦 Ludeo SDK Location
 
@@ -109,7 +109,7 @@ Follow **Section 3** of `04-BUILD-INTEGRATION.md`:
 Follow **Section 4** of `04-BUILD-INTEGRATION.md`:
 
 > **Note:** This creates a **stub** LudeoConfig.h for build verification only.
-> The full version (with LudeoManager integration) will be created by `phase 4`.
+> The full version (with LudeoManager integration) will be created by `phase 3 · task 4`.
 
 - Create `src/core/ludeo/LudeoConfig.h` (or game-appropriate path) with:
   - Conditional compilation macros (`LUDEO_SDK_ENABLED`, `LUDEO_CODE`, `LUDEO_INCLUDE`)

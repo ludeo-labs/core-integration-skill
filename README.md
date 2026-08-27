@@ -32,11 +32,13 @@ Open your game repo in your AI agent and ask it:
 
 > Integrate Ludeo into my game using the `ludeo-integration` skill.
 
-The agent reads `SKILL.md`, picks up the 11-phase workflow, and walks you through each phase. It pauses for confirmation between phases.
+The agent reads `SKILL.md`, picks up the six-phase workflow, and walks you through each phase. It pauses for confirmation between phases.
 
 You can also jump to a specific phase:
 
 > Continue with phase 5 of the `ludeo-integration` skill.
+
+Phase numbers match the Unity and Unreal skills, so "phase 5" means the same stage of work whichever engine you are on.
 
 ## What's inside
 
@@ -49,21 +51,25 @@ You can also jump to a specific phase:
 | `scripts/` | `validate-skill.mjs`, `bump-skill-version.mjs` (used by CI / release pipeline) |
 | `.github/` | Validation + release workflows |
 
-Sequential 11-phase workflow under [`references/`](references):
+Sequential six-phase workflow under [`references/`](references):
 
 | Phase | File | Purpose |
 | --- | --- | --- |
-| 0 | `references/1-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
-| 1 | `references/2-map-game-code.md` | Produce `CODE_MAP.json` of the game's architecture |
-| 2 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
-| 2b | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
-| 3 | `references/3c-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
-| 4 | `references/3d-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
-| 5 | `references/3e-compile-and-fix.md` | Compile, fix, verify |
-| 6 | `references/6a-map-game-actions.md` | Find action points in game code |
-| 7 | `references/6b-implement-game-actions.md` | Insert action calls |
-| 8 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
-| 9 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
+| 1 | `references/1-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
+| 2 | `references/2-map-game-code.md` | Produce `CODE_MAP.json` of the game's architecture |
+| 3 · task 1 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
+| 3 · task 2 | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
+| 3 · task 3 | `references/3c-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
+| 3 · task 4 | `references/3d-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
+| 3 · task 5 | `references/3e-compile-and-fix.md` | Compile, fix, verify |
+| 3 · task 6 | `references/3f-classify-save-system.md` | Classify the save system (group + per-entity matrix) |
+| 4 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
+| 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
+| 5 · task 2 | `references/5c-plan-state-restoration.md` | Plan the two-pass restoration flow |
+| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow half (freeze, apply gate, resume) |
+| 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the two-pass `DataReader` read-back |
+| 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
+| 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
 
 Reference material lives alongside the workflow files:
 

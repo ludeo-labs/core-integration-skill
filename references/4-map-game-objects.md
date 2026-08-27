@@ -1,10 +1,10 @@
-# Map Game Objects - Discover Trackable Entities & Properties
+# Phase 4 — Map Game Objects
 
 Analyze the game codebase to produce an Object Tracking Plan: codebase pattern, entity types to track, properties per entity, hook sites for SDK calls, and the stable-ID strategy that ties tracking to restoration. Human-approved before any code is generated.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 8 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 8** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -13,9 +13,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > ⚠️ **REQUIRED:** These must complete first:
-> 1. `phase 1` → `ludeo-integration-plan/CODE_MAP.json`
-> 2. `phase 2` → `SDK_INTEGRATION_POINTS.json`
-> 3. `phase 2c` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`. If these don't exist, run `phase 2c` first — no other phase produces them.
+> 1. `phase 2` → `ludeo-integration-plan/CODE_MAP.json`
+> 2. `phase 3 · task 1` → `SDK_INTEGRATION_POINTS.json`
+> 3. `phase 3 · task 6` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`. If these don't exist, run `phase 3 · task 6` first — no other phase produces them.
 >
 > **Recommended:** If `TDD_<GameName>.md` exists, read its **State Capture** section.
 
@@ -50,7 +50,7 @@ For each pattern identified, record from §2:
 
 ### Step 3: Determine Genre & Load Tracking Checklist
 
-Same flow as `phase 6`:
+Same flow as `phase 6 · task 1`:
 - Web search `"<game_name>" game genre`; ask the user if web search fails.
 - Read `game-patterns/INDEX.md`, load matching genre file(s).
 - **If `CODE_MAP.session_boundaries` has the sub-structure `{ model, start_sites[], exit_sites[], pause_overlay[] }`** (no per-level scenes), also load **both** structural files: `game-patterns/open-world.md` and `game-patterns/open-world-tracking.md`. They are structural, not genre — they don't replace the genre tracking checklist. `open-world.md` tells you the session spans the whole live run, which affects how `pre-existing-at-load` is interpreted (the run's "load" is the new-game / load-save moment, not a level load) and which entities are pre-existing vs. dynamically spawned during the run. `open-world-tracking.md` is the tracking delta you need *here*: presence ≠ existence (don't unregister on stream-out), world/cell object types, persistent-world-ID identity across stream cycles, and scoping the tracked set to the loaded neighborhood rather than the whole save.
@@ -64,7 +64,7 @@ Combine genre checklist with codebase discovery. Apply `06-TRACKING-PATTERNS.md 
 
 For each entity, record class, file:line, spawn pattern (dynamic / placed / both), and whether it has dynamically-attached sub-components (these often defeat reflection-based serialization).
 
-> **⚠️ Always map a world/session ENTRY-IDENTITY object — every game, not just procedural/open-world.** Restoration's first action inside the apply is **reaching active gameplay** — loading *which* level/map or booting *which* run (`07 §2.2`, `read_entry_identity`). The handler reads that target **from the captured Ludeo**, so capture must include it: the level/map id (or `start_mode` / `room_x` / `room_y` / save slot) for scene/state-machine games — the procedural `RunMetadata` selection id and the open-world persistent-region id are the genre-specific shapes of the same thing. Record it here as a singleton **world/session metadata object type** so `/9` captures it; without it the play flow has no way to know which level to reach, and the failure surfaces only at restore as an empty entry identity. This is a `/8`-`/9` capture requirement, **not** a `/10` afterthought.
+> **⚠️ Always map a world/session ENTRY-IDENTITY object — every game, not just procedural/open-world.** Restoration's first action inside the apply is **reaching active gameplay** — loading *which* level/map or booting *which* run (`07 §2.2`, `read_entry_identity`). The handler reads that target **from the captured Ludeo**, so capture must include it: the level/map id (or `start_mode` / `room_x` / `room_y` / save slot) for scene/state-machine games — the procedural `RunMetadata` selection id and the open-world persistent-region id are the genre-specific shapes of the same thing. Record it here as a singleton **world/session metadata object type** so `phase 5 · task 1` captures it; without it the play flow has no way to know which level to reach, and the failure surfaces only at restore as an empty entry identity. This is a `phase 4`-`phase 5 · task 1` capture requirement, **not** a `phase 5 · task 2` afterthought.
 
 ### Step 5: Pin a Stable ID per Entity Type
 
@@ -179,13 +179,13 @@ After writing the plan, summarize for the user and ask them to review:
 6. Open questions
 7. Low-confidence entries
 
-**Do not proceed to `phase 9` automatically.** This gate prevents generating tracking code against a misunderstood entity model.
+**Do not proceed to `phase 5 · task 1` automatically.** This gate prevents generating tracking code against a misunderstood entity model.
 
 ## Output
 
 | File | Purpose |
 |------|---------|
-| `ludeo-integration-plan/OBJECT_TRACKING.md` | Approved plan that `phase 9` consumes |
+| `ludeo-integration-plan/OBJECT_TRACKING.md` | Approved plan that `phase 5 · task 1` consumes |
 
 May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 
@@ -201,14 +201,14 @@ May also update `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1` if new entities surfaced.
 
 ## Related Phases
 
-- `phase 1` (run FIRST), `phase 2`
-- `phase 6` — sibling discovery command for discrete events
-- `phase 9` — consumes this plan after approval
-- `phase 10` — also consumes this plan
+- `phase 2` (run FIRST), `phase 3 · task 1`
+- `phase 6 · task 1` — sibling discovery command for discrete events
+- `phase 5 · task 1` — consumes this plan after approval
+- `phase 5 · task 2` — also consumes this plan
 
 ## Next Steps
 
 1. Review `OBJECT_TRACKING.md` with the user
 2. Resolve open questions + low-confidence entries
 3. Confirm approval
-4. Run `phase 9`
+4. Run `phase 5 · task 1`

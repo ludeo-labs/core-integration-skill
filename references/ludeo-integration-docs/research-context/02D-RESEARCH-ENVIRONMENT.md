@@ -118,7 +118,7 @@ Complete this questionnaire to identify:
 
 ### 8.1 Non-Ludeoable Areas
 
-**Which in-gameplay segments should never become a Ludeo?** These are **backend-controlled**, not a local capture gate: tracking keeps running through them, and you mark their boundaries with enter/exit Ludeo actions wired once to the global triggers on the platform (`06 §7.3`, `/6`–`/7`). Do **not** build an `IsLudeoableArea()` check or stop tracking — record the boundary hooks so `/6`–`/7` can emit the actions.
+**Which in-gameplay segments should never become a Ludeo?** These are **backend-controlled**, not a local capture gate: tracking keeps running through them, and you mark their boundaries with enter/exit Ludeo actions wired once to the global triggers on the platform (`06 §7.3`, `phase 6`). Do **not** build an `IsLudeoableArea()` check or stop tracking — record the boundary hooks so `phase 6` can emit the actions.
 
 | Area | Enter hook (file:function) | Exit hook (file:function) | Enter/exit action names |
 |------|----------------------------|----------------------------|-------------------------|
