@@ -1,10 +1,10 @@
-# /10-plan-state-restoration — Design the Two-Pass Restoration Flow
+# /5c-plan-state-restoration — Design the Two-Pass Restoration Flow
 
 > **Stage:** State Restoration — Planning (analysis only, no code yet)
-> **Prerequisite:** `/8-map-game-objects` approved (entity model is fixed)
+> **Prerequisite:** `/4-map-game-objects` approved (entity model is fixed)
 > **Inputs:** `OBJECT_TRACKING.md`, `GAME_ANALYSIS_SAVE_SYSTEM.md` (+ `GAME_ANALYSIS_ENVIRONMENT.md`, produced in Step 9 if absent)
 > **Output:** `ludeo-integration-plan/RESTORATION_PLAN.md` — two-pass algorithm, deferred-property list, wait-for-player flow, environment restoration
-> **Gate:** Human approval required before `/11-implement-restoration-flow` (and the `/12` reconstruction that follows it)
+> **Gate:** Human approval required before `/5d-implement-restoration-flow` (and the `/12` reconstruction that follows it)
 
 Restoration is the inverse of tracking. This command does **not** invent a new
 state model — it reads the already-approved `OBJECT_TRACKING.md` and, row by row,
@@ -22,12 +22,12 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > ⚠️ **REQUIRED:** These must complete first:
-> 1. `/8-map-game-objects` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
+> 1. `/4-map-game-objects` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
 > 2. `phase 2c` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
 >
 > **Produced by this phase if absent:** the **environment inventory** (`GAME_ANALYSIS_ENVIRONMENT.md`). No earlier phase produces it, so Step 9 builds it from `02D-RESEARCH-ENVIRONMENT.md` before planning environment restoration — you do **not** need it in hand to start.
 >
-> **Recommended:** `/9-implement-object-tracking` done, so the tracking code (and its
+> **Recommended:** `/5b-implement-object-tracking` done, so the tracking code (and its
 > `objectType` strings + stable-ID fields) exists to mirror against. If `/9` hasn't run,
 > plan against `OBJECT_TRACKING.md` and flag any field the implementation may still rename.
 
@@ -325,10 +325,10 @@ May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_S
 
 ## Related Commands
 
-- `/8-map-game-objects` — produces `OBJECT_TRACKING.md`, the spine this plan mirrors (run FIRST)
-- `/9-implement-object-tracking` — emits the capture code; restoration is its inverse
-- `/11-implement-restoration-flow` — consumes this plan after approval (player-flow/lifecycle half)
-- `/12-implement-state-reconstruction` — consumes this plan after `/11` (two-pass data half)
+- `/4-map-game-objects` — produces `OBJECT_TRACKING.md`, the spine this plan mirrors (run FIRST)
+- `/5b-implement-object-tracking` — emits the capture code; restoration is its inverse
+- `/5d-implement-restoration-flow` — consumes this plan after approval (player-flow/lifecycle half)
+- `/5e-implement-state-reconstruction` — consumes this plan after `/11` (two-pass data half)
 
 ## Next Steps
 
@@ -336,4 +336,4 @@ May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_S
 2. Confirm the mirror is complete — no tracked entity/property without a restoration path
 3. Resolve open questions + low-confidence entries
 4. Confirm approval
-5. Run `/11-implement-restoration-flow`, then `/12-implement-state-reconstruction`
+5. Run `/5d-implement-restoration-flow`, then `/5e-implement-state-reconstruction`

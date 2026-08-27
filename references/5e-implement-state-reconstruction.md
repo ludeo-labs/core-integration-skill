@@ -1,7 +1,7 @@
-# /12-implement-state-reconstruction — Fill the Two-Pass DataReader Read-Back
+# /5e-implement-state-reconstruction — Fill the Two-Pass DataReader Read-Back
 
 > **Stage:** State Restoration — Data Reconstruction (the inverse of `/9`'s capture)
-> **Prerequisite:** `/11-implement-restoration-flow` completed (the apply lifecycle and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are already called) and `RESTORATION_PLAN.md` approved
+> **Prerequisite:** `/5d-implement-restoration-flow` completed (the apply lifecycle and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are already called) and `RESTORATION_PLAN.md` approved
 > **Inputs:** `RESTORATION_PLAN.md`, `OBJECT_TRACKING.md`, `CODE_MAP.json`
 > **Output:** Real `LudeoStateAdapter::RestoreTwoPass` / `RestoreEnvironment`, reader-side object scope + `LUDEO_READ_*` helpers, the per-Ludeo `id_map`, the deferred-property queue, two-pass spawn + property apply + reference resolution, pre-existing reconciliation, environment restore.
 
@@ -25,9 +25,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 > **REQUIRED:** These must be complete before running this command:
 > 1. Phase 0 complete — LudeoManager exists and SDK lifecycle works
-> 2. `/9-implement-object-tracking` complete — `LudeoStateAdapter` and `LudeoCaptureMacros.h` exist, `objectType` strings and stable-ID fields are in code
-> 3. `/11-implement-restoration-flow` complete — the apply lifecycle, the `MaybeApplyRestore()` gate, and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are called; `IsRestoring()` is live
-> 4. `/10-plan-state-restoration` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it
+> 2. `/5b-implement-object-tracking` complete — `LudeoStateAdapter` and `LudeoCaptureMacros.h` exist, `objectType` strings and stable-ID fields are in code
+> 3. `/5d-implement-restoration-flow` complete — the apply lifecycle, the `MaybeApplyRestore()` gate, and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are called; `IsRestoring()` is live
+> 4. `/5c-plan-state-restoration` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it
 
 `/9` is a hard prerequisite, not just a recommendation: restoration reuses the **same** `LudeoStateAdapter` and the same `objectType` strings that tracking wrote. You cannot restore what `/9` didn't capture. `/11` is a hard prerequisite: without the apply gate and the populated reader it hands you, there is nothing to read back into.
 
@@ -153,7 +153,7 @@ Wait for the player's confirmation on step 6 before declaring phase 12 done. If 
 ...
 
 ### Next
-1. Run `/5-compile-and-fix` to verify clean compile both with and without LUDEO_SDK_ENABLED
+1. Run `/3e-compile-and-fix` to verify clean compile both with and without LUDEO_SDK_ENABLED
 2. Re-run the launch-arg smoke test (Step 7) and confirm non-zero two-pass counts + correct first frame
 3. Walk the 07 §10 validation checklist
 ```
@@ -173,10 +173,10 @@ Wait for the player's confirmation on step 6 before declaring phase 12 done. If 
 
 ## Related Commands
 
-- `/9-implement-object-tracking` — the inverse: emits the capture code this command reads back (run FIRST, hard prerequisite)
-- `/10-plan-state-restoration` — produces the `RESTORATION_PLAN.md` this command consumes
-- `/11-implement-restoration-flow` — built the apply lifecycle + the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase fills (run SECOND, hard prerequisite)
-- `/5-compile-and-fix` — run after to verify compilation
+- `/5b-implement-object-tracking` — the inverse: emits the capture code this command reads back (run FIRST, hard prerequisite)
+- `/5c-plan-state-restoration` — produces the `RESTORATION_PLAN.md` this command consumes
+- `/5d-implement-restoration-flow` — built the apply lifecycle + the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase fills (run SECOND, hard prerequisite)
+- `/3e-compile-and-fix` — run after to verify compilation
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not finish without it)
 
@@ -184,7 +184,7 @@ This phase edited source files, so it is **not done** until the game still build
 cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
 
 1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
-   loop in `/5-compile-and-fix` and read the build log.
+   loop in `/3e-compile-and-fix` and read the build log.
 2. **Run the game and confirm state restores correctly** — re-run the launch-arg smoke test (Step 7):
    verify non-zero two-pass counts, no type-lock mismatch, the correct first frame, and that a
    cross-entity reference restores correctly (two-pass exercised). Walk the validation checklist in

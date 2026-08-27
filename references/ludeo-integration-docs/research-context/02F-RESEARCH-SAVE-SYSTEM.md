@@ -283,7 +283,7 @@ Before downstream stages consume this classification, verify:
 - [ ] If the game has custom serializers on gameplay types, the `blockers` list is populated.
 - [ ] If classified Group 1, the load path has been read end-to-end (not just the save path).
 - [ ] If classified Group 3, you've confirmed that "save" calls in the code are persisting settings / progress only, not gameplay state.
-- [ ] Human has reviewed and approved the classification before `/10-plan-state-restoration`.
+- [ ] Human has reviewed and approved the classification before `/5c-plan-state-restoration`.
 
 ---
 
@@ -372,7 +372,7 @@ For each entity type in `02B-RESEARCH-OBJECTS.md`, fill:
 
 ## 🔗 Cross-References
 
-- `/10-plan-state-restoration` reads `save_system.group` and per-entity approaches
+- `/5c-plan-state-restoration` reads `save_system.group` and per-entity approaches
 - `07-RESTORATION-PATTERNS.md` branches by group
 - `02B-RESEARCH-OBJECTS.md` provides the entity list for Section 8.1
 - `02E-RESEARCH-TECHNICAL.md` Section on save-system patterns is complementary —

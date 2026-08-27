@@ -1,11 +1,11 @@
-# /11-implement-restoration-flow — Wire LudeoSelected, Wait-for-Player, and the Apply Lifecycle
+# /5d-implement-restoration-flow — Wire LudeoSelected, Wait-for-Player, and the Apply Lifecycle
 
 > **Stage:** State Restoration — Player-Flow Implementation (the inverse of `/4`'s session lifecycle)
-> **Prerequisite:** `/10-plan-state-restoration` completed and `RESTORATION_PLAN.md` approved
+> **Prerequisite:** `/5c-plan-state-restoration` completed and `RESTORATION_PLAN.md` approved
 > **Inputs:** `RESTORATION_PLAN.md`, `CODE_MAP.json`, `SDK_INTEGRATION_POINTS.json`
 > **Output:** `LudeoSelected` interrupt handler, freeze (CR-010), `GetLudeo`+`OpenRoom` dispatch + reader-readiness caching, single-fire `MaybeApplyRestore()` apply gate, read-then-load level boot, `RoomReady → Begin` resume, overlay pause/resume (CR-011), `EndCurrentLudeo()` reset, launch-arg local trigger. The apply **calls** `RestoreTwoPass`/`RestoreEnvironment` — which are **stubs here**; `/12` fills them.
 
-This phase builds **when and how** a Ludeo is triggered, frozen, applied, and resumed — the SDK-orchestration half of restoration. It does **not** read entity state back (that is `/12`). The two halves meet at one seam: `MaybeApplyRestore()` calls `SetCurrent → RestoreTwoPass(reader) → RestoreEnvironment(reader)`. In this phase those three are **stubs** (declared, log-only bodies); `/12-implement-state-reconstruction` implements them. Follow the propose-confirm-execute cycle.
+This phase builds **when and how** a Ludeo is triggered, frozen, applied, and resumed — the SDK-orchestration half of restoration. It does **not** read entity state back (that is `/12`). The two halves meet at one seam: `MaybeApplyRestore()` calls `SetCurrent → RestoreTwoPass(reader) → RestoreEnvironment(reader)`. In this phase those three are **stubs** (declared, log-only bodies); `/5e-implement-state-reconstruction` implements them. Follow the propose-confirm-execute cycle.
 
 ## Why this is its own phase
 
@@ -23,9 +23,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 > **REQUIRED:** These must be complete before running this command:
 > 1. Phase 0 complete — LudeoManager exists and SDK lifecycle works
-> 2. `/4-implement-sdk-lifecycle` complete — the session exists, notifications are registered at session creation, and the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`TryBeginGameplaySession()`, `OnRoomReadyCallback`, `OnPlayerAddedCallback`) is wired. This phase reuses that chain for the post-restore resume.
-> 3. `/9-implement-object-tracking` complete — `LudeoStateAdapter` exists and `LudeoManager::IsRestoring()` exists as the forward-compatible read-only stub `/9` added. This phase makes that flag *live*.
-> 4. `/10-plan-state-restoration` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it.
+> 2. `/3d-implement-sdk-lifecycle` complete — the session exists, notifications are registered at session creation, and the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`TryBeginGameplaySession()`, `OnRoomReadyCallback`, `OnPlayerAddedCallback`) is wired. This phase reuses that chain for the post-restore resume.
+> 3. `/5b-implement-object-tracking` complete — `LudeoStateAdapter` exists and `LudeoManager::IsRestoring()` exists as the forward-compatible read-only stub `/9` added. This phase makes that flag *live*.
+> 4. `/5c-plan-state-restoration` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it.
 
 `/4` is a hard prerequisite: the apply re-uses `/4`'s `RoomReady → Begin` chain rather than inventing a new resume path. `/9` is a hard prerequisite: this phase flips `IsRestoring()` from the no-op stub to a real setter that gates `/9`'s capture paths.
 
@@ -174,10 +174,10 @@ Wait for the player's confirmation on both steps 5 and 6 before declaring phase 
 
 ## Related Commands
 
-- `/4-implement-sdk-lifecycle` — wired the `RoomReady → Begin` chain this phase reuses for the post-restore resume
-- `/10-plan-state-restoration` — produces the `RESTORATION_PLAN.md` this command consumes
-- `/12-implement-state-reconstruction` — fills the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase calls (run NEXT)
-- `/5-compile-and-fix` — run after to verify compilation
+- `/3d-implement-sdk-lifecycle` — wired the `RoomReady → Begin` chain this phase reuses for the post-restore resume
+- `/5c-plan-state-restoration` — produces the `RESTORATION_PLAN.md` this command consumes
+- `/5e-implement-state-reconstruction` — fills the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase calls (run NEXT)
+- `/3e-compile-and-fix` — run after to verify compilation
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
@@ -185,7 +185,7 @@ This phase edited source files, so it is **not done** until the game still build
 cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
 
 1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
-   loop in `/5-compile-and-fix` and read the build log.
+   loop in `/3e-compile-and-fix` and read the build log.
 2. **Run the game and confirm it still runs** — play a Ludeo and confirm the lifecycle smoke test
    (Step 6) passes: freeze-before-Play, boot-correct-level-on-Play, overlay pause/resume, with no SDK
    errors or crashes in the log. The **data** read-back is `/12`, so fully-restored state isn't expected
@@ -194,4 +194,4 @@ cannot see a running game, so this gate falls to the integrator — make the ask
 The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
 on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
 that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
-run `/12-implement-state-reconstruction` to fill the apply seam.
+run `/5e-implement-state-reconstruction` to fill the apply seam.

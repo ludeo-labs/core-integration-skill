@@ -416,7 +416,7 @@ Some properties cannot be applied synchronously in the apply path because their 
 
 ### 6.1 Detection
 
-Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output of `/10-plan-state-restoration`). General rule: **if a setter's handler reaches into another subsystem, defer it.** Heuristic: anything that fails, no-ops, or crashes when set in a constructor lands here.
+Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output of `/5c-plan-state-restoration`). General rule: **if a setter's handler reaches into another subsystem, defer it.** Heuristic: anything that fails, no-ops, or crashes when set in a constructor lands here.
 
 ### 6.2 Pattern
 
@@ -641,6 +641,6 @@ Before considering restoration "done" on a game:
 - `06-TRACKING-PATTERNS.md` → what was captured determines what can be restored
 - `research-context/02D-RESEARCH-ENVIRONMENT.md` → environment inventory
 - `research-context/02F-RESEARCH-SAVE-SYSTEM.md` → group-based strategy selection
-- `commands/10-plan-state-restoration.md` → produces `RESTORATION_PLAN.md`
-- `commands/11-implement-restoration-flow.md` → wires the `LudeoSelected` flow, freeze, apply gate, and wait-for-player (calls the read-back as a stub)
-- `commands/12-implement-state-reconstruction.md` → fills the `LudeoStateAdapter` two-pass read-back
+- `commands/5c-plan-state-restoration.md` → produces `RESTORATION_PLAN.md`
+- `commands/5d-implement-restoration-flow.md` → wires the `LudeoSelected` flow, freeze, apply gate, and wait-for-player (calls the read-back as a stub)
+- `commands/5e-implement-state-reconstruction.md` → fills the `LudeoStateAdapter` two-pass read-back

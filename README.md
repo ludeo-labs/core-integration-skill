@@ -53,17 +53,17 @@ Sequential 11-phase workflow under [`references/`](references):
 
 | Phase | File | Purpose |
 | --- | --- | --- |
-| 0 | `references/0-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
-| 1 | `references/1-map-game-code.md` | Produce `CODE_MAP.json` of the game's architecture |
-| 2 | `references/2-find-sdk-integration-points.md` | Identify where SDK calls go |
-| 2b | `references/2b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
-| 3 | `references/3-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
-| 4 | `references/4-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
-| 5 | `references/5-compile-and-fix.md` | Compile, fix, verify |
-| 6 | `references/6-map-game-actions.md` | Find action points in game code |
-| 7 | `references/7-implement-game-actions.md` | Insert action calls |
-| 8 | `references/8-map-game-objects.md` | Discover trackable objects & properties |
-| 9 | `references/9-implement-object-tracking.md` | Wire object registration & capture |
+| 0 | `references/1-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
+| 1 | `references/2-map-game-code.md` | Produce `CODE_MAP.json` of the game's architecture |
+| 2 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
+| 2b | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
+| 3 | `references/3c-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
+| 4 | `references/3d-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
+| 5 | `references/3e-compile-and-fix.md` | Compile, fix, verify |
+| 6 | `references/6a-map-game-actions.md` | Find action points in game code |
+| 7 | `references/6b-implement-game-actions.md` | Insert action calls |
+| 8 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
+| 9 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
 
 Reference material lives alongside the workflow files:
 

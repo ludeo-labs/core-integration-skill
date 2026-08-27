@@ -182,9 +182,9 @@ currently alive in the room (enemies, projectiles, pickups) are captured/restore
 ## 7. After This File
 
 Capture the generation inputs as a `RunMetadata` object type in
-[`/8`](../../8-map-game-objects.md)/[`/9`](../../9-implement-object-tracking.md) (data model:
+[`/8`](../../4-map-game-objects.md)/[`/9`](../../5b-implement-object-tracking.md) (data model:
 [`06-TRACKING-PATTERNS.md`](../06-TRACKING-PATTERNS.md)); plan + implement the re-drive-the-generator
-restore in [`/10`](../../10-plan-state-restoration.md)/[`/11`](../../11-implement-restoration-flow.md)/[`/12`](../../12-implement-state-reconstruction.md) on
+restore in [`/10`](../../5c-plan-state-restoration.md)/[`/11`](../../5d-implement-restoration-flow.md)/[`/12`](../../5e-implement-state-reconstruction.md) on
 top of [`07 §2`](../07-RESTORATION-PATTERNS.md) (read-then-load) and [`07 §8`](../07-RESTORATION-PATTERNS.md)
 (world restore). You still need the **action catalog** and **tracking checklist** for whichever genre(s)
 the run blends (combat → `shooter.md`/`rpg.md`), via [`INDEX.md`](./INDEX.md). If several rooms are live at

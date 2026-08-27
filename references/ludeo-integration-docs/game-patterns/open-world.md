@@ -123,7 +123,7 @@ Long sessions are fine. The Ludeo platform is designed for runs of any length; w
 | Ludeo overlay opened | SDK `PauseGameRequest` | `GameManager.PauseGame()` (sim freeze, [CR-011](../00-CRITICAL-REQUIREMENTS.md)) |
 | Application quit | `Application.Quit` | `GameplaySession_End` (if mid-run) → `Session_Release` → `Shutdown` |
 
-The CODE_MAP `session_boundaries` block produced in `phase 1` is the input for this mapping. See [`../../1-map-game-code.md`](../../1-map-game-code.md) §5.
+The CODE_MAP `session_boundaries` block produced in `phase 1` is the input for this mapping. See [`../../2-map-game-code.md`](../../2-map-game-code.md) §5.
 
 ## 9. After This File
 

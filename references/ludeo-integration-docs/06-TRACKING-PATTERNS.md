@@ -1010,8 +1010,8 @@ This means action call sites **must not** be gated behind `IsRestoring()` or any
 
 | Concern | Owned by |
 |---|---|
-| Which events should become Actions (discovery, genre catalogs, categories, naming conventions) | `/6-map-game-actions` + `research-context/02C-RESEARCH-ACTIONS.md` + `game-patterns/*.md` |
-| Inserting action calls at discovered sites (propose-confirm-execute flow, insertion rules, edge cases) | `/7-implement-game-actions` |
+| Which events should become Actions (discovery, genre catalogs, categories, naming conventions) | `/6a-map-game-actions` + `research-context/02C-RESEARCH-ACTIONS.md` + `game-patterns/*.md` |
+| Inserting action calls at discovered sites (propose-confirm-execute flow, insertion rules, edge cases) | `/6b-implement-game-actions` |
 | The `SendAction` method and `LUDEO_ACTION` macro (below) | This section |
 
 If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `/6` or `02C`. This section is only for the SDK call definitions.
@@ -1095,7 +1095,7 @@ Defined in `LudeoCaptureMacros.h`:
 
 The macro compiles to nothing when `LUDEO_SDK_ENABLED=0`. Callers do not need to wrap `LUDEO_ACTION(...)` in their own `#if` guards.
 
-**Note:** `/7-implement-game-actions` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
+**Note:** `/6b-implement-game-actions` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
 
 ### 7.3 Non-ludeoable area boundary actions
 
