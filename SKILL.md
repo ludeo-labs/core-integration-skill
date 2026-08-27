@@ -2,12 +2,12 @@
 name: ludeo-integration
 description: Integrate the Ludeo SDK into a C++, Unity, or Unreal game. Sets up the build with conditional compilation, wires the SDK lifecycle, maps and implements game actions, maps and tracks game objects, and verifies the integration. Use when the user asks to integrate, install, add, set up, or wire up Ludeo into their game.
 metadata:
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Ludeo SDK Integration
 
-**Skill version:** 0.0.0 · Compare against the [latest release](https://github.com/ludeo-labs/core-integration-skill/releases/latest) to confirm your installed copy is current. If older, run `npx skills update ludeo-integration` (then start a fresh agent session — `SKILL.md` is cached per session).
+**Skill version:** 1.2.0 · Compare against the [latest release](https://github.com/ludeo-labs/core-integration-skill/releases/latest) to confirm your installed copy is current. If older, run `npx skills update ludeo-integration` (then start a fresh agent session — `SKILL.md` is cached per session).
 
 This skill walks the agent through integrating the Ludeo SDK into a game project, from build configuration to action mapping and runtime verification.
 

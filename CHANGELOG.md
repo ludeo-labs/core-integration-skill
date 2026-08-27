@@ -1,3 +1,18 @@
+# [1.2.0](https://github.com/ludeo-labs/core-integration-skill/compare/v1.1.0...v1.2.0) (2026-08-27)
+
+
+### Bug Fixes
+
+* **actions:** actions are dual-flow (state is capture-only; actions fire in Creator AND Player Flow) ([fe01daa](https://github.com/ludeo-labs/core-integration-skill/commit/fe01daaca59db03c78dd6789ba0127fff851fcce))
+* **build:** copy entire ThirdParty/<platform>/<config>/Bin/ alongside SDK DLL (cohtml, libx264, etc.) ([c1f1ce1](https://github.com/ludeo-labs/core-integration-skill/commit/c1f1ce18dfd073bfa422e7e15d6d83fdf5be00c9))
+* **pause:** CR-010 and CR-011 are independent (separate flags, not one boolean); clean reset between Ludeo plays ([d657ff6](https://github.com/ludeo-labs/core-integration-skill/commit/d657ff692c102e41e049f9541517a5acc2b5a860))
+
+
+### Features
+
+* **lifecycle:** file-based LudeoConfig (ludeo.ini) — apiKey/betaBranch/etc. changeable without rebuild ([d35a801](https://github.com/ludeo-labs/core-integration-skill/commit/d35a801c8cff2ad2c4ee66c3acc964c4ed590d3f))
+* **skill:** visible version line in SKILL.md body; bump script stamps both ([e658dc5](https://github.com/ludeo-labs/core-integration-skill/commit/e658dc591531d8fac4ff5fa4d44a8ca5fa003312))
+
 # [1.1.0](https://github.com/ludeo-labs/core-integration-skill/compare/v1.0.0...v1.1.0) (2026-05-31)
 
 
