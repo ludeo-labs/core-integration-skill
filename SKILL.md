@@ -46,6 +46,12 @@ The integration is a sequential 15-phase workflow (phase 0 through phase 12, inc
 ## Important rules
 
 - **One phase at a time.** Get user confirmation before advancing to the next phase.
+- **Every code-writing phase ends with a rebuild + run gate (hard requirement).** Phases 4, 7, 9, 11, and
+  12 edit source, so each ends by requiring the integrator to (1) rebuild clean (with `LUDEO_SDK_ENABLED`
+  on, and off if a no-SDK build ships) and (2) run the game to confirm it still works. The agent reads
+  build/run logs where it can but cannot truly verify either step — beyond the logs it relies on the
+  integrator's word. Do not advance a phase until they confirm both (or explicitly skip). The
+  build-and-fix loop lives in `phase 5`; the gate cites it rather than repeating it.
 - **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/N-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
 - **Critical requirements** live in `references/ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`. Review them before phase 0.
 - **Track objects as attributes by default, not blobs.** The SDK supports both attribute and blob state storage/reconstruction; Ludeo strongly prefers attribute integrations. When mapping and tracking objects (phases 8–9), capture discrete typed attributes by default and do **not** ask the user which to use. Use blob/serialized storage only when the user explicitly asks or an entity is genuinely opaque/unmappable — see `references/ludeo-integration-docs/06-TRACKING-PATTERNS.md §1.4`.

@@ -177,10 +177,19 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 - `phase 5` — run after to verify compilation
 - `phase 10` — consumes the same plan + stable-ID strategy
 
-## Next Steps
+## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
-After running this command:
-1. Run `phase 5` with `LUDEO_SDK_ENABLED=1` and `=0`
-2. Run the game; verify registration logs at gameplay session begin
-3. Sample a **real capture** and confirm planned objects + attributes are present — and that none were dropped. Check the log for `Expected type` (server-side type-locking; `11-TROUBLESHOOTING.md §1`).
-4. Run `phase 10`
+This phase edited source files, so it is **not done** until the game still builds and runs. The agent
+cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+
+1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+   loop in `phase 5` and read the build log.
+2. **Run the game and confirm it still runs** — enter gameplay, verify registration logs at gameplay
+   session begin, then sample a **real capture** and confirm planned objects + attributes are present
+   (and none were dropped). Check the log for `Expected type` (server-side type-locking;
+   `11-TROUBLESHOOTING.md §1`). A clean build does **not** prove tracking works — the log is the evidence.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
+run `phase 10`.

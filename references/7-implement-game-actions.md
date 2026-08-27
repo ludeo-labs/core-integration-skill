@@ -166,9 +166,17 @@ After all actions are inserted, output a summary:
 - `phase 6` - Creates the action map (run FIRST)
 - `phase 5` - Run after implementation to verify compilation
 
-## Next Steps
+## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
-After running this command:
-1. Run `phase 5` to verify the game compiles with SDK enabled
-2. Run the game and verify action logs appear during gameplay
-3. Review any skipped low-confidence actions manually
+This phase edited source files, so it is **not done** until the game still builds and runs. The agent
+cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+
+1. **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
+   project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 5` and read the build log.
+2. **Run the game and confirm it still runs** — enter gameplay and verify `SendAction` log lines appear
+   with no SDK errors or crashes.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Also
+review any skipped low-confidence actions manually before moving on.

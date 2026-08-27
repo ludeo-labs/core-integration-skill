@@ -179,9 +179,19 @@ Wait for the player's confirmation on both steps 5 and 6 before declaring phase 
 - `/12-implement-state-reconstruction` — fills the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase calls (run NEXT)
 - `/5-compile-and-fix` — run after to verify compilation
 
-## Next Steps
+## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
-After running this command:
-1. Run `/5-compile-and-fix` with `LUDEO_SDK_ENABLED=1` and `=0`
-2. Confirm the lifecycle smoke test (Step 6) passes: freeze-before-Play, boot-correct-level-on-Play, overlay pause/resume
-3. Run `/12-implement-state-reconstruction` to fill the apply seam, then re-run the smoke test to verify state is restored
+This phase edited source files, so it is **not done** until the game still builds and runs. The agent
+cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+
+1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+   loop in `/5-compile-and-fix` and read the build log.
+2. **Run the game and confirm it still runs** — play a Ludeo and confirm the lifecycle smoke test
+   (Step 6) passes: freeze-before-Play, boot-correct-level-on-Play, overlay pause/resume, with no SDK
+   errors or crashes in the log. The **data** read-back is `/12`, so fully-restored state isn't expected
+   yet — you're confirming the flow fires and the game doesn't break.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
+run `/12-implement-state-reconstruction` to fill the apply seam.

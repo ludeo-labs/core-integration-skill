@@ -289,6 +289,8 @@ This is the same two-callback-then-enumerate path described in §2 — the SDK c
 
 **Pass 2 is the inverse of `/9`'s capture, row for row.** Every `LUDEO_CAPTURE_*` `/9` emitted has exactly one mirror here: the matching `ludeo_DataReader_Get*` (same attribute name, same type) **whose returned value is written back into the same field `/9` captured from**, on the **live entity** (the one the player sees in the loaded level — not a detached spawn). `LUDEO_CAPTURE_FLOAT(player, "health", m_health)` mirrors to `ludeo_DataReader_GetFloat("health", &h)` + `m_health = h` (or `entity->SetHealth(h)`). Walk `OBJECT_TRACKING.md` row by row and reverse each capture into a get-then-apply. Any row left un-reversed stays at the level's default — that is the "Ludeo loaded but state didn't restore, the player sees mid-level positions as level-start" symptom.
 
+> **The restore driver applies the snapshot — never defer the apply to the spawned entity's own init.** Pass 2 above writes every value **from the restore loop's own call stack**. Do **not** instead stash the captured data on the freshly-spawned entity and rely on the entity's **own engine-invoked initialization or first-tick callback** (constructor body, the engine's spawn/begin-play hook, the first `Update`/tick) to pull it back and apply it. Two failure modes: (1) **those callbacks are not guaranteed to run — or to run before `Begin` and before the freeze lifts — for an entity created during the level boot/transition** (the restore path loads the level *inside* the apply, §2.1); a skipped callback leaves the entity at its spawn defaults with the snapshot silently dropped, and the symptom is worst on a **second back-to-back replay** in one session (the level reload lands inside the same window). (2) Self-application fires in **unspecified order**, so it cannot honor two-pass reference resolution (§3.2). Keep entity *creation/activation* in whatever callback the engine guarantees at spawn; keep the **state apply in the driver's Pass-2 sweep**; and make the apply **idempotent** so a late init callback that re-applies is harmless.
+
 ### 3.2 Why Single-Pass Fails
 
 If `Enemy.target` references `Player`:
@@ -583,6 +585,14 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     `resultCode == Success && objectsCount > 0` — and make it **retry-until-ready with a timeout**,
     not one-shot; keep the populated reader (don't let a later empty cycle clobber it); on timeout
     still-empty, abort (don't `Begin`). See §2.2.1 and `11-TROUBLESHOOTING §7`.
+14. **Deferring the property apply to the spawned entity's own init callback.** Stashing the captured
+    data on the entity and letting it pull-and-apply from its **constructor / engine spawn hook / first
+    tick** — instead of applying from the **Pass-2 driver loop** — drops the snapshot whenever the engine
+    doesn't run that callback (or runs it after `Begin`, or after the freeze lifts) for an entity created
+    during the level boot, leaving it frozen at its spawn defaults; it also breaks two-pass ordering
+    (self-application runs in unspecified order). The signature is a snapshot that restores on the **first**
+    replay but not the **second back-to-back** one. Apply from the driver; keep entity creation/activation
+    in the guaranteed-at-spawn callback only; make the apply **idempotent**. See §3.1.
 
 ---
 
@@ -599,6 +609,9 @@ Before considering restoration "done" on a game:
       and room, then restores cleanly.
 - [ ] LudeoSelected during a loading screen waits or queues correctly.
 - [ ] Two-pass is exercised: a Ludeo with cross-entity references restores them.
+- [ ] The property apply runs **from the two-pass driver loop**, not deferred to a spawned entity's own
+      init / first-tick callback (§3.1, §9.14); the apply is idempotent. Verified by a **second back-to-back
+      replay** in one session, not just the first.
 - [ ] Entry identity is captured (`/8`/`/9`) and read back to route the load; an **absent/empty** entry
       identity aborts with a distinct "re-capture (version skew)" message vs an unresolvable id's "not found"
       (§2.2). Re-captured after any capture-schema change.

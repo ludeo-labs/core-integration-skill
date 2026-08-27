@@ -88,6 +88,8 @@ Inverse of `/9` Step 5 (per-property captures). Iterate the objects again; for e
 - **Deferred properties** — do not apply here; push `(obj, name, value)` onto the deferred queue (Step 6).
 - If a getter returns false (attribute absent), follow the plan's policy for that property — don't write a default over real state silently.
 
+> **Apply from this loop — never defer the apply to the spawned entity's own init callback (07 §3.1, §9.14).** Write each value from `RestoreTwoPass`'s own call stack. Do **not** stash the captured data on the freshly-spawned entity and let it pull-and-apply from its constructor / engine spawn hook / first tick: the engine is **not guaranteed to run that callback** (or to run it before `Begin` / before the freeze lifts) for an entity created during the level boot, so the snapshot is silently dropped and the entity sits at its spawn defaults — and self-application breaks two-pass ordering. The signature is a snapshot that restores on the **first** replay but not the **second back-to-back** one. Keep entity creation/activation in the guaranteed-at-spawn callback; keep the **state apply here**; make it **idempotent** so a late callback re-applying is harmless.
+
 ### Step 5: Wire Pre-Existing-Object Reconciliation
 
 Inverse of `/9` Step 6 (batch registration). For each pre-existing entity type in the plan, implement the match-or-spawn decision: match the captured object to the level-placed instance by stable ID and apply properties to it, rather than spawning a duplicate. Run this against the same level-load hook `/9` used for batch registration, gated by `LudeoManager::Get().IsRestoring()` so the normal batch-registration path (which `/9` gated with `!IsRestoring()`) does not also fire. *(`IsRestoring()` is set/cleared by `/11`; here you only read it.)*
@@ -109,13 +111,14 @@ This is the gate that closes phase 12. `/11`'s Step 6 already proved the flow bo
    Log `GetObjectsInfo`'s `objectsCount` to tell them apart. If counts are non-zero but *wrong*, that's a reconstruction bug — stay here.
 3. **No `Expected type` lines** (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`). A mismatch means the getter type doesn't match the `/9` setter type for that attribute — fix the getter, not the capture (unless `/9` is genuinely wrong).
 4. **Confirm a cross-entity reference restored correctly** (two-pass exercised) — the resolved target is the right live instance, no fail-loud `id_map` miss.
-5. **Hand off to the player to confirm the post-Play first frame.** Tell the user:
+5. **Restore a second Ludeo back-to-back without quitting** — trigger restore again (another `--ludeo=<id>` / re-inject) in the same process and confirm the **second** Ludeo's state reconstructs fully. Freshly-spawned entities appearing at their spawn defaults (frozen, un-applied) on the **second** replay but not the first is the dropped-init-callback signature (`07 §3.1`, §9.14): the apply was hung on the entity's own init callback, which the engine skipped for entities created during the second level boot. The fix is to apply from the Pass-2 driver loop (Step 4), not to re-add an entity-side apply channel. *(Re-entry teardown itself is `/11`'s; here you're verifying the **apply** survives a second restore.)*
+6. **Hand off to the player to confirm the post-Play first frame.** Tell the user:
    > "After pressing **Play**, confirm:
    > - The **first visible frame** is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a fade-in (07 §9.11). (The level loads *on* Play, so a brief load is expected before this frame.)
    > - The restored state survives a few seconds of play (no respawn / teleport / scripted reset clobbers it).
    > - Gameplay proceeds normally without snap-back or drift."
 
-Wait for the player's confirmation on step 5 before declaring phase 12 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
+Wait for the player's confirmation on step 6 before declaring phase 12 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
 
 **If the game crashes during steps 1–4:** do **not** retry blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame, then classify against `11-TROUBLESHOOTING §6` — for this phase the likely culprits are **`EnterObject`/`LeaveObject` mismatch** (didn't use the scope), **stale `id_map` deref**, **pointer-as-reference**, or **use-after-`ObjectsInfo_Release`**. Fix at the root — don't paper over with null checks or try/catch — then rerun from step 1.
 
@@ -175,10 +178,20 @@ Wait for the player's confirmation on step 5 before declaring phase 12 done. If 
 - `/11-implement-restoration-flow` — built the apply lifecycle + the `RestoreTwoPass`/`RestoreEnvironment` stubs this phase fills (run SECOND, hard prerequisite)
 - `/5-compile-and-fix` — run after to verify compilation
 
-## Next Steps
+## ✅ Exit gate — rebuild + run (REQUIRED — do not finish without it)
 
-After running this command:
-1. Run `/5-compile-and-fix` with `LUDEO_SDK_ENABLED=1` and `=0`
-2. Re-run the launch-arg smoke test (Step 7) — verify non-zero two-pass counts, no type-lock mismatch, correct first frame
-3. Confirm a cross-entity reference restores correctly (two-pass exercised)
-4. Walk the validation checklist in `07-RESTORATION-PATTERNS.md §10`
+This phase edited source files, so it is **not done** until the game still builds and runs. The agent
+cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+
+1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+   loop in `/5-compile-and-fix` and read the build log.
+2. **Run the game and confirm state restores correctly** — re-run the launch-arg smoke test (Step 7):
+   verify non-zero two-pass counts, no type-lock mismatch, the correct first frame, and that a
+   cross-entity reference restores correctly (two-pass exercised). Walk the validation checklist in
+   `07-RESTORATION-PATTERNS.md §10`. This is the payoff check: a playable Ludeo that reconstructs the
+   captured moment.
+
+The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
+on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not declare the integration complete until the user confirms both** (or
+explicitly skips).
