@@ -22,7 +22,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 1 complete — LudeoManager exists and SDK lifecycle works
+> 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `3d-implement-sdk-lifecycle.md` complete — the session exists, notifications are registered at session creation, and the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`TryBeginGameplaySession()`, `OnRoomReadyCallback`, `OnPlayerAddedCallback`) is wired. This phase reuses that chain for the post-restore resume.
 > 3. `5b-implement-object-tracking.md` complete — `LudeoStateAdapter` exists and `LudeoManager::IsRestoring()` exists as the forward-compatible read-only stub `phase 5 · task 1` added. This phase makes that flag *live*.
 > 4. `5c-plan-state-restoration.md` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it.
@@ -44,7 +44,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 This phase and `phase 5 · task 4` meet at exactly one interface. **Build the lifecycle scaffold here with the data read-back stubbed:**
 
-- On `LudeoStateAdapter`, declare `RestoreTwoPass(reader)` and `RestoreEnvironment(reader)` with **stub bodies** — log a line (`"[Ludeo] RestoreTwoPass STUB — filled in /12"`) and return. Do **not** build the `id_map`, the deferred queue, the reader-side object scope, or the `LUDEO_READ_*` helpers — those are `phase 5 · task 4`.
+- On `LudeoStateAdapter`, declare `RestoreTwoPass(reader)` and `RestoreEnvironment(reader)` with **stub bodies** — log a line (`"[Ludeo] RestoreTwoPass STUB — filled in phase 5 · task 4"`) and return. Do **not** build the `id_map`, the deferred queue, the reader-side object scope, or the `LUDEO_READ_*` helpers — those are `phase 5 · task 4`.
 - `MaybeApplyRestore()` (Step 4) calls `SetCurrent → RestoreTwoPass → RestoreEnvironment` in that exact order, unpaused, after the level boot. **That call site and the apply gate are this phase's contract — `phase 5 · task 4` must not re-wire them.**
 - The **entry-identity read** (Step 4 — `start_mode`, `room_x/y` to decide which level to boot) is a flow decision and lives **here**, not in `phase 5 · task 4`. It reads a couple of well-known attributes off the entry/world object with direct `ludeo_DataReader_Get*` calls — it does **not** need `phase 5 · task 4`'s scope/macros.
 

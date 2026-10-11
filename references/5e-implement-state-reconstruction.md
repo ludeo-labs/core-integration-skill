@@ -24,7 +24,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 1 complete — LudeoManager exists and SDK lifecycle works
+> 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `5b-implement-object-tracking.md` complete — `LudeoStateAdapter` and `LudeoCaptureMacros.h` exist, `objectType` strings and stable-ID fields are in code
 > 3. `5d-implement-restoration-flow.md` complete — the apply lifecycle, the `MaybeApplyRestore()` gate, and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are called; `IsRestoring()` is live
 > 4. `5c-plan-state-restoration.md` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it

@@ -129,7 +129,7 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 ```pseudo
 on_ludeo_selected(ludeoId):              # SDK notification thread — marshal to main thread FIRST
     if a_ludeo_is_already_playing:           # another Ludeo selected mid-play → tear down + reset prior-Ludeo state
-        end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (/11)
+        end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (phase 5 · task 3)
     set_restoring(true)                      # arm pre-match skip gating (§9.11) — the skips fire later, during the load
     pending_ludeo_id = ludeoId               # stash the NEW id: used for BOTH GetLudeo (state) and OpenRoom (flow select)
     pending_reader = null; room_ready = false; applied = false; ready_deadline = now() + RESTORE_TIMEOUT   # re-arm gate + readiness retry

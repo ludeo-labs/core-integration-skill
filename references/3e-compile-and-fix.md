@@ -118,5 +118,5 @@ If the same error persists after multiple attempts:
 After successful build:
 1. Run game with `LUDEO_SDK_ENABLED=0` - verify baseline behavior
 2. Run game with `LUDEO_SDK_ENABLED=1` - verify SDK loads (check logs)
-3. Run `phase 4` to map the game's trackable objects
+3. Run `phase 3 · task 6` to classify the save system — `phase 4` requires its output
 

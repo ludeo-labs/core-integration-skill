@@ -9,7 +9,7 @@ This is a sequential workflow — continuing to phase 6 · task 2 in the **same 
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 1 complete — LudeoManager exists and SDK lifecycle works
+> 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `phase 6 · task 1` complete — `ludeo-integration-plan/GAME_ACTIONS_MAP.md` exists
 > 3. User has reviewed and approved the action map
 

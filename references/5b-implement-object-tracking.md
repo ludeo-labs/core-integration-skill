@@ -13,7 +13,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 1 complete — LudeoManager exists and SDK lifecycle works
+> 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `phase 4` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
 > 3. User has reviewed and approved the plan
 

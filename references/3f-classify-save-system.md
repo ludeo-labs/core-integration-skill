@@ -74,4 +74,4 @@ Summarize the group, the rationale, and the per-entity matrix. Ask the user to c
 
 1. Review the classification + per-entity matrix with the user
 2. Resolve any `?` unknowns and validation gaps
-3. Proceed to `phase 3 · task 3` (lifecycle) — the classification waits until `phase 4` needs it
+3. Proceed to `phase 4` (map game objects) — it consumes this classification
