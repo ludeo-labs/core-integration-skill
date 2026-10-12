@@ -15,8 +15,9 @@
 
 Take the **Release build** of the game, **verify** it is upload-ready (Release configuration and Release
 SDK binary, no reachable cheats or debug menus, production values in `ludeo.ini`, self-contained runtime
-deps, `validate-build` passing), then **publish** it to the Ludeo platform with the `ludeo` CLI and **poll**
-the build status to `success`. This is the final phase — when it passes, the build is live on the platform.
+deps, `validate-build` passing), then **publish** it to the Ludeo platform with the `ludeo` CLI, **poll**
+the build status to `success`, and **assign** it to the target environment. This is the final phase — when
+it passes, the build is live in that environment. An uploaded build that is not assigned is served nowhere.
 
 ## 2. Inputs (Input Contract)
 
@@ -25,22 +26,33 @@ the build status to `success`. This is the final phase — when it passes, the b
 - [ ] A **Release build** of the game (Release configuration, Release SDK binary — the release-build
       guard in `04 §2`, layer 1). Unlike an editor-driven engine, you can run this build yourself;
       still **confirm the build command and configuration with the user** before running it.
-- [ ] The **`validate-build`** skill — the self-contained gate; it also writes `run.bat`.
+- [ ] The **`validate-build`** skill, if the user has it installed — the self-contained gate; it also
+      writes `run.bat`. It is a separate user-level skill and does **not** ship with this one. Without it,
+      do Step 4's manual check instead.
 - [ ] The **`ludeo` CLI** reachable — verify with `ludeo --help`. If not installed or not on `PATH`, **ask
       the user** to install it or for the path to the binary; do **not** invent a download source.
-- [ ] A Ludeo **access token** and the game's **Game Version ID** (from the Ludeo studio/platform). Ask if
-      not provided.
-- [ ] **Global Triggers created** in Studio Lab for the environment: Pause/Resume on
-      `PauseLudeo`/`ResumeLudeo`, Non-Ludeoable Area on `StartNoneLudeable`/`StopNoneLudeable`. **Ask the
-      user to confirm.** The cloud run is the first place the overlay pause actually happens, and without
-      the trigger it will not stop the objective timer. The failure is silent — see `phase 6 · task 2`.
+- [ ] A Ludeo **access token** and the game's **Game ID** (Studio Lab → **Game Options → Info** — the game
+      **version** uuid, not a build id). Ask if not provided.
+- [ ] **The environment this build ships to.** Games commonly have several (production, QA, demo) — ask
+      which one this build is for; never pick for the user. You need its **`envId`** for Step 11: if
+      `list_game_environments` is in your tool list, read it there; otherwise ask the user for it (Studio
+      Lab → the environment).
+- [ ] **Global Triggers created** in Studio Lab → **that environment** (triggers are per environment): each
+      non-ludeoable boundary action pair `phase 6 · task 2` wired (its Step 5 lists them, e.g.
+      `ShopEntered`/`ShopExited`) connected to the Non-Ludeoable Area trigger. **Ask the user to confirm.**
+      The failure is silent — unconnected boundaries are simply not excluded.
+      > **Known gap — pause triggers.** The Unity skill also emits standard `PauseLudeo`/`ResumeLudeo`
+      > actions on every pause and connects them to the Pause/Resume trigger, which is what stops the
+      > objective timer during an overlay pause in the cloud. This skill does not emit those actions yet,
+      > so there is no pause trigger to connect. Tell the user; do not invent the actions here.
 
 **Inputs to gather (ask if missing):**
 
 | Input | Used for | Notes |
 | --- | --- | --- |
 | **Build folder path** | `validate-build` + `--local-directory` | Absolute path to the Release build output folder. |
-| **Game Version ID** | `--game-id` | The API path ID from Ludeo studio — **not** a build "id". |
+| **Game ID** | `--game-id` | The game **version** uuid (Studio Lab → Game Options → Info) — **not** a build id, and not the backend `gameId`. |
+| **Target environment + `envId`** | `builds assign --env-id` (Step 11) | Which environment this build is for. `list_game_environments` if in your tool list, else ask. |
 | **Game version** | `--game-version` | e.g. `1.2.3`. Default to the `gameVersion` value in `ludeo.ini` if set. |
 | **SDK version** | `--sdk-version` | **Confirm with the user — do NOT infer it from the SDK folder name.** Builds often link a swapped or overridden SDK, so the folder can lie. Not needed for `sdkFree` builds. |
 | **Access token** | `auth set-token` / `--access-token` | Only if not already authenticated. |
@@ -77,14 +89,19 @@ The checks that must land on the artifact itself:
    configuration is an inference, the copied file is the fact.
 2. **Release compile.** `NDEBUG` (or the project's release define) was defined for the shipped binary. If
    the build system writes a manifest or the build log records the configuration, assert it there.
-3. **No debug artifacts in the output folder.** Loose `.pdb` files, a `*-Development` SDK binary, or the
-   game's own debug/editor tooling in the folder all mean a non-release build slipped through. Remove and
-   rebuild release — do not hand-clean the folder and upload it.
+3. **No debug artifacts in the output folder.** A `*-Development` SDK binary or the game's own
+   debug/editor tooling in the folder means a non-release build slipped through. Rebuild release — do not
+   hand-clean the folder and upload it.
+   **`.pdb` files are different:** MSVC Release configurations generate them by default, so a `.pdb` next
+   to the executable does **not** prove a debug build, and rebuilding just produces it again. Keep them
+   out of the upload payload with a durable post-build step (archive them separately — they are what
+   symbolicates a cloud crash dump), and confirm in the Step 7 dry-run file list that none ship.
 4. **`ludeo.ini` holds production values.** For a native build the config file **travels inside the build
    folder**, so unlike a baked-config engine you can read the shipped file directly — do it:
    - `apiKey` set (not the placeholder).
-   - `debugLudeoId` **empty**. Left set, the build auto-fires a `LudeoSelected` on startup — the debug
-     affordance from `04 §4` — and every cloud session jumps straight into that one Ludeo.
+   - `activationLudeoId` **empty**. Left set, the build auto-fires a `LudeoSelected` on startup — the
+     debug affordance from `04 §4` and `phase 5 · task 3` Step 3 — and every cloud session jumps straight
+     into that one Ludeo.
    - `platformUrl` pointing at the intended environment (production, not staging).
    - `authMode` and the Steam fields matching how the cloud will actually authenticate. Confirm with the
      user which mode the platform expects for this game.
@@ -92,8 +109,8 @@ The checks that must land on the artifact itself:
 ### Step 2.5: Confirm debug features are release-safe
 
 Layer 2 of the release-build guard (`04 §2`) is the rule: cheats, debug consoles, dev menus and
-verbose logging must be gated on the **build configuration** (`#ifdef NDEBUG` / the project's
-release define), not on a runtime data flag. A
+verbose logging must be gated on the **build configuration** (`#ifndef NDEBUG` / `#if !<release define>`
+— compiled out of release builds), not on a runtime data flag. A
 runtime `if (cheatsEnabled)` still **ships the code** and can be reached. A cloud build is played by end
 users on a public machine — anything reachable corrupts captures and is an abuse surface.
 
@@ -124,11 +141,20 @@ resolve on the developer's machine. A build that runs on your box can still fail
 3. **Fix durably, never by hand-copying into the build folder.** A manual copy is discarded on the next
    rebuild. Add the missing artefact to the build system's copy step so it ships every time.
 
-### Step 4: `validate-build` hard gate
+### Step 4: Self-contained launch gate (`validate-build`, or by hand)
 
-Run the **`validate-build`** skill on the build folder. It detects the build type, checks the expected
-files, **launches the executable from inside its own folder** to prove it is self-contained (no missing-DLL
-or missing-asset crash), and **ensures a `run.bat` exists** (creating one when you approve).
+If the user has the **`validate-build`** skill, run it on the build folder. It detects the build type,
+checks the expected files, **launches the executable from inside its own folder** to prove it is
+self-contained (no missing-DLL or missing-asset crash), and **ensures a `run.bat` exists** (creating one
+when you approve).
+
+**Without it, do the same check by hand** — it is the gate, not the skill, that is required:
+1. Copy the build folder somewhere outside the source tree and the build output directory (so nothing
+   resolves from the developer's paths), e.g. a temp folder.
+2. Write `run.bat` at its root (the template below), then launch it from a shell whose working directory is
+   **somewhere else**, redirecting output: `<copy>\run.bat > out.txt 2>&1`.
+3. Ask the user to confirm the game reaches its menu / gameplay; check `out.txt` for the SDK's startup lines
+   and for missing-DLL or file-not-found errors. Close the game.
 
 - **If validation FAILs, stop.** Fix per Step 3, then re-validate. Never upload a build that failed a gate.
 - **Ensure `run.bat` is present at the build root** — it is the entry point Ludeo launches (the
@@ -164,7 +190,7 @@ A **major** build stands alone; a **minor** build is a variant attached to an ex
 (`--major-build-id`).
 
 ```bash
-ludeo builds list --game-id <GAME_VERSION_ID> --sort-by createdAt --sort-order desc
+ludeo builds list --game-id <GAME_ID> --sort-by createdAt --sort-order desc
 ```
 
 - **No builds returned ⇒ first build ⇒ `--build-type major`** (no `--major-build-id`).
@@ -187,7 +213,7 @@ command.
 ```bash
 # First build (major):
 ludeo builds upload --dry-run \
-  --game-id <GAME_VERSION_ID> \
+  --game-id <GAME_ID> \
   --game-version <X.Y.Z> \
   --sdk-version <SDK_X.Y.Z> \
   --build-type major \
@@ -198,7 +224,7 @@ ludeo builds upload --dry-run \
 
 # Subsequent build (minor) — add the major it attaches to:
 ludeo builds upload --dry-run \
-  --game-id <GAME_VERSION_ID> \
+  --game-id <GAME_ID> \
   --game-version <X.Y.Z> \
   --sdk-version <SDK_X.Y.Z> \
   --build-type minor --major-build-id <MAJOR_BUILD_ID> \
@@ -234,7 +260,7 @@ A finished upload is not a finished build. **Do not report success on the upload
 ```powershell
 # Windows / PowerShell — one self-contained command (polls internally; do not hand-loop with sleeps)
 $ludeo  = "ludeo"                      # or the full path to ludeo.exe if not on PATH
-$gameId = "<GAME_VERSION_ID>"; $buildId = "<NEW_BUILD_ID>"
+$gameId = "<GAME_ID>"; $buildId = "<NEW_BUILD_ID>"
 $deadline = (Get-Date).AddMinutes(7)   # platform processing cap — builds can stall
 do {
     $out = & $ludeo builds get --game-id $gameId --build-id $buildId | Out-String
@@ -260,8 +286,8 @@ do {
 Once `success`, confirm it is the build you intended:
 
 ```bash
-ludeo builds list --game-id <GAME_VERSION_ID> --sort-by createdAt --sort-order desc   # new build at top
-ludeo builds get  --game-id <GAME_VERSION_ID> --build-id <NEW_BUILD_ID>               # status + metadata
+ludeo builds list --game-id <GAME_ID> --sort-by createdAt --sort-order desc   # new build at top
+ludeo builds get  --game-id <GAME_ID> --build-id <NEW_BUILD_ID>               # status + metadata
 ```
 
 Confirm status **`success`** and that `game-version`, `sdk-version`, build type and `exec-path` (the
@@ -272,16 +298,38 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 > discrete step that actually runs or plays a Ludeo in the cloud** to confirm it end to end. Leave this as
 > an explicit gap; **do not fabricate a cloud-run step.**
 
+### Step 11: Assign the build to the target environment 🛑
+
+A cloud run is bound by **assignment**: the environment serves whichever build is assigned to it, and an
+unassigned build is served nowhere. Only a build that `ludeo builds get` reports as **`success`** — not just
+`ready` — can be assigned.
+
+Assigning changes what that environment serves — it may replace the build there now — so gate it like the
+upload (Step 8): show `<environment> · <NEW_BUILD_ID>` and the exact resolved command, then **wait for an
+explicit go-ahead**. Approval of the upload is not approval of the assignment. One confirmed assign per
+environment.
+
+```bash
+ludeo builds assign --game-id <GAME_ID> --build-id <NEW_BUILD_ID> --env-id <ENV_ID>
+```
+
+`<ENV_ID>` is the target environment's `envId` from the Input Contract — re-read it with
+`list_game_environments` if that tool is in your tool list; otherwise use the id the user gave you. Or the
+user can assign it themselves in Studio Lab → Game Builds. Either way, confirm with `ludeo builds get` (or
+Studio Lab) that the environment now shows this build.
+
 ## 4. Questions to ask the human
 
-- **Build folder path**, **Game Version ID**, **game version**, **access token** — if not provided.
+- **Build folder path**, **Game ID**, **game version**, **access token** — if not provided.
 - **The release build command** — their project's actual release path, before you run it.
 - **SDK version** — always **confirm**; the SDK folder name can lie if a build linked a swapped SDK.
 - **Changes description** — if it can't be inferred from context.
 - **Which major** a minor build attaches to — if ambiguous.
 - **Developer features** — what cheats / debug consoles / dev menus exist, and how each is gated.
 - **Auth mode** — which mode the platform expects for this game's cloud build.
-- **Global Triggers** — confirm they exist in Studio Lab before the cloud run.
+- **Target environment** — which one this build is for, and its `envId` if `list_game_environments` isn't available.
+- **Global Triggers** — confirm the boundary-action triggers exist in that environment before the cloud run.
+- **Assignment** — explicit go-ahead to assign the build (Step 11), separate from the upload approval.
 
 ## 5. Patterns to apply
 
@@ -305,10 +353,10 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 ## 6. Output Contract
 
 - A **published build** on the Ludeo platform at status **`success`**, with the intended `game-version`,
-  `sdk-version`, build type and `run.bat` exec-path.
+  `sdk-version`, build type and `run.bat` exec-path, **assigned** to the target environment.
 - A **Release build** verified against the release-build guard (`04 §2`): Release configuration, Release SDK binary, no debug
   artifacts in the output folder, and production values in the shipped `ludeo.ini` (`apiKey` set,
-  `debugLudeoId` empty, correct `platformUrl` and `authMode`).
+  `activationLudeoId` empty, correct `platformUrl` and `authMode`).
 - **Debug features release-safe by default** — cheats, debug consoles and verbose logging gated on the
   build configuration rather than a runtime flag, with what was audited recorded in the verification notes.
   CI flagged as the durable fix.
@@ -318,13 +366,13 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 ## 7. ✅ Success Criteria
 
 - [ ] **Release build verified on the artifact** — Release SDK binary shipped (not `*-Development`),
-      release configuration, no loose `.pdb` or debug artifacts in the output folder.
-- [ ] **Shipped `ludeo.ini` holds production values** — `apiKey` set, `debugLudeoId` empty, `platformUrl`
+      release configuration, no debug artifacts in the output folder, no `.pdb` in the upload payload.
+- [ ] **Shipped `ludeo.ini` holds production values** — `apiKey` set, `activationLudeoId` empty, `platformUrl`
       and `authMode` correct for the target environment.
 - [ ] **Debug features release-safe** — cheats / debug consoles / dev menus gated on the build
       configuration, none reachable in Release; audited and confirmed with the user.
 - [ ] **Build is self-contained** — the whole ThirdParty runtime folder shipped, deps resolved durably.
-- [ ] **`validate-build` PASS** on the build folder (launches from its own folder).
+- [ ] **Self-contained launch PASS** — `validate-build`, or Step 4's manual check (launches from its own folder).
 - [ ] **`ludeo` CLI reachable** (`--help`) and authenticated (`auth status`).
 - [ ] **Build type correct** — major on the first build, minor otherwise (with `--major-build-id`).
 - [ ] **`--sdk-version` confirmed with the user**, not inferred from the SDK folder name.
@@ -332,7 +380,9 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 - [ ] **`--dry-run` reviewed** (file list + resolved flags) and confirmed with the user.
 - [ ] **Final upload ran ONLY after explicit user confirmation** (or the user ran it themselves).
 - [ ] **Status polled to `success`** — `failed` or a timeout surfaced rather than reported as success.
-- [ ] **Global Triggers confirmed** in Studio Lab before the cloud run.
+- [ ] **Global Triggers confirmed** in Studio Lab → the target environment, for every boundary action pair.
+- [ ] **Build assigned** to the target environment (`builds assign … --env-id`, after an explicit
+      go-ahead), or by the user in Studio Lab → Game Builds.
 - [ ] **Ludeo run in cloud** — ⚠️ **GAP** (Step 10): treated as satisfied by status `success`; no discrete
       cloud-run verification exists yet.
 
@@ -340,9 +390,11 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 
 - **Uploading without explicit confirmation** — the cardinal sin. A clean dry-run is not approval.
 - **Reporting success on upload completion** — the upload only lands files; poll `builds get` to `success`.
+- **Stopping at `success` without assigning** — the build exists but no environment serves it.
+- **Deleting `.pdb` files by rebuilding** — Release generates them again; exclude them from the payload.
 - **Trusting the SDK folder name for `--sdk-version`** — builds link swapped SDKs; confirm with the user.
 - **Shipping the `*-Development` SDK binary** — check the file in the output folder, not the IDE config.
-- **Shipping `ludeo.ini` with `debugLudeoId` still set** — every cloud session jumps into that one Ludeo.
+- **Shipping `ludeo.ini` with `activationLudeoId` still set** — every cloud session jumps into that one Ludeo.
 - **Shipping `ludeo.ini` with a placeholder `apiKey` or a staging `platformUrl`** — the build authenticates
   against the wrong environment, and it runs fine locally so the mistake is invisible until the cloud run.
 - **Shipping reachable cheats or a debug console** — gate them on the build configuration at the read site;
@@ -360,14 +412,16 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
 | --- | --- |
 | **CLI not found** | Ask the user to install the Ludeo CLI or provide its path; don't guess a source. |
 | **Auth / 401** | `ludeo auth status`; re-`set-token` (token expired or wrong environment). |
-| **Command hangs on input** | A required flag is missing → interactive mode. Supply all required flags (incl. `--game-version`/`--sdk-version`/`--build-type`). |
+| **Command hangs on input** | A required flag is missing → interactive mode. Supply all required flags (incl. `--game-version`/`--sdk-version`/`--build-type`), or add `--no-interactive` so it fails instead of prompting. |
 | **Minor rejected for missing major** | `--build-type=minor` needs `--major-build-id`; get it from `builds list`. |
 | **Build crashes on launch on a clean machine** | A ThirdParty runtime DLL is missing (cohtml, libx264, …). Copy the whole `ThirdParty/<platform>/<config>/Bin/` folder via a durable build step (Step 3), rebuild, re-validate. |
 | **Cloud run has SDK logs but no game logs** | The game's log isn't on stdout, or `run.bat` wraps the exe in `start` (new console breaks the pipe). Call the exe directly and route the game's logging to stdout (Step 4). |
-| **Every cloud session opens the same Ludeo** | `debugLudeoId` is still set in the shipped `ludeo.ini` (Step 2). Clear it, rebuild the folder's config, re-validate. |
+| **Every cloud session opens the same Ludeo** | `activationLudeoId` is still set in the shipped `ludeo.ini` (Step 2). Clear it, rebuild the folder's config, re-validate. |
 | **Authenticates locally but fails on the cloud** | `ludeo.ini` carries dev/staging values — check `platformUrl`, `authMode` and `apiKey` in the **shipped** file, not the source template. |
-| **`exec-path` not found** | Must be relative to `--local-directory`, and `run.bat` must exist there; re-run `validate-build` to (re)create it. |
+| **`exec-path` not found** | Must be relative to `--local-directory`, and `run.bat` must exist there; re-run Step 4 to (re)create it. |
 | **Status stuck `pending` past timeout** | Report it; don't claim success. `failed`/`rejected` won't ready by waiting — surface the payload. |
+| **Build is `success` but the cloud still runs an old build** | It was never assigned, or was assigned to a different environment. Check the `envId` and run Step 11. |
+| **Assign rejected** | The build is not yet `success` (`ready` is not enough) — re-poll. Otherwise show the user the error and re-check the `envId` with them. |
 
 ## Related / Next
 
@@ -375,4 +429,4 @@ Confirm status **`success`** and that `game-version`, `sdk-version`, build type 
   the `ludeo.ini` runtime config; §5 — the ThirdParty copy step.
 - `3e-compile-and-fix.md` — the build-and-fix loop, if the release build doesn't compile clean.
 - `6b-implement-game-actions.md` — the last integration content before verification.
-- **Next:** done — the build is live on the Ludeo platform.
+- **Next:** done — the build is live in the target environment.

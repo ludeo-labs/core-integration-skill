@@ -73,7 +73,7 @@ Sequential seven-phase workflow under [`references/`](references):
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the two-pass `DataReader` read-back |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
-| 7 | `references/7-upload-build.md` | Verify the Release build, then upload it to the Ludeo platform |
+| 7 | `references/7-upload-build.md` | Verify the Release build, upload it, and assign it to an environment |
 
 Reference material lives alongside the workflow files:
 
