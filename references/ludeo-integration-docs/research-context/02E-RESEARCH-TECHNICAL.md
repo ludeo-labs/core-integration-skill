@@ -251,7 +251,6 @@ Pass 2 (what):
 ## 🔗 **Related Documentation**
 
 - [../03-SDK-FUNDAMENTALS.md](../03-SDK-FUNDAMENTALS.md) - SDK threading model (Section 8)
-- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Thread-safe capture patterns
 - [../00-CRITICAL-REQUIREMENTS.md](../00-CRITICAL-REQUIREMENTS.md) - Mandatory rules
 
 ---

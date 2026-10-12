@@ -152,6 +152,7 @@ Understanding which files reference each other:
 | **06-TRACKING-PATTERNS** | Object tracking, actions, pause | Implementing tracking | 25 min |
 | **07-RESTORATION-PATTERNS** | State restoration, LudeoSelected | Implementing restoration | 20 min |
 | **11-TROUBLESHOOTING** | Common errors, solutions | When debugging | 10-20 min |
+| **12-SDK-API-REFERENCE** | SDK function signatures, quick API lookup | Looking up an API call | 5 min |
 
 ---
 
@@ -221,7 +222,7 @@ Use these tags to find relevant files quickly:
 - `#planning` → 01-AI-AGENT-GUIDE
 - `#research` → 02A (architecture), 02B (objects), 02C (actions), 02D (environment), 02E (technical)
 - `#setup` → 04-BUILD-INTEGRATION
-- `#implementing` → 05, 06, 07, 08, 09
+- `#implementing` → 05, 06, 07
 - `#debugging` → 11-TROUBLESHOOTING
 - `#validating` → 04-BUILD-INTEGRATION (section 8)
 
