@@ -67,12 +67,12 @@ Development/Debug configuration, or any reachable cheat / debug console / dev me
 (a cheated or debug-instrumented session yields an invalid Ludeo), exposes internal UI, and is an abuse
 surface on a public machine. **Layer the defense — no single check is sufficient:**
 
-1. **Ship the Release configuration + the Release SDK binary.** Build Release (Unreal: **Shipping**;
-   C++: Release / `NDEBUG`), and link/copy `*-Release.dll`/`.so`/`.dylib`, **never** the `*-Development`
+1. **Ship the Release configuration + the Release SDK binary.** Build the Release configuration
+   (`NDEBUG` / your engine's release define), and link/copy `*-Release.dll`/`.so`/`.dylib`, **never** the `*-Development`
    variant. Confirm the binary that actually shipped, not just the IDE's selected config.
 2. **Gate debug behavior on the build configuration, not a runtime data flag (strongest).** Wrap cheats,
-   debug consoles, dev menus, and verbose logging in `#if !UE_BUILD_SHIPPING` (Unreal) / `#ifdef NDEBUG`
-   (or your release define) so a release build **cannot** run them even if someone forgets a setting. A
+   debug consoles, dev menus, and verbose logging in `#ifndef NDEBUG`
+   (or `#if !<YOUR_RELEASE_DEFINE>`) so a release build **cannot** run them even if someone forgets a setting. A
    runtime `if (cheatsEnabled)` flag still **ships the code** and can be reached — not sufficient on its own.
 3. **Assert data-driven debug flags off at build/package time — don't auto-fix.** For flags that genuinely
    live in data/config, fail the build (throw / error out) when shipping with any on; auto-fixing hides the
@@ -87,7 +87,7 @@ surface on a public machine. **Layer the defense — no single check is sufficie
 
 > **Engine note:** the Unity sibling skill enforces this with an editor build hook
 > (`IPreprocessBuildWithReport`) that reads the *baked* build options and hard-fails a Development Build,
-> profiler/script-debugging hooks, or debug flags before an artifact exists. The native/Unreal equivalent
+> profiler/script-debugging hooks, or debug flags before an artifact exists. The native equivalent
 > is the build system + CI (above); the principle is identical.
 
 ---
