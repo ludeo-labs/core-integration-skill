@@ -39,7 +39,10 @@ it passes, the build is live in that environment. An uploaded build that is not 
       Lab → the environment).
 - [ ] **Global Triggers created** in Studio Lab → **that environment** (triggers are per environment):
       Pause/Resume on `PauseLudeo`/`ResumeLudeo`, Non-Ludeoable Area on `StartNoneLudeable`/`StopNoneLudeable`
-      (`phase 6 · task 2` Step 6). **Ask the user to confirm.** The cloud run is the first place the overlay
+      (`phase 6 · task 2` Step 6). If `list_global_triggers` is in your tool list, check it on that environment
+      (an event of `null` counts as missing) and create what is missing per
+      [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — never on Production; otherwise **ask the user to confirm**.
+      The cloud run is the first place the overlay
       pause actually happens, and without the Pause/Resume trigger it will not stop the objective timer. The
       failure is silent.
 

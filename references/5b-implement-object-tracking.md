@@ -16,6 +16,12 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `phase 4` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
 > 3. User has reviewed and approved the plan
+> 4. **A goal on the debug environment** — a Ludeo can't be created without at least one, and this task ends by
+>    capturing a real session. Gameplay-action goals only exist after phase 6, so use a timer goal on the
+>    built-in `EndLudeoByTimer` (e.g. `Survive the timer`). If `create_goal_or_constraint` is in your tool list,
+>    create it yourself on the target environment (never on Production — see
+>    [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md)), then tell the user what you made; otherwise ask the user to
+>    create it in Studio Lab → the environment → Goals and Constraints.
 
 ## Context Files
 

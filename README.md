@@ -78,6 +78,16 @@ Sequential seven-phase workflow under [`references/`](references):
 Reference material lives alongside the workflow files:
 
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, genre playbooks).
+- `references/ludeo-studio-mcp.md` — how the agent uses the Ludeo Studio MCP to configure Studio Lab.
+- `config/mcp_config.template.json` — the optional MCP servers (`sdk-docs`, `ludeo-mcp`).
+
+### Optional: MCP servers
+
+With the **Ludeo Studio MCP** (`ludeo-mcp`, OAuth sign-in with your Studio Lab account) connected, the agent
+reads your game's environments and configures Studio Lab itself — the beta version name that routes local
+runs, goals and constraints, and Global Triggers (never on Production) — instead of asking you to click
+through it. `sdk-docs` lets it search the SDK documentation. Both are optional; phase 1 offers to wire them up
+from `config/mcp_config.template.json`, and every step falls back to asking you when they are absent.
 
 ## Supported agents
 

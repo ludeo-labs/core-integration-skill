@@ -161,14 +161,28 @@ void LudeoManager::ReportPauseSpan(bool paused)
 `PauseLudeo` ≠ `StartNoneLudeable`: pause/resume **stops** the objective timer and the backend saves nothing
 for the span; non-ludeoable **keeps** the timer running and the backend keeps the data. Wire **both** pairs.
 
-### Step 6: Get the Global Triggers created (out-of-code, required)
+### Step 6: Get the Global Triggers and goals created (out-of-code, required)
 
 Both pairs are ordinary `SendAction` strings, not SDK constants. They do nothing until a matching **Global
 Trigger** exists in **Studio Lab → the environment → Global Triggers** — and a missing or misnamed trigger
 fails **silently**: no error, the action still shows in the log, the timer keeps counting. Studio Lab lists an
-action only after a build has sent it, so the triggers are created after a run that fires both pairs.
+action only after a build has sent it, so **do this step after the exit gate's run** (below) has fired both
+pairs and the gameplay actions. The same holds for goals: a Ludeo's objectives are goals on gameplay actions,
+and Studio Lab offers an action only once a run has sent it.
 
-Give the user this instruction verbatim:
+**With the tools** — when `list_global_triggers` / `create_global_trigger` and `list_goals_and_constraints` /
+`create_goal_or_constraint` are in your tool list, do it yourself on the target environment, per the rows in
+[`ludeo-studio-mcp.md`](ludeo-studio-mcp.md):
+1. **Triggers.** List them; for each pair the code sends and the list lacks, create it (closer first). Never on
+   Production — there the user makes the change by hand.
+2. **Goals and constraints.** List them; then choose goals (objectives a creator can pick) and constraints (ways
+   to lose) from `GAME_ACTIONS_MAP.md` and the genre file in `ludeo-integration-docs/game-patterns/`, on
+   gameplay actions only — never on the four trigger actions. Never on Production.
+3. **Report what you made**, one line each (`environment · + PauseLudeo on pause_ludeo — "…"`,
+   `environment · + goal "Kill enemies" on Kill`), so the user can ask for changes.
+
+**By hand** — only without the tools, give the user this instruction verbatim (and ask them to create goals on
+the gameplay actions in Studio Lab → the environment → Goals and Constraints):
 
 > "**Needed on the Ludeo platform.** In Studio Lab → your environment → Global Triggers, create (or confirm) a
 > **Pause/Resume** trigger starting on `PauseLudeo` and ending on `ResumeLudeo`, and a **Non-Ludeoable Area**
@@ -229,12 +243,14 @@ cannot see a running game, so this gate falls to the integrator — make the ask
 1. **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
    project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 3 · task 5` and read the build log.
 2. **Run the game and confirm it still runs** — enter gameplay and verify `SendAction` log lines appear
-   with no SDK errors or crashes.
+   with no SDK errors or crashes. Make the run **pause once and enter a non-ludeoable area once** (if the game has one), so
+   `PauseLudeo`/`ResumeLudeo` and `StartNoneLudeable`/`StopNoneLudeable` are sent and Studio Lab can list them.
 
 The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
 on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
 that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Also
 review any skipped low-confidence actions manually before moving on.
 
-Once they confirm, the integration work is done. Run `phase 7` (`7-upload-build.md`) to verify the
+Once they confirm, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
+actions it needs. Then the integration work is done. Run `phase 7` (`7-upload-build.md`) to verify the
 Release build and publish it to the Ludeo platform.

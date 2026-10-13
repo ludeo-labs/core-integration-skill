@@ -42,7 +42,10 @@ once the player flow is proven, because an action that fires into a flow you can
 be verified. Phase 7 then gets the build onto the Ludeo platform.
 
 Always start at phase 1 unless the user explicitly says they have already completed earlier phases.
-Complete one phase at a time and confirm with the user before advancing.
+Complete one phase at a time and confirm with the user before advancing. Report each phase's start and
+finish from this top level, per **Reporting progress** in
+[`references/ludeo-studio-mcp.md`](references/ludeo-studio-mcp.md), and tell any subagent you dispatch not
+to call `ludeo-mcp` tools.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
@@ -70,6 +73,10 @@ Complete one phase at a time and confirm with the user before advancing.
   cloud and changes what an environment serves — outward-facing and not trivially reversible. Present the
   fully-resolved command after a clean `--dry-run` and stop; a clean dry-run is not approval, and approving
   the upload is not approving the assignment.
+- **Studio Lab writes follow `references/ludeo-studio-mcp.md` — reads free, writes confirmed.** Beta version
+  names and invites need an explicit go-ahead; goals, constraints and Global Triggers are created without one
+  but **never on Production**, and reported line by line. Gate every step on the exact tool being in your tool
+  list, and fall back to asking the user when it isn't.
 - **Every code-writing task ends with a rebuild + run gate (hard requirement).** Phase 3 · task 4,
   phase 5 · tasks 1, 3 and 4, and phase 6 · task 2 edit source, so each ends by requiring the
   integrator to (1) rebuild clean (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and
@@ -86,6 +93,24 @@ Complete one phase at a time and confirm with the user before advancing.
 ## Reference material
 
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
+- `references/ludeo-studio-mcp.md` — the `ludeo-mcp` touchpoints (environments, beta version name, invites,
+  goals and constraints, Global Triggers, progress reporting), the platform record
+  `ludeo-integration-plan/LUDEO_PLATFORM.md`, and the read/write policy.
+
+## MCP configuration
+
+The skill ships its MCP server definitions in `config/mcp_config.template.json`; `phase 1` Step 0c wires them
+up. **They run on the integrator's machine.** Copy the entries into the agent's MCP config (Claude Code:
+`.mcp.json` at the project root, or `claude mcp add`), fill in `X-User-Name` for `sdk-docs`, and start a fresh
+session so they connect.
+
+| Server | Hosted endpoint | Purpose | Fallback |
+| --- | --- | --- | --- |
+| `sdk-docs` | `https://ludeo-mcps-sdk-docs.ludeo.com/mcp` (HTTP, `X-User-Name` header) | **Search the Ludeo SDK documentation** — API reference, signatures, parameter structs, callback chains. Prefer it over guessing at any phase. | Bundled `references/ludeo-integration-docs/` and the SDK headers |
+| `ludeo-mcp` | `https://mcp.ludeo.com/mcp` (HTTP, OAuth sign-in) | **Studio Lab platform work** the agent otherwise hands to the user — phase 1 (environments, membership, invites), phase 3 · task 4 (the Beta Version Name that routes local runs), phases 5–6 (goals, Global Triggers), phase 7 (`envId`, trigger check), and progress reporting throughout | Ask the user to do the step in Studio Lab |
+
+If a server is not detected, set it up from the template before relying on its fallback, and tell the user
+which fallback you're using.
 
 ## Start here
 
