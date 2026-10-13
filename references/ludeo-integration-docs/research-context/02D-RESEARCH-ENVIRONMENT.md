@@ -118,15 +118,15 @@ Complete this questionnaire to identify:
 
 ### 8.1 Non-Ludeoable Areas
 
-**Which in-gameplay segments should never become a Ludeo?** These are **backend-controlled**, not a local capture gate: tracking keeps running through them, and you mark their boundaries with enter/exit Ludeo actions wired once to the global triggers on the platform (`06 §7.3`, `phase 6`). Do **not** build an `IsLudeoableArea()` check or stop tracking — record the boundary hooks so `phase 6` can emit the actions.
+**Which in-gameplay segments should never become a Ludeo?** These are **backend-controlled**, not a local capture gate: tracking keeps running through them, and you mark their boundaries with the standard `StartNoneLudeable`/`StopNoneLudeable` actions, connected to a Non-Ludeoable Area Global Trigger (`06 §7.3`, `phase 6`). Do **not** build an `IsLudeoableArea()` check or stop tracking — record the boundary hooks so `phase 6` can emit the actions.
 
-| Area | Enter hook (file:function) | Exit hook (file:function) | Enter/exit action names |
-|------|----------------------------|----------------------------|-------------------------|
-| Shop / stall | | | ShopEntered / ShopExited |
-| NPC dialogue | | | DialogueStarted / DialogueEnded |
-| In-game menu | | | MenuOpened / MenuClosed |
-| Tutorial | | | TutorialEntered / TutorialExited |
-| Safe zone / hub | | | SafeZoneEntered / SafeZoneExited |
+| Area | Enter hook (file:function) — emits `StartNoneLudeable` | Exit hook(s) (file:function) — emit `StopNoneLudeable` on every path |
+|------|----------------------------|----------------------------|
+| Shop / stall | | |
+| NPC dialogue | | |
+| In-game menu | | |
+| Tutorial | | |
+| Safe zone / hub | | |
 
 > Main menu, lobby, and loading screens are **not** non-ludeoable areas — they sit outside any gameplay session, so nothing tracks them and no action is needed. Cutscenes are handled as a local **capture-hygiene** pause (§8.2), separate from this.
 
@@ -164,7 +164,7 @@ Function/Event:
 [ ] Orders/build queue  
 [ ] Other:
 
-> Note: dialogue, inventory, map, and shop screens are usually **non-ludeoable areas** (§8.1), handled by boundary actions — not tracking pauses. Only flag something here if it freezes the simulation (true pause) or is a cutscene; those are the local capture-hygiene cases.
+> Note: dialogue, inventory, map, and shop screens are usually **non-ludeoable areas** (§8.1), handled by `StartNoneLudeable`/`StopNoneLudeable` — not tracking pauses. Only flag something here if it freezes the simulation (true pause) or is a cutscene; those pause local tracking **and** emit `PauseLudeo`/`ResumeLudeo` (06 §7.3) — the action is what stops the objective timer.
 
 **How to detect when game is truly paused vs just UI overlay?**  
 Check:  
@@ -185,11 +185,11 @@ File:
 
 ```
 Is the game truly paused (sim frozen) or in a cutscene?
-├─ Yes → Pause tracking (local capture hygiene; resume after)
+├─ Yes → Pause tracking (local capture hygiene; resume after) AND emit PauseLudeo / ResumeLudeo
 │
 └─ No → Is this a non-ludeoable area (shop / NPC dialogue / tutorial / menu / safe zone)?
     ├─ Yes → KEEP TRACKING. Do not stop tracking or end the session.
-    │         Emit enter/exit boundary actions; the backend excludes the window (06 §7.3).
+    │         Emit StartNoneLudeable / StopNoneLudeable; the backend excludes the window (06 §7.3).
     │
     └─ No → Track normally
 ```
@@ -225,7 +225,7 @@ Before moving to implementation:
 - [ ] Camera properties identified
 - [ ] World state components listed
 - [ ] Non-ludeoable areas identified with enter/exit boundary hooks (for actions, not a local gate)
-- [ ] Boundary action names assigned + platform global-trigger wiring noted as a follow-up
+- [ ] Pause primitive and its callers recorded (incl. the SDK overlay pause) for `PauseLudeo`/`ResumeLudeo`; Global Triggers noted as a follow-up
 - [ ] Cutscene handling planned
 - [ ] Pause/resume hooks identified
 - [ ] Restoration context requirements documented

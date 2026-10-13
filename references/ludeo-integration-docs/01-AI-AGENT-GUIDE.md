@@ -263,7 +263,7 @@ Build and run. Load level. Verify logs in order: room opening, room opened (Data
 
 **Code modifications:** Every game object class, object managers, property setters, game events, pause/cutscene handlers.
 
-**Validation:** All objects register, properties tracked, environment tracked, actions fire, tracking pauses correctly, non-ludeoable area boundary actions fire (backend excludes those windows; tracking is not paused for them), destruction tracked, SDK logs show activity.
+**Validation:** All objects register, properties tracked, environment tracked, actions fire, tracking pauses correctly, StartNoneLudeable/StopNoneLudeable fire at non-ludeoable areas (backend excludes those windows; tracking is not paused for them), every pause emits PauseLudeo/ResumeLudeo, destruction tracked, SDK logs show activity.
 
 ---
 
@@ -357,12 +357,12 @@ Does it happen once at a moment in time?
 Is this a cutscene, a loading screen, or a true (sim-frozen) game pause?
 ├─ Yes → Is gameplay still simulating in the background?
 │         ├─ Yes → Continue tracking
-│         └─ No  → Pause tracking (local capture hygiene)
+│         └─ No  → Pause tracking (local capture hygiene) + emit PauseLudeo / ResumeLudeo
 │
 └─ No → Is this a shop / NPC dialogue / tutorial / in-game menu / safe zone?
           ├─ Yes → Do NOT pause. It is a non-ludeoable AREA, not a tracking pause:
-          │         keep tracking and emit enter/exit boundary actions wired to
-          │         global triggers on the platform (06 §7.3, /6–/7).
+          │         keep tracking and emit StartNoneLudeable / StopNoneLudeable, connected to
+          │         a Global Trigger on the platform (06 §7.3, phase 6).
           └─ No  → Continue tracking (player is actively playing).
 ```
 

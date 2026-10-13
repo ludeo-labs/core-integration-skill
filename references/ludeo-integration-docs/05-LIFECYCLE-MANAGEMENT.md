@@ -174,8 +174,8 @@ void RegisterNotifications()
 **Handler responsibilities** (the contract — engine-specific implementations vary):
 - `OnLudeoSelectedCallback` — marshal off the SDK thread; continue per `07-RESTORATION-PATTERNS.md` §2.
 - `OnRoomReadyCallback` — `TryBeginGameplaySession()` + unpause. Dual role: gameplay-session-start gate (tracking) AND post-Ludeo-load resume (playback, §6.5).
-- `OnPauseGameRequestCallback` — **freeze the simulation tick** (not just input). Reuse the game's pause; build a minimal tick-freeze if none.
-- `OnResumeGameRequestCallback` — unfreeze the sim.
+- `OnPauseGameRequestCallback` — **freeze the simulation tick** (not just input). Reuse the game's pause; build a minimal tick-freeze if none. Freezing does not stop the objective timer: in phase 6 this path also reports `PauseLudeo` via the pause primitive (CR-011, `06 §7.3`).
+- `OnResumeGameRequestCallback` — unfreeze the sim (and, from phase 6, report `ResumeLudeo`).
 - `OnBackToMenuRequestCallback` — tear down the current Ludeo gameplay session + room (SDK Session stays alive); navigate to main menu.
 
 → See `07-RESTORATION-PATTERNS.md` §2.4 for the overlay-control flow in the restoration context, **CR-010** (post-Ludeo-load pause), and **CR-011** (mid-play overlay pause).

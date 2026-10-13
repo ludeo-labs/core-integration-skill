@@ -105,28 +105,82 @@ case ItemType::Coin:
 **File already has `#if LUDEO_SDK_ENABLED` blocks:**
 If there's an adjacent block, consider merging rather than adding a separate guard.
 
-**Non-ludeoable area boundaries:**
-Insert the enter/exit pair from the map's **Non-Ludeoable Boundaries** category at the area's open/close hooks, using the same `SendAction` call as any other action — e.g. `ShopEntered` in `ShopUI::Open`, `ShopExited` in `ShopUI::Close`:
+### Step 5: Emit the non-gameplay standard actions
+
+From the map's **Non-Gameplay Actions** category. Both pairs use the **standard names exactly** — the Global
+Triggers are created on those strings, and a trigger event can be bound to only one action per environment.
+They are session/area events: no player guard, and they fire in **both** flows. `LudeoManager::SendAction`'s
+session-state guard (`06 §7.1`) already drops them outside an active gameplay session, which is where they
+belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
+
+- **Non-ludeoable areas** — emit `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
+  **exit** site. Tracking keeps running; the backend excludes the window (`06 §7.3`). **Every
+  `StartNoneLudeable` needs a reachable `StopNoneLudeable` on all exit paths**, early returns included — a
+  dangling open span keeps Ludeo creation off for the rest of the run.
+- **Pause/resume** — emit `PauseLudeo` at **every** pause and `ResumeLudeo` at its end, at the game's **pause
+  primitive** (the one freeze function every pause path funnels through), not at the ESC key. This is what
+  stops the **Ludeo objective timer**: freezing the simulation does not, so without it the player's clock
+  drains through every pause. "Every" includes the pause menu, cutscenes, dialogue, loading screens, focus loss
+  — **and the SDK's `PauseGameRequest` handler** (CR-011), which must reach this same emit.
+  - **Report once per transition.** Route the `PauseGameRequest`/`ResumeGameRequest` handlers *through* the
+    pause primitive, and guard the emit with a span flag so a pause that arrives on two paths reports once.
+    Reset the flag with the CR-010/CR-011 freeze bits at every end-of-Ludeo path (`phase 5 · task 3` Step 5).
+  - **If the map recorded no pause primitive, do not build one.** Emit at whatever freeze the game has —
+    including the one the `PauseGameRequest` handler performs for the overlay — and never add a pause menu,
+    keybinding or freeze path the game didn't have. If it cannot freeze at all, emit nothing and say so in
+    the summary.
 
 ```cpp
+// Non-ludeoable area boundary (e.g. shop). Also emit StopNoneLudeable on every early-exit path.
 void ShopUI::Open()
 {
     // ... existing logic ...
 #if LUDEO_SDK_ENABLED
-    LudeoManager::Get().SendAction("ShopEntered");
+    LudeoManager::Get().SendAction("StartNoneLudeable");
 #endif
+}
+
+// Pause primitive — every pause path funnels here, including LudeoManager's PauseGameRequest handler.
+void Game::SetPaused(bool paused)
+{
+    // ... existing freeze / unfreeze ...
+#if LUDEO_SDK_ENABLED
+    LudeoManager::Get().ReportPauseSpan(paused);   // sends PauseLudeo / ResumeLudeo once per transition
+#endif
+}
+
+// LudeoManager — the span guard (reset it in EndCurrentLudeo() alongside the CR-010/CR-011 bits):
+void LudeoManager::ReportPauseSpan(bool paused)
+{
+    if (paused == m_ludeo_pause_span_open) return;   // already reported this transition
+    m_ludeo_pause_span_open = paused;
+    SendAction(paused ? "PauseLudeo" : "ResumeLudeo");
 }
 ```
 
-These are emitted exactly like combat/collection actions: never gated, and they do **not** pause tracking — capture keeps running through the area. The backend, not the game, decides the window is non-ludeoable (see Step 5 and `06 §7.3`).
+`PauseLudeo` ≠ `StartNoneLudeable`: pause/resume **stops** the objective timer and the backend saves nothing
+for the span; non-ludeoable **keeps** the timer running and the backend keeps the data. Wire **both** pairs.
 
-### Step 5: Surface the one-time platform-trigger step
+### Step 6: Get the Global Triggers created (out-of-code, required)
 
-If the map included a **Non-Ludeoable Boundaries** category, the boundary actions now *emit* — but that alone does nothing until they are connected to the global triggers on Ludeo's platform. This is out-of-code configuration the agent cannot do from the codebase. Surface it to the user explicitly:
+Both pairs are ordinary `SendAction` strings, not SDK constants. They do nothing until a matching **Global
+Trigger** exists in **Studio Lab → the environment → Global Triggers** — and a missing or misnamed trigger
+fails **silently**: no error, the action still shows in the log, the timer keeps counting. Studio Lab lists an
+action only after a build has sent it, so the triggers are created after a run that fires both pairs.
 
-> "`ShopEntered`/`ShopExited` (and any other boundary actions) are now firing. To make those windows non-ludeoable, connect each enter/exit action to the corresponding **global trigger** on Ludeo's platform. Until that one-time mapping is done, the backend will not exclude those segments."
+Give the user this instruction verbatim:
 
-### Step 6: Summary
+> "**Needed on the Ludeo platform.** In Studio Lab → your environment → Global Triggers, create (or confirm) a
+> **Pause/Resume** trigger starting on `PauseLudeo` and ending on `ResumeLudeo`, and a **Non-Ludeoable Area**
+> trigger starting on `StartNoneLudeable` and ending on `StopNoneLudeable`. Triggers are per environment, so
+> do this in every environment the game is played in. Names must match exactly. Until both exist, pauses won't
+> stop the player's clock and non-ludeoable areas won't be excluded, with nothing in any log to say so."
+
+> **Open cross-skill item:** whether one generic `StartNoneLudeable`/`StopNoneLudeable` pair covers every
+> non-ludeoable area, or the backend needs to distinguish areas, is a platform question. Use the single pair by
+> default; flag it if the game has several distinct areas the backend must tell apart.
+
+### Step 7: Summary
 
 After all actions are inserted, output a summary:
 
@@ -157,7 +211,8 @@ After all actions are inserted, output a summary:
 - Action calls go AFTER game logic, not before
 - **Actions fire in BOTH Creator Flow (recording) and Player Flow (playback)** — never gate `SendAction` behind `IsRestoring()` or any "are we in playback?" check. Player Flow re-fires the same sites so the SDK can score win/fail conditions. See `06 §7` for the dual-flow contract; state writes *are* gated to Creator Flow only, action writes are not.
 - Do NOT modify game logic — only add SDK calls
-- **Non-ludeoable area boundaries are ordinary actions** — emit the enter/exit pair at the area's open/close hooks, never gate them, and never pause tracking for them. The backend marks the window once the actions are wired to global triggers on the platform (Step 5). See `06 §7.3`.
+- **Non-gameplay actions use the standard names** — `StartNoneLudeable`/`StopNoneLudeable` at non-ludeoable area boundaries (never pause tracking for them), `PauseLudeo`/`ResumeLudeo` at every pause including the SDK's overlay pause. They do nothing until the Global Triggers exist (Step 6). See `06 §7.3`.
+- **The summary must carry the platform action item** from Step 6 until the user confirms the triggers exist.
 - If a file needs `#include "LudeoManager.h"` (or equivalent), add it inside `#if LUDEO_SDK_ENABLED` guards
 - This command uses direct `LudeoManager::Get().SendAction()` calls, not macros. A future phase will replace these with a `LUDEO_ACTION` macro.
 
