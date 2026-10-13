@@ -113,10 +113,10 @@ They are session/area events: no player guard, and they fire in **both** flows. 
 session-state guard (`06 §7.1`) already drops them outside an active gameplay session, which is where they
 belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
 
-- **Non-ludeoable areas** — emit `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
-  **exit** site. Tracking keeps running; the backend excludes the window (`06 §7.3`). **Every
-  `StartNoneLudeable` needs a reachable `StopNoneLudeable` on all exit paths**, early returns included — a
-  dangling open span keeps Ludeo creation off for the rest of the run.
+- **Non-ludeoable areas** — report `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
+  **exit** site, through the span helper below. Tracking keeps running; the backend excludes the window
+  (`06 §7.3`). **Every `StartNoneLudeable` needs a reachable `StopNoneLudeable` on all exit paths**, early
+  returns included — a dangling open span keeps Ludeo creation off for the rest of the run.
 - **Pause/resume** — emit `PauseLudeo` at **every** pause and `ResumeLudeo` at its end, at the game's **pause
   primitive** (the one freeze function every pause path funnels through), not at the ESC key. This is what
   stops the **Ludeo objective timer**: freezing the simulation does not, so without it the player's clock
@@ -124,19 +124,31 @@ belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
   — **and the SDK's `PauseGameRequest` handler** (CR-011), which must reach this same emit.
   - **Report once per transition.** Route the `PauseGameRequest`/`ResumeGameRequest` handlers *through* the
     pause primitive, and guard the emit with a span flag so a pause that arrives on two paths reports once.
-    Reset the flag with the CR-010/CR-011 freeze bits at every end-of-Ludeo path (`phase 5 · task 3` Step 5).
+    If the map noted that the primitive also shows the game's pause menu, give the SDK handlers a
+    **freeze-only** path that still reports the span — the game's menu must not open under the Ludeo overlay.
+- **Keep each span flag equal to what was actually sent.** `SendAction` drops actions outside an active
+  gameplay session, so a flag flipped there would drift: a game already paused when gameplay begins would
+  never send `PauseLudeo` (the timer runs), and its later unpause would send an orphan `ResumeLudeo`. So:
+  1. **Outside a session, touch no span** — only remember the game's own state.
+  2. **When the gameplay session begins**, seed from that state: if the game is already paused (or inside a
+     non-ludeoable area), open the span now.
+  3. **Before the gameplay session ends**, close any span still open, while the session is still active — or
+     it stays open into the next run, whose first pause then hits the guard and is never reported. This
+     matters most in games that play many rounds per process.
+
+  Reset the flags with the CR-010/CR-011 freeze bits at every end-of-Ludeo path (`phase 5 · task 3` Step 5).
   - **If the map recorded no pause primitive, do not build one.** Emit at whatever freeze the game has —
     including the one the `PauseGameRequest` handler performs for the overlay — and never add a pause menu,
     keybinding or freeze path the game didn't have. If it cannot freeze at all, emit nothing and say so in
     the summary.
 
 ```cpp
-// Non-ludeoable area boundary (e.g. shop). Also emit StopNoneLudeable on every early-exit path.
+// Non-ludeoable area boundary (e.g. shop). Report the exit on every early-exit path too.
 void ShopUI::Open()
 {
     // ... existing logic ...
 #if LUDEO_SDK_ENABLED
-    LudeoManager::Get().SendAction("StartNoneLudeable");
+    LudeoManager::Get().ReportSpan(LudeoSpan::NonLudeoable, true);   // StartNoneLudeable
 #endif
 }
 
@@ -145,16 +157,44 @@ void Game::SetPaused(bool paused)
 {
     // ... existing freeze / unfreeze ...
 #if LUDEO_SDK_ENABLED
-    LudeoManager::Get().ReportPauseSpan(paused);   // sends PauseLudeo / ResumeLudeo once per transition
+    LudeoManager::Get().ReportSpan(LudeoSpan::Pause, paused);        // PauseLudeo / ResumeLudeo
 #endif
 }
 
-// LudeoManager — the span guard (reset it in EndCurrentLudeo() alongside the CR-010/CR-011 bits):
-void LudeoManager::ReportPauseSpan(bool paused)
+// LudeoManager — one helper for both pairs. Members: bool m_in_span[2] = {}, m_span_open[2] = {};
+// m_in_span = what the game is in; m_span_open = what was actually SENT.
+enum class LudeoSpan { Pause = 0, NonLudeoable = 1 };
+
+void LudeoManager::ReportSpan(LudeoSpan span, bool open)
 {
-    if (paused == m_ludeo_pause_span_open) return;   // already reported this transition
-    m_ludeo_pause_span_open = paused;
-    SendAction(paused ? "PauseLudeo" : "ResumeLudeo");
+    const int i = static_cast<int>(span);
+    m_in_span[i] = open;                              // always track the game's own state
+    if (!m_gameplay_session_active) return;           // outside a session: send nothing, touch no span flag
+    if (open == m_span_open[i]) return;               // already reported this transition
+    m_span_open[i] = open;
+    static const char* kOpen[]  = { "PauseLudeo",  "StartNoneLudeable" };
+    static const char* kClose[] = { "ResumeLudeo", "StopNoneLudeable"  };
+    SendAction(open ? kOpen[i] : kClose[i]);
+}
+
+// Call right after the gameplay session begins (end of TryBeginGameplaySession): seed from the game's state.
+void LudeoManager::SeedSpansOnGameplayBegin()
+{
+    for (int i = 0; i < 2; ++i) {
+        m_span_open[i] = false;
+        if (m_in_span[i]) ReportSpan(static_cast<LudeoSpan>(i), true);   // began already paused / in an area
+    }
+}
+
+// Call at the start of EndGameplaySession(), while the session is still active: close what is open.
+void LudeoManager::CloseSpansBeforeGameplayEnd()
+{
+    for (int i = 0; i < 2; ++i) {
+        if (!m_span_open[i]) continue;
+        const bool stillIn = m_in_span[i];
+        ReportSpan(static_cast<LudeoSpan>(i), false);   // sends the closing action
+        m_in_span[i] = stillIn;                         // the game's own state is unchanged
+    }
 }
 ```
 

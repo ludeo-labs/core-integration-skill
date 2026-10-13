@@ -36,13 +36,19 @@ it passes, the build is live in that environment. An uploaded build that is not 
 - [ ] **The environment this build ships to.** Games commonly have several (production, QA, demo) — ask
       which one this build is for; never pick for the user. You need its **`envId`** for Step 11: if
       `list_game_environments` is in your tool list, read it there; otherwise ask the user for it (Studio
-      Lab → the environment).
+      Lab → the environment). The ship environment is often not the one you debugged against, so for **it**:
+      - **The integrator is in it.** If `LUDEO_PLATFORM.md` doesn't record membership as yes, ask; if they don't
+        know or it's no, have them check or add themselves in Studio Lab → Environments → Users management
+        (`phase 1` Step 0d (b)). That doesn't block the upload, but say plainly that their captures there fail
+        silently until it's done.
+      - **Anyone else who needs to capture there** is invited (`phase 1` Step 0d (c)).
 - [ ] **Global Triggers created** in Studio Lab → **that environment** (triggers are per environment):
       Pause/Resume on `PauseLudeo`/`ResumeLudeo`, Non-Ludeoable Area on `StartNoneLudeable`/`StopNoneLudeable`
       (`phase 6 · task 2` Step 6). If `list_global_triggers` is in your tool list, check it on that environment
       (an event of `null` counts as missing) and create what is missing per
-      [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — never on Production; otherwise **ask the user to confirm**.
-      The cloud run is the first place the overlay
+      [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md); otherwise **ask the user to confirm**. **On Production you
+      never create them** — the user makes the change by hand in Studio Lab, and Production is the likeliest
+      ship target. The cloud run is the first place the overlay
       pause actually happens, and without the Pause/Resume trigger it will not stop the objective timer. The
       failure is silent.
 
