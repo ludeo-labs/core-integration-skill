@@ -4,6 +4,7 @@
 > **For:** AI agents and developers integrating Ludeo SDK  
 > **Read Time:** 15 minutes  
 > **When to Load:** Before any implementation work
+> **Concepts here, headers win:** this file explains how the SDK thinks. For exact signatures, the cloned SDK headers are the authority (§4.5).
 
 **Last Updated:** December 2025
 
@@ -165,6 +166,24 @@ LUDEO_CAPTURE_FLOAT(this, "player", "health", 85.0f);  // Updated continuously
 - Game must restore state from DataReader
 - Game must pause and wait for player input
 
+### 2.8 A Room is NOT a Highlight
+
+The single most common conceptual error is treating a room as "one interesting moment".
+
+- **A Room** is the recording of one **whole gameplay instance** — a level, a match, a run (for open-world games, one
+  continuous live run, `05 §6.1`). It opens when that gameplay starts (`05 §6.2`; in Player Flow, after the restore
+  settles, `07 §2.1`), **stays open for the entire run**, and closes after `End` → `RemovePlayer`. One room per
+  gameplay instance, many per Ludeo Session.
+- **A highlight** — a moment that becomes a Ludeo — is cut by the platform **from inside an open room's recording**.
+  The game doesn't create highlights. It keeps the room open and recording, and reports actions as they happen (§2.6).
+
+**Why conflating them breaks the integration.** Opening and closing a room around each "moment" (a kill, a boss
+phase, a pickup) cuts the run into short, disconnected recordings. Each close ends the recording, so the state
+between rooms is never captured and the platform has no continuous run to cut a moment from. Each new room comes with
+a new DataWriter, so every tracked object must be created again. Every moment also repeats the whole async chain
+(`OpenRoom → AddPlayer → RoomReady → Begin`, then `End → RemovePlayer → Close`), multiplying its failure points
+and the CR-007 exit-path surface. The rule: **room boundaries follow gameplay-session boundaries, never moments.**
+
 ---
 
 ## 3. SDK Architecture
@@ -283,6 +302,20 @@ enum LudeoResult {
 
 **Always check return values!**
 
+### 4.5 Concepts Here, Headers Win
+
+These docs teach **concepts and flow**: what the SDK objects are, which call comes when, and which callback drives
+which step. They are not the authority on **exact signatures**. Parameter lists, struct field names,
+`*_API_LATEST` macro names, enum values, return types (`LudeoBool` vs `LudeoResult`) and callback param shapes can
+drift between SDK releases, and the skill clones the **latest** release.
+
+**When the SDK headers (`Include/Ludeo/*.h` in the cloned SDK, `04 §3`) disagree with these docs, the headers are
+right.** Write the call the way the header declares it, and treat the doc snippet as a shape to adapt, not code to
+paste. The split runs one way only: the headers tell you **how** to call something; the flow docs (`07 §2`, CR-009,
+CR-010) tell you **when**, and that order is not something to re-derive from the headers. If a header looks
+older than the backend — a notification never arrives, the log shows `unknown event_name` — update the SDK
+([11 §9](./11-TROUBLESHOOTING.md)); don't work around it.
+
 ---
 
 > **⚠️ Critical SDK Rules:** See [00-CRITICAL-REQUIREMENTS.md](./00-CRITICAL-REQUIREMENTS.md) for all mandatory rules (macro guards, return value checking, Enter/Leave pairing, etc.)
@@ -291,7 +324,7 @@ enum LudeoResult {
 
 ## 5. Data Type Mapping
 
-### 6.1 Type Correspondence
+### 5.1 Type Correspondence
 
 | C++ Type | SDK Set Function | SDK Get Function | Notes |
 |----------|------------------|------------------|-------|
@@ -304,7 +337,7 @@ enum LudeoResult {
 | `Vec4/Quat` | `SetVec4Float()` | `GetVec4Float()` | Pass `float[4]` array |
 | `const char*` | `SetString()` | `GetString()` | Null-terminated string |
 
-### 6.2 Usage Examples
+### 5.2 Usage Examples
 
 **Float:**
 ```cpp
@@ -398,7 +431,7 @@ if (ludeo_DataReader_GetUInt64("owner_id", &restored_owner_id)) {
 
 ## 6. Handle Management
 
-### 7.1 Handle Lifecycle
+### 6.1 Handle Lifecycle
 
 **Handles are created and managed by SDK:**
 ```cpp
@@ -422,7 +455,7 @@ void OnLudeoDataReceived(const LudeoSessionGetLudeoCallbackParams* data) {
 }
 ```
 
-### 7.2 Handle Storage
+### 6.2 Handle Storage
 
 **Store handles in manager class:**
 ```cpp
@@ -440,7 +473,7 @@ public:
 };
 ```
 
-### 7.3 Handle Validity
+### 6.3 Handle Validity
 
 **Always check handles before use:**
 ```cpp
@@ -457,7 +490,7 @@ ludeo_DataWriter_SetCurrent(writer);
 
 ## 7. Callback Pattern
 
-### 8.1 Callback Function Signature
+### 7.1 Callback Function Signature
 
 All callbacks follow this pattern:
 ```cpp
@@ -477,7 +510,7 @@ void MyCallback(const LudeoXxxCallbackParams* data)
 }
 ```
 
-### 8.2 Singleton Callback Pattern
+### 7.2 Singleton Callback Pattern
 
 LudeoManager is a singleton, so callbacks access it via `LudeoManager::Instance()`:
 ```cpp
@@ -520,7 +553,7 @@ private:
 
 **Pattern:** Callbacks are `static` and access the singleton via `LudeoManager::Instance()`.
 
-### 8.3 Common Callbacks
+### 7.3 Common Callbacks
 
 | Operation | Callback Type | Data Available |
 |-----------|---------------|----------------|
@@ -564,7 +597,22 @@ void GameLoop::Update() {
 
 ### 8.3 Thread-Safe Integration
 
-**If game uses multiple threads, queue SDK operations:**
+**Queue SDK operations — from other threads, and from inside SDK callbacks.** Never issue an SDK call from
+*inside* an SDK callback's dispatch (e.g. `ludeo_Room_Close` from the `GameplaySession_End` callback, or
+`ludeo_Session_GetLudeo` straight from the `LudeoSelected` notification): the SDK may still be reacting to the same
+event — tearing down its video encoder at session end, for instance — and a call landing on that same tick has been
+seen to end the process with a native `abort()` and no log. Queue the next call instead; it runs on the next `Tick`,
+outside the dispatch. Audit **every** callback that issues an SDK call, not just teardown — the chain
+`OnRoomOpened → AddPlayer → OnPlayerAdded / OnRoomReady → Begin → … → End → RemovePlayer → Close` included.
+(Synchronous quit paths, where there is no next tick, are the exception — see 05 §7.4.)
+
+**Pick one of two equivalent forms and use it everywhere in the integration:**
+- **(a) Marshal at registration** — the function you register with the SDK only copies what it needs out of `data`
+  (strings by value — `data` is valid only during the call; handles are fine) and queues the real handler. Every
+  handler body then runs from the queue and may call the SDK directly. CR-010's code assumes this form.
+- **(b) Queue the next call inside each callback** — the callback runs inline and wraps each SDK call it makes in
+  `QueueOperation`. `05 §6`'s snippets show this form.
+Mixing them is how an inline call slips through.
 ```cpp
 class LudeoManager {
     std::mutex m_queue_mutex;
@@ -601,6 +649,11 @@ private:
 LudeoManager::Instance().QueueOperation([this]() {
     LUDEO_CAPTURE_FLOAT(this, "entity", "health", m_health);
 });
+
+// Usage from inside an SDK callback: issue the NEXT SDK call from the queue, not inline
+void OnGameplayEndedCallback(const LudeoGameplaySessionEndCallbackParams* data) {
+    LudeoManager::Instance().QueueOperation([] { RemovePlayerFromRoom(player_id); });
+}
 ```
 
 ---
@@ -629,5 +682,7 @@ LudeoManager::Instance().QueueOperation([this]() {
 2. Async operations need callbacks
 3. Always pair Enter/Leave (use RAII helpers)
 4. Release resources when done
+5. One room spans a whole gameplay instance — never one room per highlight (§2.8)
+6. Concepts here, headers win on exact signatures (§4.5)
 
 → **For mandatory rules (error handling, macro guards, etc.):** See [00-CRITICAL-REQUIREMENTS.md](./00-CRITICAL-REQUIREMENTS.md)

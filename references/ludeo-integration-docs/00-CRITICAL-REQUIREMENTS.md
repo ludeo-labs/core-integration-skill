@@ -231,6 +231,15 @@ for (each object) {
 }
 ```
 
+> **Reset matched instances to a clean baseline before the apply** (Player Flow only — Creator Flow starts from the
+> game's own fresh run). Pass 1 *spawns* fresh objects, but anything the restore **matches instead of spawns** — the
+> player, singletons and managers that survive a level load, scene-placed objects — is the same live object the
+> previous run left behind. The apply overwrites only the captured attributes, so uncaptured state leaks into the
+> restored moment: gameplay state (inventory, ammo, buffs, cooldowns, status flags) **and** visual state (HUD and score
+> readouts, live particle/VFX emitters, damage numbers, camera shake, post-processing from a prior buff). Reset each
+> matched instance to its new-run baseline at the top of its apply, *then* apply the snapshot. Same cause as the stale
+> freeze bits in CR-011 (a long-lived object carrying the last run), different victim. Details: [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md).
+
 → **See:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) Section 9.3
 
 ---
@@ -254,7 +263,8 @@ for (each object) {
 | Level restart | `OnRestartLevel()` | ✅ YES |
 | Network disconnect | `OnDisconnected()` | ✅ YES (multiplayer) |
 | Error recovery | `OnFatalError()` | ✅ YES |
-| LudeoSelected interrupt | `OnLudeoSelected()` | ✅ YES (if gameplay active) |
+| Mid-run `LudeoSelected` — a **validated** selection while a Ludeo is playing or still restoring (another Ludeo from the overlay, "play again") | `CommitAndRestore()` → `EndCurrentLudeo()` | ✅ YES — `isAbort=true` (only if `Begin` ran) → `RemovePlayer` → `CloseRoom`, then reset the `Begin` gates and the freeze bits (the CR-011 bit only if no overlay is actually open) **before** the new restore starts (CR-010 step 3, `07 §2.1`). **Not** in `OnLudeoSelected()` — an unvalidated selection touches nothing |
+| Overlay "back to menu" | `OnBackToMenuRequestCallback()` (`BackToMenuRequest`) | ✅ YES — `isAbort=true` via `EndCurrentLudeo()`, then navigate to the menu (`05 §6.11`) |
 
 **Required Pattern:**
 ```cpp
@@ -290,6 +300,7 @@ void OnLevelComplete() {
 - [ ] Test: quit mid-level → Ludeo still created
 - [ ] Test: restart level → Ludeo still created
 - [ ] Test: disconnect (multiplayer) → Ludeo still created
+- [ ] Test: overlay "back to menu" mid-playback, and picking a second Ludeo mid-playback → the first one is ended (`isAbort=true`) and its room closed before anything else starts
 
 ---
 
@@ -320,7 +331,9 @@ if (result == LudeoResult::Success) {
 
 > **⚠️ Common AI/Developer Mistake:** Trying to call these from game event handlers.
 
-Some SDK operations are **triggered by SDK callbacks**, NOT by game events.
+Some SDK operations are **triggered by SDK callbacks**, NOT by game events. And when a callback triggers the next
+SDK call, it **queues** it (`LudeoManager::QueueOperation`, `03 §8.3`) rather than calling it inline — an SDK call
+issued from inside a callback's dispatch has crashed the process at session-end teardown.
 
 **🎮 Game Code Integration Points (YOU call these):**
 | Operation | When to Call | From Where |
@@ -399,6 +412,10 @@ nothing overwrites the snapshot as it lands, and `Begin` (which starts SDK recor
    (`05 §6.6`).
 
 ```cpp
+// These handlers assume form (a) of 03 §8.3: the function registered with the SDK copies what it needs and queues
+// the handler, so each body below runs on the next Tick, outside the SDK's dispatch, and may call the SDK directly.
+// With form (b), wrap each SDK call these bodies make in QueueOperation instead.
+
 // ✅ 1. LudeoSelected — validate first; touch nothing else.
 void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
     const std::string id = data->ludeoId;
@@ -411,6 +428,7 @@ void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams
 void LudeoManager::IgnoreSelection(const char* why) {   // pre-commit only: clear the candidate, touch nothing else
     LUDEO_LOG("[Ludeo] selection ignored: %s", why);
     m_candidate_ludeo_id.clear(); m_candidate_reader = nullptr; m_candidate_deadline = {};
+    m_launching_into_ludeo = false;                    // a preselected launch falls back to the menu (LAUNCH-AND-READINESS §4)
 }
 
 // ✅ 2. Validate. May fire REPEATEDLY; early cycles return Success + an EMPTY reader.
@@ -446,6 +464,7 @@ void LudeoManager::CommitAndRestore(const EntryId& entry) {
 void LudeoManager::StartRestore(const std::string& id, LudeoHDataReader reader, const EntryId& entry) {
     const uint32_t gen = ++m_restore_generation;          // continuations of an older restore check this and no-op
     m_restore_in_progress = true;
+    m_launching_into_ludeo = false;                       // the restore owns the start from here (LAUNCH-AND-READINESS §4)
     SetRestoring(true);                                   // arm start-of-run skips BEFORE the load fires them
     m_pending_ludeo_id = id; m_pending_reader = reader;
     m_room_ready = m_player_added = m_applied = false;
@@ -523,6 +542,30 @@ void LudeoManager::Update() {
 - [ ] On Play (`RoomReady`) nothing loads or is written: `Begin`, then unfreeze. The first live frame continues the
       captured moment.
 - [ ] No `PlayerReady` reference anywhere; `ResumeGameRequest` is used only for the mid-play overlay-closed resume (CR-011).
+- [ ] Nothing that waits on a frame runs inside a freeze — the apply under the freeze is synchronous; frame-dependent work runs in the settle with state-mutating systems suppressed (below).
+
+#### Freeze vs suppress — anything that waits on a frame must not run frozen
+
+The freeze around the apply (step 5) assumes the apply is **synchronous** — `RestoreTwoPass` and `RestoreEnvironment`
+finish inside the call. Anything that **waits on a frame** — an async spawn, a physics step, a streamed asset or
+level chunk, a navigation rebuild, a "next tick" callback — **deadlocks under a hard freeze**: the frozen engine never
+produces the frame it is waiting for. It hangs silently rather than crashing: the settle never completes, `OpenRoom` is
+never sent, and `Begin` never fires. The same goes for step 4 — a frozen engine often cannot load a level, which is
+why reaching active gameplay runs with only the input hold on.
+
+So the guard depends on the shape of the work:
+
+- **Synchronous writes** (setters, spawn-and-return, the two passes) → **freeze** them, as in step 5.
+- **Frame-dependent work** → run it in the **settle**, where time runs, and make **suppression** the overwrite
+  guard instead of the freeze: input is already held, and the state-mutating systems that would overwrite the snapshot
+  during that work (spawners, cinematics and scripted start-of-run events — `07 §9.11` — and, while the
+  frame-dependent work runs, AI and behaviour logic) are gated on `IsRestoring()`, which stays `true` until the
+  settle ends. Gating AI here is an addition to `07 §9.11`, needed only for the duration of that work. Extend the settle until that work has finished, bounded like every other restore wait,
+  then **freeze** again as usual.
+
+This is the same rule the core order already encodes — writes that need frames go in the settle or the deferred queue
+(`07 §6`), never in an unfreeze before the apply. Suppression replaces the freeze **only while that work is running**:
+the moment held behind the overlay is still frozen, and `OpenRoom` still waits for the settle.
 
 **→ See:** [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §2.1 (sequence), §2.4 (overlay control notifications) and §7 (wait-for-player)
 
@@ -643,6 +686,7 @@ Before considering integration complete, verify these critical requirements:
 - [ ] Pass 1 creates all objects
 - [ ] Pass 2 restores properties/relationships
 - [ ] Object references resolve correctly
+- [ ] Matched instances (player, singletons, managers that survive a level load) are reset to their baseline before the apply
 
 ### CR-007: All Exit Paths (⚠️ HIGH PRIORITY)
 - [ ] Listed ALL functions that exit gameplay
@@ -650,6 +694,7 @@ Before considering integration complete, verify these critical requirements:
 - [ ] Tested: quit mid-level → Ludeo created
 - [ ] Tested: restart level → Ludeo created
 - [ ] Tested: disconnect → Ludeo created (multiplayer)
+- [ ] Overlay "back to menu" and a validated mid-run `LudeoSelected` both end the active session (`isAbort=true`) and close its room
 
 ### CR-008: Resource Release
 - [ ] `ludeo_ObjectsInfo_Release()` called after use
@@ -666,6 +711,7 @@ Before considering integration complete, verify these critical requirements:
 - [ ] Order: reach active gameplay → **freeze → apply (Pass 1 + Pass 2 + env) → settle ~0.5 s, input off → freeze** → `OpenRoom(ludeoId)` → `AddPlayer`
 - [ ] Before Play, the captured moment is on screen, frozen; on `RoomReady` (Play) only `Begin` → unfreeze
 - [ ] No `PlayerReady`; `ResumeGameRequest` only used for mid-play overlay close (CR-011)
+- [ ] Nothing that waits on a frame runs inside a freeze — it runs in the settle with state-mutating systems suppressed (no silent hang before `OpenRoom`)
 
 ### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)
 - [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation
@@ -679,6 +725,7 @@ Before considering integration complete, verify these critical requirements:
 
 **For lifecycle details:**
 - [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) - Complete callback flow and session management
+- [LAUNCH-AND-READINESS.md](./LAUNCH-AND-READINESS.md) - Games that boot straight into gameplay or launch into a Ludeo: the SDK-readiness gate
 
 **For best practices and additional guidelines:**
 - [03-SDK-FUNDAMENTALS.md](./03-SDK-FUNDAMENTALS.md) - Error handling, return value checking, API patterns

@@ -97,34 +97,41 @@ aggro, alert, hostile, passive, faction
 
 After object tracking is implemented, verify these are covered. These worlds stream and persist
 heavily — apply [open-world-tracking.md](./open-world-tracking.md): track the **loaded neighborhood +
-world state**, scope cell/chunk mutations to what the captured moment needs, not the entire save.
+world state**, scope cell/chunk mutations to what the captured moment needs, not the entire save. Sections are tiered by restoration priority:
+- **CRITICAL** — restore or the replayed moment is visibly wrong.
+- **IMPORTANT** — restore for fidelity; recognizable without it but degraded.
+- **OPTIONAL** — situational/cosmetic; capture only if it affects the specific captured moment.
 
-### Player (CRITICAL)
+> Universal player items (look/aim rotation, armor/shield pool, stance, team) → [common.md](./common.md) §1.
+
+### Player — CRITICAL
 - [ ] Position (vec3), Rotation (quat/vec4)
 - [ ] Health, Hunger, Thirst, Stamina, Temperature (and any survival meter)
 - [ ] Is alive/dead
 - [ ] Equipped tool/weapon (by item/blueprint ID)
+- [ ] Appearance / equipped cosmetics (outfit, skin, armor look — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-appearance replay is visibly wrong
 - [ ] Inventory / hotbar (array of item IDs + counts; never pointers — `06 §4`)
+  - [ ] For ranged weapons: **magazine (loaded) and reserve ammo are distinct quantities** — often the same "quantity" property on different inventory entries; capture both
 - [ ] Unlocked recipes / tech (if it gates the moment)
 
-### Placed structures / world edits
+### Placed structures / world edits — IMPORTANT
 - [ ] Structure/block type + position (by stable cell/chunk + content ID — `open-world-tracking.md §4`)
 - [ ] Health / durability / damage state
 - [ ] Owner / team ID (multiplayer)
 - [ ] Built/destroyed state (destroyed = **state flag**, distinguish from streamed-out — `06 §3.4`)
 
-### Resource nodes
+### Resource nodes — OPTIONAL
 - [ ] Type, position
 - [ ] Remaining yield / depleted state + respawn timer
 
-### Creatures / mobs
+### Creatures / mobs — IMPORTANT
 - [ ] Position, rotation, health
 - [ ] Creature type, AI state (idle, aggro, fleeing)
 - [ ] Tamed/owned state + owner ID
 - [ ] Target (by stable game ID); is alive/dead
 
-### World state (CRITICAL for survival)
+### World state — CRITICAL (for survival)
 - [ ] Game-time, day count, weather, season (a `world_state` object — `open-world-tracking.md §3`)
 
-### Containers
+### Containers — OPTIONAL
 - [ ] Position, contents (array of item IDs + counts), owner ID

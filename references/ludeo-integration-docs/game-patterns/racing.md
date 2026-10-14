@@ -107,9 +107,12 @@ mode, timeTrial, circuit, sprint, elimination, endurance
 
 ## 3. Tracking Checklist
 
-After object tracking is implemented, verify these are covered:
+After object tracking is implemented, verify these are covered. Sections are tiered by restoration priority:
+- **CRITICAL** — restore or the replayed moment is visibly wrong.
+- **IMPORTANT** — restore for fidelity; recognizable without it but degraded.
+- **OPTIONAL** — situational/cosmetic; capture only if it affects the specific captured moment.
 
-### Player Vehicle (CRITICAL)
+### Player Vehicle — CRITICAL
 - [ ] Position (vec3)
 - [ ] Rotation (quat/vec4)
 - [ ] Velocity / speed (vec3 or scalar)
@@ -120,8 +123,9 @@ After object tracking is implemented, verify these are covered:
 - [ ] Boost / nitro charge
 - [ ] Vehicle damage / condition
 - [ ] Fuel / tire state (sim racers)
+- [ ] Appearance / equipped cosmetics (vehicle livery/skin, driver/character cosmetics — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-livery replay is visibly wrong
 
-### Opponents / AI Racers
+### Opponents / AI Racers — IMPORTANT
 - [ ] Position, rotation
 - [ ] Velocity / speed
 - [ ] Current lap number
@@ -131,21 +135,21 @@ After object tracking is implemented, verify these are covered:
 - [ ] AI difficulty / behavior state
 - [ ] Held item (kart racers)
 
-### Race State
+### Race State — CRITICAL
 - [ ] Race phase (countdown, racing, finished)
 - [ ] Total laps
 - [ ] Elapsed race time
 - [ ] Full standings / running order
 - [ ] Active penalties (per racer)
 
-### Items / Pickups (kart racers)
+### Items / Pickups (kart racers) — OPTIONAL
 - [ ] Position
 - [ ] Item type
 - [ ] Is collected / available
 - [ ] Respawn state (if applicable)
 - [ ] Active projectiles (type, owner, position, velocity)
 
-### Track / Environment
+### Track / Environment — OPTIONAL
 - [ ] Track / circuit ID
 - [ ] Checkpoint states (per racer)
 - [ ] Weather / track surface conditions (if affects gameplay)

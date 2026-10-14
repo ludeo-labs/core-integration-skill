@@ -177,6 +177,7 @@ void RegisterNotifications()
 - `OnPauseGameRequestCallback` — **freeze the simulation tick** (not just input). Reuse the game's pause; build a minimal tick-freeze if none. Freezing does not stop the objective timer: in phase 6 this path also reports `PauseLudeo` via the pause primitive (CR-011, `06 §7.3`).
 - `OnResumeGameRequestCallback` — unfreeze the sim (and, from phase 6, report `ResumeLudeo`).
 - `OnBackToMenuRequestCallback` — tear down the current Ludeo gameplay session + room (SDK Session stays alive); navigate to main menu.
+- `OnMuteRequestCallback` (optional) — the request says whether to mute or unmute (the field is in `SessionTypes.h`). Apply it as a **separate mute layer** on the game's master audio, idempotent across repeats. **Don't write it into the player's saved volume settings**, so unmuting restores exactly what the player had. It is session-lifetime like the others: register it once, and don't reset it per Ludeo.
 
 → See `07-RESTORATION-PATTERNS.md` §2.4 for the overlay-control flow in the restoration context, **CR-010** (the restored moment held frozen until Play), and **CR-011** (mid-play overlay pause).
 
@@ -209,6 +210,8 @@ int main()
 ## 5. Ludeo Session Activation
 
 Activate **immediately after initialization** (during game startup, before main menu). **Why:** Receive LudeoSelected notifications, enable SDK overlay/platform features, prepare for gameplay sessions, establish backend connection, hide async latency in startup time.
+
+> **No main menu to hide that latency?** A game that boots straight into gameplay, auto-starts from a fast menu, or launches into a preselected Ludeo has nothing to absorb the async `Activate`. It needs an explicit, bounded **SDK-readiness gate** before its first interactive frame, and an idle "ready" state before any room opens. If the activation traffic in `ludeo_Tick()` stalls the game's own async boot, activation can be deferred. See [LAUNCH-AND-READINESS.md](./LAUNCH-AND-READINESS.md).
 
 **Window Handle (CRITICAL!):** `windowHandle` parameter is **REQUIRED** for video capture and overlay functionality. Provide native window handle for your platform. **This means Session Activation must occur AFTER graphics/window initialization** - the window must exist before you can pass its handle.
 
@@ -448,7 +451,8 @@ void OnRoomOpenedCallback(const LudeoSessionOpenRoomCallbackParams* data)
     room_handle = data->room;
     data_writer = data->dataWriter;  // CRITICAL: Store DataWriter
     
-    AddPlayerToRoom(player_id);  // ← Trigger player adding from HERE
+    // Trigger player adding from HERE — queued, never inline inside the SDK's dispatch (03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { AddPlayerToRoom(player_id); });
 }
 ```
 
@@ -482,8 +486,8 @@ void OnPlayerAddedCallback(const LudeoRoomAddPlayerCallbackParams* data)
     player_added = true;
     
     // For multiplayer: Add remaining players
-    // For single-player: Check if both conditions met to begin gameplay
-    TryBeginGameplaySession();  // ← May trigger gameplay begin from HERE
+    // For single-player: Check if both conditions met to begin gameplay (queued — 03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { TryBeginGameplaySession(); });
 }
 ```
 
@@ -514,8 +518,8 @@ void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams* data)
         // Room is ready
         room_ready = true;
         
-        // Check if player was already added - if both conditions met, begin gameplay
-        TryBeginGameplaySession();  // ← May trigger gameplay begin from HERE
+        // Check if player was already added - if both conditions met, begin gameplay (queued — 03 §8.3)
+        LudeoManager::Instance().QueueOperation([] { TryBeginGameplaySession(); });
     }
 }
 ```
@@ -582,8 +586,9 @@ void OnGameplayEndedCallback(const LudeoGameplaySessionEndCallbackParams* data)
 {
     gameplay_session_active = false;
     
-    // CRITICAL: Remove all players before closing room
-    RemovePlayerFromRoom(player_id);
+    // CRITICAL: Remove all players before closing room — queued, never inline: the SDK is still tearing
+    // down (video encoder) on this tick, and a call issued inside its dispatch can abort() the process (03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { RemovePlayerFromRoom(player_id); });
 }
 ```
 
@@ -614,7 +619,7 @@ void OnPlayerRemovedCallback(const LudeoRoomRemovePlayerCallbackParams* data)
     // For single-player: All players removed, proceed to close room
     
     if (all_players_removed) {
-        CloseRoom();
+        LudeoManager::Instance().QueueOperation([] { CloseRoom(); });   // queued — 03 §8.3
     }
 }
 ```
@@ -695,6 +700,43 @@ On the playback path the platform **withholds `RoomReady` until the viewer press
 
 → Restoration-side wiring of this lifecycle: [07-RESTORATION-PATTERNS.md §2](./07-RESTORATION-PATTERNS.md), `phase 5 · task 2` Steps 3 & 10, `phase 5 · task 3` Steps 2 & 4 (the player-flow/lifecycle half; the two-pass data read-back is `phase 5 · task 4`).
 
+### 6.12 Flow Spines — Creator and Player at a Glance
+
+The two end-to-end sequences on one screen each. They summarize §4–§6.11 and add nothing new. Where a spine and a section disagree, the section (and `07 §2.1` for Player Flow) is right.
+
+**Creator Flow (capture):**
+
+```
+startup   Initialize → Session_Create → AddNotify* (all, once) → Activate ─cb Success─► session active
+             (boot-straight / fast-menu game: readiness gate + idle "ready" state first — LAUNCH-AND-READINESS.md)
+start     level/match starts loading (game code; skipped while IsRestoring())
+             └─ OpenRoom(ludeoId = nullptr) ─cb─► store room + DataWriter → AddPlayer ─cb─► player_added ┐ either
+                RoomReady ─────────────────────────────────────────────────────────────► room_ready   ┘ order
+                   TryBeginGameplaySession() → Begin                                      (CR-009, §6.6)
+play      per-tick attribute writes via the DataWriter · SendAction at each action site (06)
+exit      EVERY exit path (CR-007) → End(isAbort) ─cb─► RemovePlayer ─cb─► Room_Close ─cb─► ready for the next room
+shutdown  End any active gameplay → Session_Release → Shutdown (§7)
+```
+
+**Player Flow (playback)** — the steps are numbered as in `07 §2.1`:
+
+```
+1  LudeoSelected → marshal off the SDK thread → stash candidate id → GetLudeo(id)      touch NOTHING else
+2  GetLudeo cb → VALIDATE: Success · reader populated (07 §2.2.1) · entry identity playable
+                 any "no" → ignore the selection; the running Ludeo / menu is untouched
+3  COMMIT → EndCurrentLudeo FIRST if a Ludeo is playing or still restoring (End(isAbort=true) if Begin ran
+           → RemovePlayer → Close) → SetRestoring(true) → pending id/reader, reset Begin gates + freeze bits,
+           bump restore generation → input HOLD on
+4  REACH ACTIVE GAMEPLAY on the captured level (game's own load path; boot a run at the menu) → native spawn done
+5  FREEZE → SetCurrent → RestoreTwoPass → RestoreEnvironment
+6  SETTLE ~0.5 s, time on, input off (ApplyDeferred on its first tick) → FREEZE → SetRestoring(false)
+7  OpenRoom(ludeoId) → AddPlayer → player_added            moment on screen, frozen, behind the overlay
+8  RoomReady (= the viewer pressed Play) → room_ready → Begin (player_added ∧ room_ready ∧ applied) → UNFREEZE + release input
+play   SendAction fires (scoring); NO state writes for the whole replay (07 §2.3) · overlay → Pause/ResumeGameRequest (CR-011)
+end    backend ends → PauseGameRequest → freeze and wait (NO End)  |  interrupt (validated LudeoSelected,
+       BackToMenuRequest, quit) → End(isAbort=true) → RemovePlayer → Close (§6.11)
+```
+
 ---
 
 ## 7. Session Cleanup and Shutdown
@@ -762,6 +804,15 @@ void GameShutdown()
 ```
 
 ---
+
+### 7.4 Quit Path — There Is No Next Tick
+
+Every teardown step is queued to the next `Tick` (`03 §8.3`) — but when the player quits, there may be no next
+tick, and a queued `RemovePlayer` / `Room_Close` is silently dropped; ending a recording is also asynchronous, so
+shutting down on the line after `End` loses it. On the quit path, drive the teardown to completion before
+`ludeo_Shutdown`: issue `End(isAbort=true)`, then keep pumping the queue and `ludeo_Tick()` in a **bounded** loop
+(a few seconds at most) until `OnRoomClosedCallback` has fired, then release the session and shut down. If the
+bound runs out, log it and shut down anyway — never hang the game's exit.
 
 ## 8. Integration Points Summary
 
@@ -1007,6 +1058,29 @@ if (room_handle != nullptr) {
     return;
 }
 ```
+
+### Common Lifecycle Failures
+
+Symptom → cause → fix. Check this table before debugging deeper; [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md) has the full diagnostics for the rows that point there.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| No Ludeo created for one scenario (quit, restart, back-to-menu) | That exit path never calls `End` | Route **every** exit through one helper (CR-007) |
+| `Begin` never fires or the run records nothing, intermittently | `Begin` is wired to one callback and assumes the other has already fired | Call `TryBeginGameplaySession()` from **both** `OnPlayerAddedCallback` and `OnRoomReadyCallback`, gated on both flags (§6.6, CR-009) |
+| `AddPlayer` / `Begin` fail or no-op | Called from a game event instead of the callback chain | Game code calls only `OpenRoom`; the rest is chained from callbacks (CR-009) |
+| Attribute never records / never restores | `Set*`/`Get*` called outside an `EnterObject`/`LeaveObject` pair | Scope every read and write (CR-002) |
+| First room never records on a boot-straight game; or the cloud machine never reports ready | Creator `OpenRoom` fired at boot, before `Activate` resolved and with no idle "ready" state | Readiness gate + idle state + room only on an explicit trigger ([LAUNCH-AND-READINESS.md](./LAUNCH-AND-READINESS.md)) |
+| Boot hangs on the game's loading screen only with the SDK enabled | Activation traffic processed in `ludeo_Tick()` starves the game's async boot chain | Keep rooms and tracking out of boot; defer `ActivateSession()` if needed ([LAUNCH-AND-READINESS.md](./LAUNCH-AND-READINESS.md) §5) |
+| `InvalidAuth` in the activate callback (implicit auth) | Steam not initialized before `Session_Activate`, or `apiKey` unset | Init Steamworks first (§5 Steam Authentication); set `apiKey` in `ludeo.ini` (`04 §4`) |
+| Restored state is wrong / the game keeps running under the restore | Apply not frozen, unfrozen before the apply, or the level loaded/applied on `RoomReady` | CR-010 order: validate → commit → reach gameplay → freeze → apply → settle → freeze → `OpenRoom` → Play → `Begin` → unfreeze |
+| Restore hangs silently: no crash, no `OpenRoom`, no `Begin` | Work that waits on a frame (async spawn, physics step, streaming) runs inside the freeze — deadlock | Move it into the settle, with state-mutating systems suppressed (CR-010 "Freeze vs suppress") |
+| Player stands at the default spawn with nothing restored | Applied before active gameplay was reached, or the reader was still empty | `07 §2.3`; reader readiness `07 §2.2.1`; [11 §7](./11-TROUBLESHOOTING.md) |
+| Prior run's inventory, HUD, VFX or post-effects show up in the restored moment | Matched instances (player, singletons, managers) were not reset before the apply | Reset to the new-run baseline, then apply (CR-006) |
+| Restores perfectly but the rerun is not a scored replay | Playback room opened with `ludeoId = nullptr` | `OpenRoom(ludeoId)` after the settle (§6.2, §6.11) |
+| Game plays under the overlay | Pause/Resume notifications not registered or handler only blocks input | Register both at session creation; freeze the tick (CR-011) — cloud only, so test via a debug hook locally |
+| Restored Ludeo loads but input is dead | A stale freeze bit or input hold carried over from a previous play | [11 §8](./11-TROUBLESHOOTING.md); reset the bits in `EndCurrentLudeo()` and at the commit |
+| Second Ludeo in one session hangs, opens a second room, or inherits the first one's state | The first play was not torn down at the commit, or an old restore's continuation still ran | `EndCurrentLudeo()` first, new restore only after the close completes; restore generation (CR-010 step 3) |
+| A notification (usually `RoomReady`) never arrives; log shows `unknown event_name` | SDK build too old for the backend | Update the SDK and rebuild clean ([11 §9](./11-TROUBLESHOOTING.md)) |
 
 ---
 

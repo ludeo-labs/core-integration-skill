@@ -22,14 +22,15 @@
 ## 1. The trap: level ≠ content, and load is non-deterministic
 
 A level-based game's level **is** its content — reload it and the same world comes back. A procedural
-game's level is a **container** populated at runtime from data and a random stream. Three consequences
-break the naïve "capture the level id" instinct, and all three must be fixed on the **capture side** —
+game's level is a **container** populated at runtime from data and a random stream. Four consequences
+break the naïve "capture the level id" instinct, and all four must be fixed on the **capture side** —
 *you can't restore what tracking never wrote*:
 
 | Naïve capture | Why it fails on restore |
 |---|---|
 | **Level/scene id only** | Reloading that level loads an **empty/default container**, not the room/chunk/layout the player was in. You can't restore what you can't relocate. |
 | *(even capturing the room/chunk id)* | Loading the room **re-rolls** its content — a fresh random encounter / wave set / layout. The remaining fight won't match what the player faced. Load is **not idempotent** w.r.t. content. |
+| *(room/chunk id captured, content re-roll suppressed)* | The room's **world placement** — origin + rotation — is rolled *independently of which room it is*: an entrance connector aligned to the previous room's exit connector, plus a per-transition offset, typically from an unseeded RNG. The room lands at a **different world transform** than at capture, so every **absolute** entity position you stored (player, enemies, boss, hazards, even untracked props parented to the room) now points into the void. Reproducing *which* room is **not** reproducing *where it sits*. |
 | *(room/chunk, but nothing about progression)* | The reload **resets run-scaling counters** (combat level → 0, depth, difficulty tier). Anything spawned *after* the restore point is mis-scaled. |
 
 The reframe: a Ludeo captures **one assembled moment**. To rebuild it you must capture the **generation
@@ -67,16 +68,23 @@ record it in `OBJECT_TRACKING.md`.
   captured moment is **one container**. Capture the active room + sub-roll + cursor (§3); restore rebuilds
   that one room (`07 §8` + §5). The rooms you left don't exist anymore, so there's nothing to reconstruct
   — the player's accumulated run state (upgrades, deck) rides along as normal player-entity attributes
-  (`06`/`07`). **`07 §8` is sufficient.**
+  (`06`/`07`). **`07 §8` is sufficient — *but only if the active room is placed at a deterministic
+  transform*** (e.g. always instantiated at the origin). If the room's **world placement** is itself rolled
+  — entrance/exit connectors aligned at random, a per-transition offset — then even one live room lands at
+  a **different world transform** each run, and the absolute entity positions you captured restore into the
+  void. Then you must also capture the room's **resolved placement** (§3, the Placement input) and replay
+  it (§5), exactly as the multi-room case does. The tell is partial success: a capture in the run's
+  *first* room (still at its origin) restores perfectly while any deeper room breaks.
 - **Several rooms live or navigable** — a connected floor generated up-front, back-tracking through
   cleared rooms, adjacent rooms streamed in, or line-of-sight across rooms. Now "the world" is a **set of
   rooms in a layout**, not one container, and previously-visited rooms carry **mutation deltas** (chests
   opened, enemies dead, doors unlocked) the replay must show. This is **procedural ∩ open-world**;
   `07 §8`'s singleton-"world"-object restore is **not** sufficient. Additionally load
   [`open-world-tracking.md`](./open-world-tracking.md) and capture, beyond §3:
-  - the **layout / connectivity** — the full set of reachable room ids + how they connect (or a
-    whole-layout seed, if §4 says seed-capture is safe), so restore reproduces the navigable graph, not
-    just the current room;
+  - the **layout / connectivity + placement** — the full set of reachable room ids, how they connect, **and
+    each room's resolved world transform** (§3, the Placement input; or a whole-layout seed, if §4 says
+    seed-capture is safe), so restore reproduces the navigable graph **at the right world coordinates**,
+    not just the current room;
   - **per-room mutation deltas** as a `ChunkDelta`/`RoomDelta` object type keyed by room id + content id
     (`open-world-tracking.md §3`), **scoped to the reachable/relevant set, not the whole run**
     (`open-world-tracking.md §5`);
@@ -92,7 +100,8 @@ reproduce the assembled moment. This is the `07 §8` "world" object, specialized
 and it's the source the restore flow reads in its **read-entry-identity** step (`07 §2`). Capture **stable
 game ids / values** — never pointers, raw handles, pool indices, or level/scene indices (`06 §4.2`; a
 Ludeo replays in a **different process/build** where in-memory references and even load order are
-meaningless). Four input kinds:
+meaningless). Five input kinds, in three layers — **content** (selection + sub-roll), **progression**
+(cursor + scaling), and **placement**:
 
 | Input kind | What it is | Examples | Capture as |
 |---|---|---|---|
@@ -100,20 +109,43 @@ meaningless). Four input kinds:
 | **Sub-roll identity** | the nested rolls the loader **re-rolls** on load | encounter id, enemy-wave-set id, modifier/affix ids | stable asset id (`encounter_id`) |
 | **Progress cursor** | *how far into* the assembled segment | wave index, room/floor depth, step count | `int` (`wave_index`, `depth`) |
 | **Scaling counter** | run-scaling the reload resets | combat level, difficulty tier, ascension, heat | `int`/`float` (`combat_level`) |
+| **Placement / spatial frame** | *where* the assembled content physically sits — the world transform the generator rolls **independently of** which content it picked (connector alignment + per-transition offset) | each room's resolved world position + rotation; the connector indices it rolled | `vec3` + `vec4` (quat) per room (`room_transform`), keyed by room index **and** the room's persistent id (to disambiguate a slot replaced mid-run) |
+
+> **Why Placement is its own input — and the cheapest fix.** Selection / sub-roll / cursor reproduce
+> *which* content and *how far in*; **none reproduces *where the content sits*.** When the generator
+> computes each room's world transform from random connector picks + offsets (not a fixed origin), the room
+> lands somewhere new every run — and **every absolute entity position downstream** restores into the void.
+> This is a **second, independent layer of nondeterminism**: suppressing the *layout* re-roll (which rooms,
+> in what order) does **not** suppress it. Capture the **resolved placement** and replay it at the
+> placement seam (§5) and the whole downstream set becomes valid again **at the source** — zero changes to
+> per-entity capture/restore. The alternative — storing every entity's position *relative to its room
+> frame* — works only when each entity belongs to one unambiguous active-room frame (it breaks the moment a
+> captured moment spans several simultaneously-live rooms) and forces per-entity frame attribution; prefer
+> fixing placement at the source.
 
 Verify chosen identifiers are **unique among the content a real run can reach** (asset/blueprint ids
 usually are; list indices and pointers are not). Capture them with the same `LUDEO_CAPTURE_*` discipline as
 the player (`06 §3`) — cheap, diff-sent. They are read back in Pass-2 by name and, crucially, in the
 restore flow's read-entry-identity step *before* reaching active gameplay (`07 §2.2`).
 
-> These four kinds describe the **single active container** (§2.1). If several rooms are live/navigable,
-> this `RunMetadata` is only the *active* room's inputs — add the **layout/connectivity** and per-room
-> `RoomDelta` object types from §2.1 as well, or back-tracking restores into empty rooms.
+> These kinds describe the **single active container** (§2.1). If several rooms are live/navigable,
+> this `RunMetadata` is only the *active* room's inputs — add the **layout/connectivity + placement** and
+> per-room `RoomDelta` object types from §2.1 as well, or back-tracking restores into empty rooms.
 
 ## 4. Decide: capture the seed, or the resolved selection?
 
 This is the [seed-vs-stored-layout](https://www.gamedeveloper.com/design/2d-procedural-generation-in-unity-with-scriptableobjects)
-trade-off, restated for Ludeo. Pick per game and record it in `OBJECT_TRACKING.md`:
+trade-off, restated for Ludeo, and applied **per stream**. Pick per game and record it in `OBJECT_TRACKING.md`.
+
+> **First, inventory the generation streams — don't assume there's only one.** A procedural load usually pulls from
+> **several independent** RNG/seed sources, and reproducing one while ignoring another silently restores a
+> *different* moment. Enumerate every random/seed/roll the load path consumes — **by reading the generator, not just
+> grepping; an empty grep is not a closed list** — and classify each against the §3 input kinds: **content**
+> (selection / sub-roll), **placement** (easy to miss — keyed off *where* a segment lands, not *which* one),
+> **scaling** (run counters), or **cosmetic** (purely visual, safe to let roll live). Every non-cosmetic stream must
+> be captured-and-replayed or provably reproduced; the set is done only when it is *closed*.
+
+The two options, per stream:
 
 - **Resolved-selection** *(default for Ludeo)* — capture the **outcome** ids (room id, encounter id, wave
   index, combat level), i.e. the result of the rolls. Restore re-drives the generator *to those exact ids*
@@ -143,13 +175,30 @@ restore:
    to suppress pre-match sequences (`07 §9.11`): while restoring, the generator's random selection returns
    the captured id instead of rolling. Loading the level alone is **not** restoration here — it yields the
    empty container (`07 §9.10`/§9.12 are the level-based cousins of this failure).
+
+   > **Suppress the *placement* roll too, not just the content roll.** At the seam where the room's world
+   > transform is computed (connector alignment + per-transition offset), feed back the captured
+   > `room_transform` / connector indices (§3 Placement) under the same `IsRestoring()` gate instead of
+   > rolling. Reproducing *which* room without reproducing *where it lands* leaves the room at a fresh
+   > world transform, and the absolute entity positions you restore via the two-pass land in the void (§1).
+   > Once placement is deterministic, the two-pass entity restore needs no change.
 2. **Restore the scaling counter before any post-restore spawns.** Set combat level / depth / tier from
    `RunMetadata` *before* the world spawns anything, or waves after the restore point mis-scale (the §1
-   third failure).
+   scaling failure). **If the segment's load-time setup reads it** (common — the builder scales as it
+   spawns), "before any spawn" means **before the level/room loads**, not in the apply: arm it at the
+   commit (`07 §2.1` step 3, alongside `SetRestoring(true)`), from the already-cached `RunMetadata` read at
+   validation, so it is in place when the load-time spawns run.
 3. **Order: read inputs → assemble container → entities → environment.** The generation inputs are read
    first (read-then-load, `07 §2.2`) and drive `reach_active_gameplay`; entities then come back via the
    normal two-pass (`07 §3`); world/environment flags last (`07 §8.2`). The progress cursor (wave index)
    positions the encounter so remaining waves match.
+4. **Position the cursor — don't let entering the encounter *re-spawn* the restored wave.** "Remaining waves match"
+   means the spawner may **advance** to the next wave from the restored cursor. But a trigger that fires when
+   combat / the encounter (re)starts often **repopulates the current wave wholesale**, stacking a fresh wave on the
+   enemies you just restored. Restore the encounter's **already-started** state so that trigger sees a running encounter and
+   doesn't repopulate (`07 §11.1`); if the game has no such state, gate the re-populate **trigger** — never the spawn
+   primitive Pass 1 uses — and let genuine advancement through. Restore the live wave as a snapshot; let only genuine
+   *advancement* run.
 
 > **Where you inject depends on *when* the generator rolls.** If it rolls **lazily per room-entry**
 > (next-room-at-portal), override each entry to the captured id. If it generates the **whole floor
