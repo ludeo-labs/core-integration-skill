@@ -20,11 +20,14 @@ file records **where you are, what was decided, and what the user told you**, an
     "3d": { "status": "in_progress", "startedAt": "2026-10-15", "note": "Question 3 answered; LudeoManager.h written" },
     "3e": { "status": "not_started" }, "3f": { "status": "not_started" },
     "4":  { "status": "not_started" },
+    "5a": { "status": "not_started" },
     "5b": { "status": "not_started" }, "5c": { "status": "not_started" },
     "5d": { "status": "not_started" }, "5e": { "status": "not_started" },
     "6a": { "status": "not_started" }, "6b": { "status": "not_started" },
     "7":  { "status": "not_started" }
   },
+
+  "wave": { "current": 1, "plan": [1, 2, 3], "green": [], "deferred": [], "reopened": null },
 
   "sdk": {
     "source": "release repo | user-supplied",
@@ -83,13 +86,21 @@ file records **where you are, what was decided, and what the user told you**, an
 - **`schemaVersion`** — `1`. Bump only with a migration note here.
 - **`branch`** — the integration branch (phase 1 Step 0a). The state file lives on it; a session that starts on another
   branch finds the integration through this name.
-- **`current`** — set when a step starts; the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5b`–`5e`,
+- **`current`** — set when a step starts; the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5a`–`5e`,
   `6a`, `6b`, `7` (the prefix of the phase file in `references/`). Steps run in `SKILL.md`'s table order.
 - **`steps.<id>.status`** — `not_started` · `in_progress` (set when the step's work begins) · `completed` (set only
   after the step's exit gate passed — rebuild + run where the step edits source) · `skipped` (the user explicitly
   skipped it; record why in `decisions`; resume treats it like `completed`). **`steps.<id>.note`** — free text: where
   inside the step work stopped (e.g. "Step 0c done — waiting for the session restart"), so a resumed session doesn't
   redo or skip a sub-step.
+- **`wave`** — phase 5's wave loop (`5-tracking-restore-orchestrator.md`): `plan` from `OBJECT_TRACKING.md` →
+  `## Wave Rollout`, `current` the wave in progress, `green` the waves whose restore gate passed, `deferred` any the
+  user explicitly deferred. Steps `5a`–`5e` hold the status **for the current wave**. When a wave's gate 4 passes,
+  add it to `green`; **only when the user confirms widening** increment `current` and reset `5a`, `5b`, `5c`, `5e` to
+  `not_started` (`5d` runs once, in wave 1). After the last wave, leave the statuses `completed`. **Phase 5 is done
+  only when every `plan` entry is in `green` or `deferred`** — phase 6 may start after wave 1, but phase 7 may not
+  start while a wave is outstanding. A guardrail re-open of an earlier wave M: set `reopened: M`, remove M from
+  `green`, record why in `decisions`, re-run its tasks, then clear `reopened` and resume `current`.
 - **`sdk.versionLine`** — the SDK's own version line from the first SDK-enabled run (phase 1 Step 10) — the first
   thing to compare when a notification never fires (`ludeo-integration-docs/11-TROUBLESHOOTING.md` §9).
 - **`ludeoPlatform`** — everything [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) says to record. `isDefault` and
@@ -120,7 +131,8 @@ resuming. Code-only steps leave no plan file, so look for the code they write:
 | `3d` | `LudeoManager.h/.cpp`, `LudeoConfig.cpp`, `ludeo.ini`, the hooks in game code |
 | `3e` | a clean build with the SDK on (ask, or build it) |
 | `3f` | `GAME_ANALYSIS_SAVE_SYSTEM.md`, `CODE_MAP.json → save_system.group` |
-| `4` | `OBJECT_TRACKING.md` (approved) |
+| `4` | `OBJECT_TRACKING.md` with `## Object Type Census` + `## Wave Rollout` (approved) — an older plan without them predates waves: treat it as one wave and offer to run phase 4 Part A |
+| `5a` | `## Entity: … (wave: N)` blocks for the current wave |
 | `5b` | `LudeoStateAdapter`, `LudeoCaptureMacros.h`, `LUDEO_CAPTURE_*` calls in game code |
 | `5c` | `RESTORATION_PLAN.md` (approved) |
 | `5d` | a `LudeoSelected` handler, `ApplyHeld`, `EndCurrentLudeo` |

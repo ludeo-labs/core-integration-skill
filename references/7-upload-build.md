@@ -23,6 +23,8 @@ it passes, the build is live in that environment. An uploaded build that is not 
 
 - [ ] **Phase 6 complete** — lifecycle, tracking & restore proven, actions wired, and the game builds and
       runs with `LUDEO_SDK_ENABLED=1`.
+- [ ] **Every phase-5 wave green or deferred** — `integration.json → wave.plan` has no outstanding entry. If one is,
+      go back to `5-tracking-restore-orchestrator.md` first.
 - [ ] A **Release build** of the game (Release configuration, Release SDK binary — the release-build
       guard in `04 §2`, layer 1). Unlike an editor-driven engine, you can run this build yourself;
       still **confirm the build command and configuration with the user** before running it.

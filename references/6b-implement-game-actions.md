@@ -282,8 +282,8 @@ log; only running the game needs the integrator:
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
    project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 3 · task 5` and read the build log.
-2. **Run the game and confirm it still runs** — enter gameplay and verify `SendAction` log lines appear
-   with no SDK errors or crashes. Make the run **pause once and enter a non-ludeoable area once** (if the game has one), so
+2. **Run the game in both flows** — capture a session (Creator Flow), then replay a Ludeo (Player Flow) — and
+   verify each action's `SendAction` log line appears **in both**, with no SDK errors or crashes. Make the run **pause once and enter a non-ludeoable area once** (if the game has one), so
    `PauseLudeo`/`ResumeLudeo` and `StartNoneLudeable`/`StopNoneLudeable` are sent and Studio Lab can list them.
 
 The agent verifies the build itself — show the build command and its result. If it cannot build here
@@ -293,5 +293,6 @@ that's their call. **Do not offer to advance until the build passes and the user
 review any skipped low-confidence actions manually before moving on.
 
 Once they confirm, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
-actions it needs. Then the integration work is done. Run `phase 7` (`7-upload-build.md`) to verify the
-Release build and publish it to the Ludeo platform.
+actions it needs. Then hand back to `6-actions-orchestrator.md`: if phase 5 still has waves outstanding it
+returns there; once every wave is green or deferred, phase 7 (`7-upload-build.md`) verifies the Release build and
+publishes it.

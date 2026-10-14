@@ -2,6 +2,8 @@
 
 > **Stage:** State Restoration — Player-Flow Implementation (the inverse of `phase 3 · task 4`'s session lifecycle)
 > **Prerequisite:** `5c-plan-state-restoration.md` completed and `RESTORATION_PLAN.md` approved
+> **Runs once, in wave 1**, dispatched by [`5-tracking-restore-orchestrator.md`](5-tracking-restore-orchestrator.md). The
+> flow is moment-agnostic; later waves only grow capture and the read-back.
 > **Inputs:** `RESTORATION_PLAN.md`, `CODE_MAP.json`, `SDK_INTEGRATION_POINTS.json`
 > **Output:** `LudeoSelected` handler that **validates before it disturbs anything** (`GetLudeo` + reader-readiness + entry-identity check), the commit (teardown first, then `SetRestoring` and the input hold), reach-active-gameplay on the captured level, the **held apply + settle** (CR-010), `OpenRoom(ludeoId)` after the settle, `RoomReady → Begin → unfreeze`, overlay pause/resume (CR-011), `EndCurrentLudeo()` reset, launch-arg local trigger. The apply **calls** `RestoreTwoPass`/`RestoreEnvironment` — which are **stubs here**; `phase 5 · task 4` fills them.
 

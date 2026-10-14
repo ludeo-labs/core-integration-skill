@@ -38,7 +38,7 @@ doesn't belong here. Record every answer in `ludeo-integration-plan/integration.
              "hasBosses": false }
 ```
 
-**→ Feeds:** `phase 4` Step 3 and `phase 6 · task 1` Step 2 (which `game-patterns/` files to load, instead of a web
+**→ Feeds:** `phase 4` Step A3 and `phase 6 · task 1` Step 2 (which `game-patterns/` files to load, instead of a web
 search; `hasBosses` → `game-patterns/bosses.md`); `phase 6 · task 1` / `task 2` (the key actions are mapped, and goals
 are built on them); `phase 4`'s census (what the moment needs).
 
