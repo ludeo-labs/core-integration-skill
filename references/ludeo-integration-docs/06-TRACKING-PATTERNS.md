@@ -16,15 +16,17 @@
 
 This file covers the full object-tracking surface. You rarely need to read it end-to-end — most skills point you at a specific section. Jump to the one that matches your current task:
 
+- **Planning the rollout — census, load-bearing types, waves?** → §1.5 Wave Rollout, Census, and Load-Bearing Types
+- **Capturing an enum / type code / content id?** → §1.6 Readable Labels for Opaque Values
 - **Classifying the game's object-handling style before writing code?** → §2 Object Handling Patterns in the Codebase
-- **Writing the register / update / unregister SDK calls?** → §3 Object Lifecycle Pattern
+- **Writing the register / update / unregister SDK calls?** → §3 Object Lifecycle Pattern (an object that dies mid-run → §3.5 Terminal State)
 - **Handling relationships (owner, parent, target) across capture/restore?** → §4 Identity and Reference Mapping
 - **Plugging into a central manager or factory?** → §5 Manager and Factory Integration
 - **Registering everything that already exists when gameplay begins?** → §6 Batch Registration
 - **Discrete events (kills, pickups, jumps, objectives)?** → §7 Ludeo Actions
 - **Suspending tracking during cutscenes / menus / tutorials?** → §8 Tracking State Management
-- **Deciding what to track at all?** → §9 What to Track — Decision Guide
-- **Per-object-type reference snippets (player, enemy, weapon, door, projectile)?** → §10 Common Patterns by Object Type
+- **Deciding what to track at all?** → §9 What to Track — Decision Guide (every field's disposition → §9.6; attacks in flight → §9.7)
+- **Per-object-type reference snippets (player, enemy, weapon, door, projectile, time-base, camera)?** → §10 Common Patterns by Object Type
 - **Performance cost or tuning?** → §11 Performance Considerations
 - **Self-check before moving on?** → §12 Validation Checklist
 
@@ -34,16 +36,16 @@ A skill asking for "object tracking implementation" typically needs §2, §3, §
 
 ## Table of Contents
 
-1. [Tracking Strategy Overview](#1-tracking-strategy-overview)
+1. [Tracking Strategy Overview](#1-tracking-strategy-overview) — incl. §1.5 wave rollout & census, §1.6 readable labels
 2. [Object Handling Patterns in the Codebase](#2-object-handling-patterns-in-the-codebase)
-3. [Object Lifecycle Pattern](#3-object-lifecycle-pattern)
+3. [Object Lifecycle Pattern](#3-object-lifecycle-pattern) — incl. §3.5 terminal state
 4. [Identity and Reference Mapping](#4-identity-and-reference-mapping)
 5. [Manager and Factory Integration](#5-manager-and-factory-integration)
 6. [Batch Registration](#6-batch-registration)
 7. [Ludeo Actions (Discrete Events)](#7-ludeo-actions-discrete-events)
 8. [Tracking State Management](#8-tracking-state-management)
-9. [What to Track — Decision Guide](#9-what-to-track--decision-guide)
-10. [Common Patterns by Object Type](#10-common-patterns-by-object-type)
+9. [What to Track — Decision Guide](#9-what-to-track--decision-guide) — incl. §9.6 per-field disposition gate, §9.7 in-flight attacks
+10. [Common Patterns by Object Type](#10-common-patterns-by-object-type) — incl. §10.6 time-base, §10.7 camera / viewpoint
 11. [Performance Considerations](#11-performance-considerations)
 12. [Validation Checklist](#12-validation-checklist)
 
@@ -59,19 +61,21 @@ The Ludeo SDK exists so the player sees a captured moment played back **perfectl
 
 **Do not ask the user "do you want full state tracking?"** — that's the SDK's defining purpose, not a scoping choice. Scope questions go the other way (*"is this entity / this property part of the complete picture?"*) and are answered by `§9` and the genre checklists, not by negotiation.
 
-**Legitimate iterative rollout (large/complex games only):** instead of capturing every entity in one pass, an integration can stage coverage in waves — start with the most critical state (player + primary entities) to get a working capture/replay loop end-to-end, then expand to full coverage in subsequent passes. That's a **staging strategy**, not a partial destination. Record it in `OBJECT_TRACKING.md` as "covered now" vs "planned for next wave" so the iterative path is explicit and the end goal (full reconstruction) is unchanged. The agent doesn't need permission to use this rollout — it's a planning decision, not a fidelity decision. When in doubt, track it.
+**Iterative rollout in waves:** instead of capturing every entity in one pass, stage coverage in waves — prove the capture/replay round-trip on the smallest coherent set first, then widen to full coverage. That's a **staging strategy**, not a partial destination: record it in `OBJECT_TRACKING.md` as "covered now" vs "planned for wave N" so the iterative path is explicit and the end goal (full reconstruction) is unchanged. The agent doesn't need permission to use this rollout — it's a planning decision, not a fidelity decision. The census, the load-bearing flag, and the wave rules are in §1.5. When in doubt, track it.
 
 ### 1.2 What Gets Tracked
 
 | Category | Examples | Priority |
 |----------|----------|----------|
 | **Player Entities** | Player character, stats, inventory, position | CRITICAL |
+| **Camera / Viewpoint** | Look pitch/yaw, orbit distance, free-look angle, zoom | **CRITICAL when the view is independently controllable** (free-look, manual orbit, aim, zoom) — the replay must open on that exact view. Skip a **fixed** camera (a constant, §9.3) and a follow-cam **fully derived** from restored player state (§10.7) |
 | **NPCs/Enemies** | AI entities, health, state, position | CRITICAL |
 | **Interactive Objects** | Pickups, doors, switches, vehicles | CRITICAL |
-| **Projectiles** | Bullets, grenades, spells (if persistent) | IMPORTANT |
-| **Environment State** | Destructible objects, lighting, weather | IMPORTANT |
+| **Time-Base / Continuity** | Game/session clock, music position, scheduler/beat index, active timers & cooldowns (as **remaining** time), in-progress sequence/wave index | **CRITICAL when the moment is time-driven** (rhythm, timed, scheduler-driven games — without it the replay restarts the clock); otherwise IMPORTANT (§10.6) |
+| **Projectiles** | Bullets, grenades, spells (if persistent) | IMPORTANT — in flight at capture is a later wave (§9.7) |
+| **Environment State** | Destructible objects, lighting, weather, **music / soundtrack track id** (*which* track is playing — restore re-starts it) | IMPORTANT |
 | **UI State** | HUD mode, active overlays (if affects experience) | OPTIONAL |
-| **Audio State** | Music state, combat intensity (if affects experience) | OPTIONAL |
+| **Audio State** | Music **intensity** / combat mix layer (if affects experience) — not *which* track (environment) nor its position (time-base) | OPTIONAL |
 
 ### 1.3 Tracking vs Actions
 
@@ -101,6 +105,35 @@ The SDK can store and reconstruct state two ways:
 When neither holds, use attributes and move on — do **not** prompt the user per entity. When a blob *is* warranted under (2), note the entity and the specific reason in the plan's Open Questions / Notes so the human reviewer sees the rationale; you don't need a live answer to proceed. Prefer the narrowest blob possible (one sub-object), never a whole-world blob, when a blob is unavoidable.
 
 > Note: this is distinct from how the *game's own* save system serializes state (see `02F-RESEARCH-SAVE-SYSTEM.md`). A game that saves itself as a JSON/binary blob can — and by default should — still be tracked into Ludeo as discrete attributes.
+
+### 1.5 Wave Rollout, Census, and Load-Bearing Types
+
+The **destination** is always full reconstruction (§1.1); you **reach it in waves**, proving the capture → restore round-trip on a small set before widening. This is *delivery order*, not a fidelity compromise — everything still gets tracked, just not all at once. Phase 5's wave loop runs on this model; the concepts are:
+
+- **Census once, up front.** Before writing the first wave's capture code, enumerate **every** candidate entity type (and, per type, its candidate fields) — shallow enough for a real human review, complete enough that no subsystem goes unseen. Each type gets a wave number. A type that isn't in the census can't be scheduled, so it silently never gets tracked.
+- **Flag the load-bearing types.** A type is **load-bearing** when the restore can't stand up without it: the world/session entry identity (which level/run to reach — `07 §2.2`), the player, the time-base singleton when the moment is time-driven (§10.6), and the few collections the moment is *visibly wrong* without (the enemies in the fight, the doors that gate the route). Load-bearing types are **never deferred** — they go in the earliest wave.
+- **Wave 1 = the restorable spine + the must-have set.** Entry identity + player + time-base + the load-bearing collections: the smallest set that produces a *coherent* replay. Everything else — enrichment, in-flight attacks (§9.7), cosmetic environment — is assigned a later wave with a reason.
+- **Per wave: scope → capture → restore → verify**, widening only after that wave's restore checks pass.
+- **Widen for breadth, never to backfill.** If a later wave reveals state an *already-verified* wave needed to read correctly, that is a miss in the **earlier** wave — fix it there and re-verify it; don't carry load-bearing state forward as "enrichment." This is why the census flags load-bearing types and forbids deferring them.
+
+Per-field, the census ends in the disposition gate (§9.6): every field is captured, deferred to a named wave, or excluded with a reason.
+
+### 1.6 Readable Labels for Opaque Values
+
+An attribute whose value is meaningless on its own — an enum, a type/state code, a content or asset id — is opaque to everyone who reads it downstream. `enemy_type = 3` tells a human, an objective author, or a Studio Lab session nothing; the meaning lives in a C++ enum declaration that never reaches the platform. So **write a companion string attribute named `<attr>_name` holding the human-readable label, at the same capture site as the numeric attribute** (match the game's key style — `EnemyTypeName` in a camelCase schema):
+
+```cpp
+// enemy_type changes only on spawn; ai_state changes in SetAiState()
+LUDEO_CAPTURE_INT32(this, "enemy", "enemy_type", (int32_t)m_type);          // restore keys off THIS
+LUDEO_CAPTURE_STRING(this, "enemy", "enemy_type_name", kEnemyTypeNames[(size_t)m_type]);  // label, never read back
+```
+
+- **The numeric attribute stays.** The label is additive, never a replacement.
+- **Restore never reads the label.** Identity, matching, and reconstruction key off the integer / stable ID (§4). A `*_name` attribute is for humans and platform tooling (debugging, Studio Lab, objectives, highlights) — reading one back in restoration makes the label a second source of truth that breaks the moment someone renames an enum member.
+- **Don't label already-readable values.** No `position_name`, `health_name`, `is_dead_name` — booleans, scalars, and vectors read fine as-is. Labels are for opaque discriminators only.
+- **Write it where the number is written.** Same setter / same capture site, so the label changes exactly when the value does and costs nothing extra. Never split "value now, label later."
+- **Resolve the string from a table, not per call.** C++ has no built-in enum-to-string: index a `static const char* const kNames[]` table, or the game's own display-name table — never a hand-written `switch` that drifts from the enum, and never `std::string` formatting in a per-tick capture (§11).
+- **A label-only rename degrades readability of already-captured Ludeos rather than breaking their restore** — precisely because restore ignores it. It is still a schema change: record it in `OBJECT_TRACKING.md`.
 
 ---
 
@@ -590,6 +623,19 @@ private:
 > streamed-out object isn't dead, so unregistering it would drop it from the replay. Gate
 > `UnregisterFromLudeo` on a real removal signal (death/consume/destroy), not on the raw destructor /
 > pool release alone. See [`game-patterns/open-world-tracking.md`](game-patterns/open-world-tracking.md) §2 (presence ≠ existence).
+
+### 3.5 Terminal State — Drop It or Keep a Tombstone
+
+When an object dies, is destroyed, or is consumed mid-run, the question is **not** "did it end?" — it's **"does the restored world still need this object?"** Restoration rebuilds a snapshot (`07 §1`), so an object earns its `LudeoObjectId` only if it must appear in that snapshot. Two outcomes:
+
+- **Gone from the reconstructed world → unregister (drop).** Call `UnregisterFromLudeo()`; the object is simply absent at restore. This includes the case where the game **replaces** it with a *different* tracked object that carries the visible residue — a killed enemy swapped for a corpse/loot container: track the **replacement**, drop the enemy. Keeping both would double-represent something the game itself never shows twice.
+- **Still in the reconstructed world, now terminal → keep it as a tombstone.** The object persists into the snapshot in an ended condition — rubble a destructible leaves in place, a consumed pickup still showing "empty", a ragdoll that *is* the same persistent object. Don't unregister; capture the terminal flag (`is_destroyed` / `is_consumed` / `is_dead`) as one more attribute, and restoration rebuilds it in that state. This is the §9.4 "'Destroyed' is a state, not a destruction event" case — it applies precisely when nothing else represents the ended thing.
+
+The two are answers to the same reconstruction-relevance question, not conflicting rules. Three guards:
+
+- **Never confuse with stream-out** (box above): a streamed-out object is still in the world — neither drop it nor flag it terminal.
+- **A dropped object must not be referenced by a survivor.** If a tracked object captured the dropped object's stable ID (owner / target — §4.4), clear or repoint that reference when you drop, or restoration's ID-map lookup fails (`07 §3.3`).
+- **Manager/serializer sweeps drop automatically** (the ID leaves the swept set). To keep a tombstone there, capture the terminal flag on the final pre-removal sweep — and only when the game doesn't already represent the ending with a replacement object.
 
 ---
 
@@ -1267,15 +1313,18 @@ void CutsceneManager::OnCutsceneComplete()
 
 ### 9.1 The principle behind the rule
 
-**Rule of thumb: track every object whose state change a viewer would notice, or that another tracked object depends on.**
+**Rule of thumb: track every object whose state change a viewer would notice, whose state changes how the run plays forward, or that another tracked object depends on.**
 
-The goal of a Ludeo replay is that the viewer sees the same gameplay the capturing player saw. If something visible changed (a door opened, an enemy died, a crate exploded), the replay must reflect it. If an invisible thing changed but influenced a visible thing — say, an AI's targeting state decides which player it shoots at — that change matters too. Anything that satisfies neither criterion can be skipped.
+The goal of a Ludeo replay is that the viewer sees the same gameplay the capturing player saw — and then **plays on** from it. If something visible changed (a door opened, an enemy died, a crate exploded), the replay must reflect it. If an invisible thing changed but influenced a visible thing — say, an AI's targeting state decides which player it shoots at — that change matters too. And because the Ludeo is a *playable* reconstruction, so does **invisible forward-play state**: things not on screen at frame 1 that govern what happens next — character stats and unlocked skills, cooldowns, quest/world flags, reputation, hidden inventory, the time base (§10.6). Anything that satisfies none of these criteria can be skipped.
 
-This rule has three failure modes you should recognize:
+This rule has four failure modes you should recognize:
 
 1. **Over-tracking** is cheap. The worst case is a slightly larger capture and some SDK overhead. It does not break the replay.
 2. **Under-tracking visible state** produces a loudly broken replay: objects missing, doors stuck closed, enemies in the wrong place. Easy to catch in QA.
 3. **Under-tracking derived state** produces a subtly broken replay: an enemy seems to target the wrong player, physics drifts, AI state resets feel arbitrary. These are the ones that slip through testing.
+4. **Under-tracking invisible forward-play state** produces a replay that *looks* right on frame 1 and passes a "does it look right" restore check, then diverges as it plays (a skill is missing, a cooldown is reset, a quest flag is lost). The costliest miss, because the visual check green-lights it.
+
+> **Visibility decides priority (which wave), never inclusion.** Invisible forward-play state is in scope; if it isn't load-bearing for the current wave it is **deferred to a later wave with a reason** (§1.5), not dropped. Prove inclusion structurally, not by eye — the per-field disposition gate (§9.6) is what catches failure mode 4.
 
 **When in doubt, track. The cost of over-tracking is measurable; the cost of under-tracking is a silently wrong replay.**
 
@@ -1301,7 +1350,7 @@ If you're unsure which branch applies, track it. The cost is small.
 
 For each candidate property, evaluate in order:
 
-1. **Does its value change during gameplay?** If not, skip — it's a constant, no capture needed.
+1. **Does its value change during gameplay?** If not, skip — it's a constant, no capture needed — **unless a viewer can see it and it was chosen before the captured moment** (the constant-but-visible carve-out): equipped outfit / skin / cosmetics, loadout, character model or color variant. It never changes mid-run, yet it defines how the moment *looks* — the player rendered in the default skin instead of the outfit they had on is a visibly wrong replay. Capture it as content/item IDs or enums (with `_name` labels, §1.6). If restoration resets a persistent player to defaults before applying captured fields, the miss gets worse: an uncaptured outfit is actively reset, not merely absent.
 2. **Can a viewer or another tracked object's logic notice the change?** If not, skip.
 3. **Is it derivable from other tracked state?** If yes (e.g., world position is `parent.position + local_offset`), skip — but only if restoration code will actually do the derivation.
 4. **Does the value carry meaning across sessions?** A raw pointer, memory address, or allocator slot index does not — use a stable game ID instead (see §4).
@@ -1316,19 +1365,20 @@ These tables are *examples of the decision applied to typical games*, not a rubb
 
 | Object type | Typical answer | Why | Caveats — when the typical answer is wrong |
 |---|---|---|---|
-| Player character | Track | Visible, central | Split-screen / multi-player games must track all players |
+| Player character | Track | Visible, central | Split-screen / multi-player games must track all players. Universal baseline fields: §10.1 |
+| Camera / view rig | Track its **control state** (§10.7) | The replay must open on the captured view | **Only when the view is independently controllable.** Skip a fixed camera (a constant) or a follow-cam fully derived from restored player state |
 | AI enemy / NPC | Track | Visible, affects gameplay | Pooled enemies: register on pool pullout, not pool construction (§2.4) |
 | AI perception / target state (property) | Track | Drives visible behavior | Debug tools may mutate it — suppress tracking in dev builds |
-| Bullet (hitscan, no tracer) | Skip | Instant, invisible | Kill-cam, time-to-live damage, or tracer rendering all flip this to Track |
-| Bullet (tracer / ballistic) | Track | Visible trajectory | Very short lifetime — weigh registration overhead vs capture value |
-| Grenade / travel-time projectile | Track | Visible, affects gameplay | Track owner reference to attribute kills |
+| Bullet (hitscan, no tracer) | Skip | Instant, invisible | Kill-cam, time-to-live damage, or tracer rendering all flip this to Track — but a sub-tick flash can't be captured at all (§9.7) |
+| Bullet (tracer / ballistic) | Track | Visible trajectory | Very short lifetime — weigh registration overhead vs capture value; in flight at capture is a **later wave** (§9.7) |
+| Grenade / travel-time projectile | Track | Visible, affects gameplay | Track owner reference to attribute kills; in flight at capture is a **later wave** (§9.7) |
 | Health / ammo pickup (respawning) | Track | Visible, affects gameplay | Respawn timer matters — track "available" or "consumed at T" state |
 | Static decorative prop | Skip | Never changes | Check for hidden physics / destructibility before assuming "static" |
-| Destructible crate | Track | Can be destroyed | "Destroyed" is a state, not a destruction event — set a flag, don't unregister |
+| Destructible crate | Track | Can be destroyed | "Destroyed" is a state, not a destruction event — set a flag, don't unregister — *when the wreckage stays in the world*; if it's removed or replaced, drop it (§3.5) |
 | Door / switch / lever | Track | State changes affect gameplay | Mid-animation state matters if replay can pause between frames |
 | Particle / VFX | Skip | Visual only | Track if the VFX *is* the gameplay signal (e.g., charge-attack indicator) |
 | Dynamic light source | Depends | Skip if decorative | Stealth games often make lights gameplay-critical → Track |
-| Audio source | Skip | Audio-only | Track if audio carries gameplay state (alarm triggered, boss theme) |
+| Audio source | Skip the source | Audio-only | Track if audio carries gameplay state (alarm triggered, boss theme). Music is two separate things: *which track is playing* (environment — every game, so restore can re-start it) and, only for time-driven moments, its *position* (time-base, §10.6) |
 | UI / HUD element | Skip | Not part of world | Track the *underlying state* the UI shows, not the UI itself |
 | Cutscene state | No captures, set pause flag | Captured differently | See §8 — tracking pauses, not tracks, cutscene content |
 
@@ -1337,12 +1387,16 @@ These tables are *examples of the decision applied to typical games*, not a rubb
 | Property kind | Typical answer | Why | Caveats |
 |---|---|---|---|
 | Position / rotation / scale | Track | Visible | For attached objects, track the attachment relationship instead |
+| Look / aim direction | Track **separately from body rotation** when they can diverge | Where the player is aiming/looking is what the first frame shows | FPS, shoulder aim, free-look, turret-on-hull. Skip when look is always the body facing (it's derived) |
 | Velocity / acceleration | Usually track | Motion looks wrong without it | Skip only if restoration reconstructs motion from position-over-time |
-| Health / mana / ammo | Track | Visible via HUD and behavior | Track current, not max (max is usually static) |
-| Enum state (alive/dead, AI mode, door open) | Track | Drives visible behavior | Serialize as integer + document meaning; don't send strings |
+| Health / mana / ammo | Track | Visible via HUD and behavior | Track current, not max (max is usually static). A **separate armor / shield pool** is its own attribute (and its max, if that changes) |
+| Defeat state (alive / downed / dead) | Track as an enum, not a bool, when the game has a downed / revive cycle | Downed and dead play forward differently | A plain `is_alive` bool is enough only when there is no intermediate state |
+| Stance (stand / crouch / prone, …) | Track | Changes the silhouette and what the player can do | Skip if the game has no stances |
+| Enum state (alive/dead, AI mode, door open) | Track | Drives visible behavior | Serialize as integer and add a companion `<attr>_name` string label (§1.6); restore keys off the integer, never the label |
 | Inventory contents | Track | Affects what player can do | Track as array of item IDs; never as pointers to item objects |
 | Cooldown / timer | Track | Affects gameplay timing | Track *remaining* time, not elapsed — restoration sets "time until" |
-| Animation frame / blend weight | Usually skip | Derivable from state + time | Track if a stuck animation would be visibly wrong |
+| Animation frame / blend weight | Usually skip | Derivable from state + time | Track if a stuck animation would be visibly wrong — a **mid-attack** swing/cast (wind-up must continue to the hit) is a **later-wave** add (§9.7) |
+| Field of view | Usually skip (derived) | Re-derived from captured state when the game resumes | Capture the **driving state** (aim-down-sights / zoom flag, current weapon) instead. Capture FOV itself only if it changes **and** restored state won't reproduce it (a scripted or transient zoom) — §10.7 |
 | Pointer / reference to another object | Never as pointer | Meaningless across sessions | Track the target's stable ID (see §4) |
 | Random seed | Track if gameplay-deterministic | Needed for exact replay | Most games don't rely on seeds for visible outcomes |
 | Visual-only transient (animation, particle color) | Skip | No gameplay impact | If the value encodes gameplay state (red = hostile), track |
@@ -1352,12 +1406,44 @@ These tables are *examples of the decision applied to typical games*, not a rubb
 The tables are typical cases, not rules. Clear examples of them being wrong:
 
 - A game with **kill-cams** shows bullet trajectories after the fact. Hitscan bullets become visible-in-replay → track them, despite the default answer.
-- A **rhythm game** has no meaningful position on most objects; the important state is hit-timing. Most "track position" rows don't apply.
+- A **rhythm game** has no meaningful position on most objects; the important state is hit-timing. Most "track position" rows don't apply — but the music/scheduler clock (song position, beat index) becomes its **single most critical state**: without it the replay restarts the song from zero while the world is mid-moment (§10.6).
 - An **RTS** has hundreds or thousands of units — over-tracking has real bandwidth cost. Evaluate granularity (track squads rather than individuals if that preserves the experience).
 - A **stealth game** elevates lighting and AI-perception state from "usually skip" to gameplay-critical.
 - An **open-world / streaming game** scopes to the loaded neighborhood and adds world/cell state — see [`game-patterns/open-world-tracking.md`](game-patterns/open-world-tracking.md).
 
 When your game differs from the examples, don't patch the table — re-apply §9.1–§9.3 from scratch.
+
+### 9.6 Per-Field Disposition Gate
+
+§9.2–§9.3 decide per object and per property; this gate proves nothing was missed. For each tracked entity type, enumerate its **full state-field surface** — the fields its save path serializes, or, with no save path, its runtime-mutable members — and give **every** field exactly one disposition:
+
+| Disposition | Meaning |
+|---|---|
+| `capture` | Captured in the current wave |
+| `defer → wave N` | In scope, captured in a later wave — with a one-line reason (not load-bearing for this wave, §1.5) |
+| `exclude: static` | A true constant — **not** constant-but-visible (§9.3 step 1) |
+| `exclude: settings` | Player preferences / meta (volume, controls, key bindings). Capturing them would leak one player's settings into another player's Ludeo |
+| `exclude: derivable` | Restoration recomputes it from captured fields — name the fields it derives from |
+
+Close each entity with a **tally** — `capture N · defer N · exclude N = total fields` — and record it in `OBJECT_TRACKING.md`. The total must equal the surface you enumerated; a field with no disposition is a gap, not an implicit "exclude." This structural check is what catches invisible forward-play state (§9.1 failure mode 4), which no "does the restore look right" check can.
+
+> A save path is a **floor, not a ceiling**: saves routinely omit transient state a Ludeo needs (velocity, AI perception, in-flight projectiles, music/scheduler clocks, mid-countdown timers — a save restarts the song or timer on load, a Ludeo must resume it). When the surface comes from the save path, also walk the runtime members the save skips.
+
+### 9.7 In-Flight Attacks and Mid-Action Combat State
+
+§9.4's "skip hitscan" and "skip animation frame" are **resting-state** defaults. A Ludeo is often captured mid-fight, so an attack **in progress at the captured instant** — a projectile mid-air, a spell mid-cast, a boss swing mid-wind-up — is visible state, and capturing it sharpens the reconstruction.
+
+**It's a later wave, not wave 1.** The wave-1 spine (entry identity + player + in-view combatants, §1.5) rebuilds and resumes the fight; a missing in-flight projectile *degrades fidelity, it does not break the replay*. It's also the hardest class to capture (short lifetime, pooling, restore-time physics/animation timing). Prove the spine first, and don't treat a late-wave gap here as a wave-1 backfill. **Exception, decided at the census, not by backfill:** if the game's signature moment *is* the incoming attack (bullet-hell dodge, parry-the-boss beat), the census promotes it to wave 1.
+
+> ⚠️ **An attack must outlive one SDK tick to be capturable.** Restoration rebuilds a single captured instant (`07 §1`) from what the SDK has taken in by then. An attack is reconstructable **only if it is alive at the capture instant and has lived through at least one capture + tick** — registered, attributes set, still alive. A hitscan flash that is created and resolved inside one frame never exists in a capture; leave it on §9.4's "skip" and don't build machinery to chase it.
+
+**An in-flight attack is not a new object class — compose it from rules you already have.** Model a projectile, a mid-cast enemy, or a mid-swing boss as a pooled collection object with a few extra attributes:
+
+- register on pool pullout / unregister on return (§2.4);
+- owner and target by stable ID (§4.4), resolved two-pass at restore (`07 §3`);
+- **remaining** lifetime / cast time, not elapsed (§9.4 cooldown row);
+- velocity and animation progress go in restoration's deferred queue (`07 §6`), or the shot stops dead / the swing snaps to idle;
+- the hit it lands is an **action, not state** (§7) — reconstruct the attack and let the hit fire at its own call site during playback; don't send it as part of the capture or hand-replay it.
 
 ---
 
@@ -1391,6 +1477,16 @@ public:
     // Update methods use capture macros...
 };
 ```
+
+**Universal player baseline (every genre — genre checklists in [`game-patterns/`](game-patterns/INDEX.md) add on top):**
+
+- [ ] Position, **body** rotation, velocity (when movement continuity matters at the restored frame)
+- [ ] **Look / aim direction**, separate from body rotation, whenever they can diverge (FPS, shoulder aim, free-look) — e.g. `look_pitch` / `look_yaw`. In a third-person game where look always equals facing, it's derived — skip it
+- [ ] Health — and a **separate armor / shield pool** as its own attribute when the game has one
+- [ ] Defeat state — `is_alive` bool, or a **defeat-state enum** (`alive / downed / dead`) with a `_name` label (§1.6) when the game has a downed / revive cycle
+- [ ] Stance (stand / crouch / prone / …) — when it changes the silhouette or what the player can do
+- [ ] Team / faction ID (if applicable)
+- [ ] Equipped outfit / skin / cosmetics and loadout — constant during the run but visible (§9.3 step 1)
 
 ### 10.2 Enemy/NPC Entity
 
@@ -1479,6 +1575,55 @@ public:
 };
 ```
 
+### 10.6 Session Time-Base / Continuity
+
+A singleton that is **not a visible object**: the time-base that lets the moment **resume** rather than restart. Register it from the run/scheduler/audio manager that owns the clocks, alongside the entry-identity object (`07 §2.2`), and restore it with the environment (`07 §8`).
+
+```cpp
+class RunClock   // singleton — one object in the reader, no per-instance stable ID needed
+{
+public:
+    void RegisterWithLudeo()
+    {
+        LudeoDataWriterCreateObjectParams params = {};
+        params.objectType = "time_base";
+        ludeo_DataWriter_CreateObject(writer, &params, &m_ludeo_object_id);
+
+        LUDEO_CAPTURE_FLOAT(this, "time_base", "game_time", m_game_time);             // game/session clock, seconds
+        LUDEO_CAPTURE_FLOAT(this, "time_base", "music_position", m_music->GetPosition());  // song position, seconds
+        LUDEO_CAPTURE_INT32(this, "time_base", "beat_index", m_beat_index);           // scheduler / sequence cursor
+        LUDEO_CAPTURE_INT32(this, "time_base", "wave_index", m_wave_index);           // in-progress sequence / wave
+        LUDEO_CAPTURE_FLOAT(this, "time_base", "countdown_remaining", m_countdown);   // REMAINING, not elapsed
+    }
+};
+```
+
+- **Timers and cooldowns as deltas.** Capture **time remaining** (or the delta to the next event), never an absolute timestamp from the capturing session's clock — that clock means nothing in the restoring process. Per-entity cooldowns live on the entity (§9.4); session-wide timers live here.
+- **Which music track is playing is environment state, not time-base.** Capture the track ID (with a `_name` label, §1.6) on the environment/world object in every game, so restore can re-start it; capture its **position** here only when the moment is time-driven.
+- **Saves usually restart these clocks on load** (§9.6 box) — a save-driven field list won't surface them; look in the audio/scheduler/run managers.
+
+### 10.7 Camera / Viewpoint
+
+The captured video is framed by the player camera, so the replay must **open on the captured view**. Decide which case the game is in before capturing anything:
+
+| Camera behavior | Capture |
+|---|---|
+| **Fixed** (static top-down / isometric / side-scroller) | Nothing — it's a constant (§9.3) |
+| **Follows the player, view = player's look direction** (most first-person, shoulder-aim) | The player's **look / aim direction** (§10.1 baseline). The camera is derived from it + the player's position — don't capture both |
+| **Independently controllable rig** (free-look orbit, manual zoom, aim offset decoupled from facing) | A `camera` singleton with the rig's **control state** — pitch, yaw, orbit distance — not only the camera's derived world transform, so the rig reconstructs the exact view |
+| **Decoupled from the player** (spectator, free cam, detached/scripted camera at a capturable moment) | The camera's world position + rotation explicitly |
+
+```cpp
+// Independently controllable rig — singleton
+LUDEO_CAPTURE_FLOAT(this, "camera", "pitch", m_rig.pitch);
+LUDEO_CAPTURE_FLOAT(this, "camera", "yaw", m_rig.yaw);
+LUDEO_CAPTURE_FLOAT(this, "camera", "orbit_distance", m_rig.distance);   // only if the rig has zoom/orbit
+LUDEO_CAPTURE_INT32(this, "camera", "mode", (int32_t)m_rig.mode);        // + "mode_name" label (§1.6), if the rig has modes
+```
+
+- **Field of view: capture the driving state, not the number.** FOV is usually re-derived when the game resumes — from the aim-down-sights / zoom flag, current weapon, sprint. Capture those flags. Add an explicit `fov` attribute only if FOV changes **and** the restored state won't reproduce it (a scripted or transient zoom not tied to a captured flag), or if the first restored frame's framing is visibly wrong without it.
+- **Restore snaps, never eases.** Apply the rig state directly and reset the rig's smoothing / lerp state in the same apply, or the settle frames (`07 §7.1`) ease the view in from a default.
+
 ---
 
 ## 11. Performance Considerations
@@ -1547,6 +1692,17 @@ Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERE
 - [ ] Stable game IDs used for relationships (not pointers)
 - [ ] DataWriter validity checked before tracking
 - [ ] Return values checked for SDK calls
+- [ ] Every opaque discriminator (enum / type code / content ID) has a companion `<attr>_name` string label; readable values have none; restoration reads none of them (§1.6)
+
+**Scope & Coverage:**
+- [ ] Census lists every candidate entity type with a wave number; load-bearing types (entry identity, player, time-base when time-driven, must-have collections) are in wave 1 and none is deferred (§1.5)
+- [ ] Every field of every tracked type has a disposition (`capture` / `defer → wave N` / `exclude` + reason) and a tally in `OBJECT_TRACKING.md` (§9.6)
+- [ ] Invisible forward-play state (stats, skills, cooldowns, quest/world flags) is captured or deferred with a reason — not dropped (§9.1)
+- [ ] Constant-but-visible state (outfit, skin, cosmetics, loadout) is captured (§9.3 step 1)
+- [ ] Objects that end mid-run are either dropped or kept as a terminal-flag tombstone, by reconstruction relevance (§3.5)
+- [ ] Time-base captured when the moment is time-driven — clock position, timers as **remaining** time; music track ID on the environment object (§10.6)
+- [ ] Camera: look/aim direction or rig control state captured when the view is independently controllable; FOV only via its driving state unless restored state won't reproduce it (§10.7)
+- [ ] In-flight attacks scoped to a later wave unless the census promoted them; no attempt to capture sub-tick flashes (§9.7)
 
 **Identity Mapping:**
 - [ ] Bidirectional maps maintained (Ludeo ID ↔ Game ID)
