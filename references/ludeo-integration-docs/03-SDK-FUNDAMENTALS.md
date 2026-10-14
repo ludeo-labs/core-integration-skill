@@ -614,7 +614,7 @@ LudeoManager::Instance().QueueOperation([this]() {
 - [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) - SDK lifecycle integration
 - [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md) - Tracking implementation
 - [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) - Restoration implementation
-- [08-CODE-PATTERNS.md](./08-CODE-PATTERNS.md) - Macro helpers and patterns
+- [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md) - Macro helpers and patterns
 
 **For requirements:**
 - [00-CRITICAL-REQUIREMENTS.md](./00-CRITICAL-REQUIREMENTS.md) - Must-follow rules

@@ -4,7 +4,7 @@
 > **Audience:** AI agents implementing object tracking during active gameplay
 > **Scope:** Proprietary C++ engines. Unity and Unreal have dedicated integration guides — if the game uses either, stop and use the engine-specific doc instead of this one.
 > **Prerequisites:** [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md), [00-CRITICAL-REQUIREMENTS.md](00-CRITICAL-REQUIREMENTS.md)
-> **Related:** [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md), [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
+> **Related:** [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
 
 ---
 
@@ -1647,10 +1647,9 @@ LudeoManager::Get().ResumeTracking();
 
 **Next Steps:**
 - Tracking patterns implemented → Proceed to [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md)
-- Need capture macros → See [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md)
+- Need capture macros → See section 3 of this document
 - Need lifecycle setup → See [05-LIFECYCLE-MANAGEMENT.md](05-LIFECYCLE-MANAGEMENT.md)
 
 **Related Documentation:**
 - [00-CRITICAL-REQUIREMENTS.md](00-CRITICAL-REQUIREMENTS.md) - Non-negotiable rules
 - [07-RESTORATION-PATTERNS.md](07-RESTORATION-PATTERNS.md) - How to restore tracked state
-- [08-CODE-PATTERNS.md](08-CODE-PATTERNS.md) - Macro implementations and helpers

@@ -227,7 +227,7 @@ Before moving to tracking implementation:
 ## 🔗 **Related Documentation**
 
 - [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Tracking implementation details
-- [../08-CODE-PATTERNS.md](../08-CODE-PATTERNS.md) - Capture macros and helpers
+- [../06-TRACKING-PATTERNS.md](../06-TRACKING-PATTERNS.md) - Capture macros and helpers
 - [../00-CRITICAL-REQUIREMENTS.md](../00-CRITICAL-REQUIREMENTS.md) - Mandatory rules
 
 ---

@@ -80,7 +80,6 @@ Complete one phase at a time and confirm with the user before advancing.
 ## Reference material
 
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
-- `references/utilities/` — supporting docs (master integration plan, PM guide, prompt prototype). Optional reading; the workflows reference what they need.
 
 ## Start here
 

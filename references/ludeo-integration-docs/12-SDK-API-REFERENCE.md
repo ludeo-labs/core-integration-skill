@@ -94,7 +94,7 @@
 - Check return values (CreateObject can fail)
 
 **Guide:** [Track Gameplay](https://docs.ludeo.com/docs/core/pages/TrackGameplay)  
-**Our Docs:** [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md), [08-CODE-PATTERNS.md](./08-CODE-PATTERNS.md)
+**Our Docs:** [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md)
 
 ---
 
@@ -242,7 +242,7 @@
 - [05-LIFECYCLE-MANAGEMENT.md](./05-LIFECYCLE-MANAGEMENT.md) - Session management
 - [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md) - Tracking implementation
 - [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) - Restoration implementation
-- [08-CODE-PATTERNS.md](./08-CODE-PATTERNS.md) - Macro helpers
+- [06-TRACKING-PATTERNS.md](./06-TRACKING-PATTERNS.md) - Macro helpers
 - [11-TROUBLESHOOTING.md](./11-TROUBLESHOOTING.md) - Common issues
 
 **Official Ludeo Documentation:**
