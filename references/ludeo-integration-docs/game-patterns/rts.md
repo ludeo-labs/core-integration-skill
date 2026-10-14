@@ -118,16 +118,20 @@ score, objective, mission, campaign, scenario
 
 ## 3. Tracking Checklist
 
-After object tracking is implemented, verify these are covered:
+After object tracking is implemented, verify these are covered. Sections are tiered by restoration priority:
+- **CRITICAL** — restore or the replayed moment is visibly wrong.
+- **IMPORTANT** — restore for fidelity; recognizable without it but degraded.
+- **OPTIONAL** — situational/cosmetic; capture only if it affects the specific captured moment.
 
-### Player State (CRITICAL)
+### Player State — CRITICAL
 - [ ] Resources (each type: gold, wood, etc.)
 - [ ] Population / supply (current and cap)
 - [ ] Tech level / age / era
 - [ ] Score
 - [ ] Team / faction
+- [ ] Appearance / equipped cosmetics (faction color/scheme, hero/unit skins; MOBA-style hero skins matter most — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-skin replay is visibly wrong
 
-### Units
+### Units — CRITICAL (the army *is* the moment in an RTS)
 - [ ] Position (vec3)
 - [ ] Unit type / blueprint ID
 - [ ] Health / HP
@@ -136,7 +140,7 @@ After object tracking is implemented, verify these are covered:
 - [ ] Target entity ID
 - [ ] Is alive
 
-### Structures / Buildings
+### Structures / Buildings — IMPORTANT
 - [ ] Position
 - [ ] Building type
 - [ ] Health
@@ -146,17 +150,17 @@ After object tracking is implemented, verify these are covered:
 - [ ] Upgrade level
 - [ ] Production queue (if producing units)
 
-### Resources / Economy
+### Resources / Economy — IMPORTANT
 - [ ] Resource node positions
 - [ ] Resource node remaining amount
 - [ ] Player resource totals (each type)
 
-### Map / Territory
+### Map / Territory — OPTIONAL
 - [ ] Control point ownership
 - [ ] Fog of war state (per player)
 - [ ] Explored areas
 
-### Environment
+### Environment — OPTIONAL
 - [ ] Destructible terrain (if applicable)
 - [ ] Weather / time of day (if affects gameplay)
 - [ ] Level metadata (map name, game mode, player count)

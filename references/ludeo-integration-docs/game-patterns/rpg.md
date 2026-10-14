@@ -107,20 +107,26 @@ time, weather, day, night, schedule, AI
 
 After object tracking is implemented, verify these are covered. For streaming worlds, also apply
 [open-world-tracking.md](./open-world-tracking.md) (track the loaded neighborhood + world/cell state,
-not the whole save).
+not the whole save). Sections are tiered by restoration priority:
+- **CRITICAL** — restore or the replayed moment is visibly wrong.
+- **IMPORTANT** — restore for fidelity; recognizable without it but degraded.
+- **OPTIONAL** — situational/cosmetic; capture only if it affects the specific captured moment.
 
-### Player (CRITICAL)
+> Universal player items (look/aim rotation, armor/shield pool, stance, team) → [common.md](./common.md) §1.
+
+### Player — CRITICAL
 - [ ] Position (vec3), Rotation (quat/vec4)
 - [ ] Health / HP, Mana / Magicka, Stamina/Fatigue
 - [ ] Is alive/dead
 - [ ] Level, XP, attributes/skills (current values)
 - [ ] Equipped gear (weapon, armor — by item/blueprint ID, not pointer)
+- [ ] Appearance / equipped cosmetics (outfit, skin, dye/transmog, character-model variant — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-appearance replay is visibly wrong
 - [ ] Inventory (array of item IDs + counts; never object pointers — see `06 §4`)
 - [ ] Gold / currency
 - [ ] Current region/cell ID (open-world)
 - [ ] Faction reputation / standing
 
-### NPCs / Enemies
+### NPCs / Enemies — IMPORTANT
 - [ ] Position, rotation, health
 - [ ] AI state (idle, combat, fleeing, schedule)
 - [ ] Disposition / faction / is-hostile
@@ -128,12 +134,12 @@ not the whole save).
 - [ ] Dialogue/quest state if it gates behavior
 - [ ] Is alive/dead (a killed-not-respawned NPC is a **state flag**, not just an unregister — `06 §9.4`)
 
-### Quests / World State
+### Quests / World State — IMPORTANT (world flags that gate the visible moment are CRITICAL)
 - [ ] Active quest IDs + current stage/objective (as their own object type)
 - [ ] World/global flags that affect the visible moment
 - [ ] Game-time, weather, season (a `world_state` object — see `open-world-tracking.md §3`)
 
-### Items / Containers / World objects
+### Items / Containers / World objects — OPTIONAL
 - [ ] Dropped/world items: position, item type, owner ID
 - [ ] Containers/chests: opened/looted state, contents
 - [ ] Doors / locks: open, locked state

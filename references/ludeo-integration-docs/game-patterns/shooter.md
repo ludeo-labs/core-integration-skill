@@ -20,6 +20,16 @@
 | `Assist` | Contributed damage to a kill | "Get 5 assists" | 50 pts |
 | `TeamKill` | Killed a teammate (negative) | — | -200 pts |
 
+### Downed / Revive Actions
+
+In revive-based shooters, `Death` fires only on the **downed→dead** transition. Track the defeat-state enum (§3) for the in-between states, and emit these for the transitions a viewer would call out:
+
+| Action Name | Description | Objective Potential | Scoring Potential |
+|-------------|-------------|---------------------|-------------------|
+| `Downed` | Player entered the downed / bleed-out state (not yet dead) | — | — |
+| `Revived` | This player was revived by a teammate | — | +50 |
+| `RevivedTeammate` | This player revived a teammate | "Revive 2 teammates" | 100 pts |
+
 ### Weapon/Equipment Actions
 
 | Action Name | Description | Objective Potential | Scoring Potential |
@@ -96,20 +106,28 @@ win, lose, victory, defeat, gameOver, endGame, endRound, endMatch
 
 ## 3. Tracking Checklist
 
-After object tracking is implemented, verify these are covered:
+After object tracking is implemented, verify these are covered. Sections are tiered by restoration priority:
+- **CRITICAL** — restore or the replayed moment is visibly wrong.
+- **IMPORTANT** — restore for fidelity; recognizable without it but degraded.
+- **OPTIONAL** — situational/cosmetic; capture only if it affects the specific captured moment.
 
-### Player (CRITICAL)
+### Player — CRITICAL
+
+> Universal player items (position, body + look/aim rotation, armor/shield pool, stance, team) →
+> [common.md](./common.md) §1. Shooter-specific additions:
+
 - [ ] Position (vec3)
 - [ ] Rotation (quat/vec4)
 - [ ] Velocity (vec3)
 - [ ] Health / HP
-- [ ] Is alive/dead
+- [ ] Is alive/dead — in a **revive** game, a **defeat-state enum** instead (e.g. Normal / Downed / BleedOut / Dead): `Death` fires only on downed→dead (§1), so a single alive/dead bool cannot express the in-between states
 - [ ] Current weapon / weapon ID
-- [ ] Ammo (current + reserve)
+- [ ] Ammo — **magazine (loaded) and reserve are distinct quantities**; capture both
 - [ ] Score / kills / deaths
 - [ ] Team ID
+- [ ] Appearance / equipped cosmetics (skin, outfit, character-model or team-color variant — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-skin replay is visibly wrong
 
-### Enemies / NPCs
+### Enemies / NPCs — IMPORTANT
 - [ ] Position, rotation
 - [ ] Health
 - [ ] AI state (idle, alert, attacking, fleeing)
@@ -117,26 +135,29 @@ After object tracking is implemented, verify these are covered:
 - [ ] Enemy type / blueprint ID
 - [ ] Is alive/dead
 
-### Weapons
+### Weapons — IMPORTANT
 - [ ] Weapon type
 - [ ] Owner ID
 - [ ] Ammo count
 - [ ] Is equipped
 - [ ] Position (if world item)
 
-### Projectiles (if persistent/visible)
+### Projectiles / in-flight attacks (if persistent/visible) — OPTIONAL (a later wave)
+
+An attack **in flight at the captured instant** (a rocket or grenade mid-air, an enemy mid-swing) sharpens the reconstruction, but it is a **later-wave** add (`06 §1.1`): the moment is coherent without it, and it is the hardest class to capture (pooled, short-lived, velocity applied late). No new machinery — it is a pooled collection object with a handful of attributes (`06 §10.5`); the **velocity is a deferred property** at restore (`07 §6`), the **owner resolves in Pass 2** (`07 §3`), and any lifetime timer is captured as **remaining**, not elapsed (`06 §9.4`). The hit the attack lands is an **action, not state** (`06 §7`): reconstruct the attack and let the hit re-fire as the replay plays forward.
+
 - [ ] Position, velocity
 - [ ] Projectile type
 - [ ] Owner ID
 - [ ] Damage value
 
-### Pickups / Items
+### Pickups / Items — OPTIONAL
 - [ ] Position
 - [ ] Item type
 - [ ] Is collected / available
 - [ ] Respawn state (if applicable)
 
-### Environment
+### Environment — OPTIONAL
 - [ ] Destructible objects (destroyed state)
 - [ ] Doors (open/closed/locked)
 - [ ] Level metadata (map name, game mode, difficulty)

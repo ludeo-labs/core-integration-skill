@@ -32,10 +32,11 @@ Ludeo Session  ── activated at game launch, released at game shutdown ──
 |---|---|---|
 | New game started | ✅ Start | First live frame of a fresh run |
 | Load save (from menu) | ✅ Start | First live frame of a resumed run |
+| **Debug / editor auto-enter or session override** | ✅ Start | Drops straight into a run, **skipping the menu** — it still needs its `OpenRoom`. Easy to miss: it bypasses the obvious new-game path |
 | Player death (permadeath) | ✅ End | Run is over |
 | Return to main menu | ✅ End | Player exited the run |
 | Quit to desktop | ✅ End | Process is leaving |
-| Load a *different* save while in-game | ✅ End-then-start | Current run ends, new run begins |
+| Load a *different* save while in-game | ✅ End-then-start | **End (abort) the current Gameplay Session** — `GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close` — **then open a new room** for the new run |
 | Dungeon / interior / building enter / exit | ❌ | Same run, different cell |
 | Fast travel | ❌ | Same run, teleport |
 | World streaming (chunk in/out) | ❌ | SDK doesn't see streaming |
@@ -44,7 +45,7 @@ Ludeo Session  ── activated at game launch, released at game shutdown ──
 | Pause menu / inventory / map | ❌ | Pause overlay, not a boundary (see §5) |
 | Dialogue / conversation | ❌ | Same run, modal UI |
 | Cutscene | ❌ | Same run, scripted segment |
-| Ludeo overlay opened mid-play | ❌ for the boundary | Pause via [CR-011](../00-CRITICAL-REQUIREMENTS.md), not End |
+| Ludeo overlay opened mid-play | ❌ for the boundary | **The overlay is not a boundary** — pause via [CR-011](../00-CRITICAL-REQUIREMENTS.md), never End |
 
 The principle: **only end the Gameplay Session when the live run itself ends.** Everything else is "inside one run."
 
@@ -59,6 +60,8 @@ The principle: **only end the Gameplay Session when the live run itself ends.** 
 | **Latest** — the moment the player has control (e.g. state machine reaches `Game`, player input unlocked) | Begin lands right at gameplay start; no gap | Gives up the loading window entirely |
 
 **Default to the canonical event.** Use the earliest bind point only if the canonical event fires too late to hide visible startup time.
+
+> **Pick the *convergent* signal, not a plausibly-named entry.** "Canonical" means **the one runtime point every entry path converges on** — the state-machine transition into the in-game state — **not** the first method that *reads* like the start (a `StartNewGame` menu handler). Real runs are entered through several paths: new game, resume/continue, load save, a **debug / editor auto-enter or session override** (§2), scripted bypasses. Binding to one named entry leaves the others with no room and no session, and that fails silently — it looks fine until the run gate. **Enumerate every entry and confirm each passes through your bind point**, or move the bind to the transition they share. Two properties the bind must have: it is **idempotent** (the signal can fire more than once per run — guard on "room already open", open once per run, and clear the guard when the session ends so the next run re-triggers), and it is **the Creator-Flow bind only** — in Player Flow `OpenRoom(ludeoId)` is deliberately late, after the apply and settle (§6, `07 §2.1` step 7), so this hook must skip while `IsRestoring()` (`05 §6.2`).
 
 ## 4. The Existing `RoomReady + PlayerAdded` Gate Is Sufficient
 
