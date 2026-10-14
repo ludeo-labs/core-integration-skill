@@ -176,12 +176,17 @@ when you approve).
   ```bat
   @echo off
   cd /d "%~dp0"
-  "<Game>.exe" %*
+  "%~dp0<Game>.exe" %* & exit /b %ERRORLEVEL%
   ```
+
+  - **Call the executable by its full path (`%~dp0`).** Keep the `cd` — the game may resolve data paths from its
+    working directory — but don't rely on it to find the exe: a shell with `NoDefaultCurrentDirectoryInExePath`
+    set doesn't search the current directory for a bare program name, so `"<Game>.exe"` fails even next to the
+    `.bat`. You can't know whether the cloud runner sets it.
 
   - **Call the executable directly — not `start "" /wait`.** `start` gives the child its own console, so
     its stdout no longer flows through the `.bat`'s stdout to the runner. To propagate the exit code and
-    keep the pipe intact: `"<Game>.exe" %* & exit /b %ERRORLEVEL%`.
+    keep the pipe intact, the template ends with `& exit /b %ERRORLEVEL%`.
   - A GUI-subsystem executable on bare Windows has no console attached, so verify locally by redirecting
     (`run.bat > out.txt 2>&1`) rather than expecting console output.
 
