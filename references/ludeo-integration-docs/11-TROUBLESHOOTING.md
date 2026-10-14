@@ -18,6 +18,9 @@ Jump to the symptom:
 - Replay references resolve to the wrong object / null → §4 Reference resolution
 - Capture is empty entirely → §5 Nothing is being captured
 - Hard crash during restoration / playback → §6 Restoration crashes
+- Restore ran but the player is at the default spawn, nothing applied → §7 Empty / early reader
+- Restored Ludeo plays but input is dead → §8 Dead input
+- A notification never fires (often `RoomReady`), `unknown event_name` in the log → §9 SDK build too old for the backend
 
 ---
 
@@ -175,6 +178,34 @@ At the apply's unpause point, log the **resolved pause state** — `m_freeze_res
 - **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`phase 5 · task 3` Step 5), but a backend-ended play may not have routed through it; re-arm the bits when the next selection **commits** (`07 §2.1` step 3, alongside `m_room_ready`/`m_applied`) — not earlier: the handler must not disturb anything before `GetLudeo` validates, clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
 - **Lift input suppression and control locks at `Begin`**, not earlier — but make sure they *are* lifted on every restore path.
 - The two-bit model itself is correct ([CR-011](00-CRITICAL-REQUIREMENTS.md)); the failure here is a bit left dirty across plays, not a collapsed shared flag.
+
+---
+
+## 9. An SDK notification never fires — check the SDK build against the backend
+
+### Symptom
+
+A notification that should arrive simply doesn't — most often `RoomReady`, so `Begin` never runs and nothing records
+— while everything before it succeeds (activation, `OpenRoom`, `AddPlayer`). The log often shows the event arriving
+under a name the SDK doesn't know, right where the expected one should be: `unknown event_name "…"`.
+
+### Why it happens
+
+The C SDK build is too old for the **current** Ludeo backend. The backend moves its event protocol forward; an
+older SDK build receives the new event, doesn't recognise it, and never turns it into the notification your
+integration waits for. Nothing in your code is wrong — the same code works with a current SDK build.
+
+### How to catch it
+
+- Grep the run log for the SDK's version line (`LudeoSDK v…` — version, git hash, build date) and for
+  `unknown event_name`.
+- Compare the version and build date against a currently working integration, or against the latest SDK release.
+- Do this **before** debugging a "notification never fires" problem in your own lifecycle code.
+
+### How to fix it
+
+Update to the current SDK release (phase 1 Step 2) — all of it: headers, libraries and the whole runtime folder —
+rebuild, and rerun. Don't work around a missing notification by calling `Begin` yourself.
 
 ---
 

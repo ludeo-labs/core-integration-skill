@@ -122,6 +122,7 @@ Follow **Section 2.2** of `04-BUILD-INTEGRATION.md`:
 - Extract version from directory name
 - Verify SDK structure **for selected OS only** (Include/, Lib/, Bin/)
 - Verify DLL/SO files are real binaries (> 1MB), not Git LFS pointer files (~130 bytes) — if pointer-sized, the SDK was checked out without its LFS binaries; run `git lfs pull` (or ask the user to re-provide a complete SDK)
+- **Use the latest release, and record which one.** An SDK build that is too old for the current Ludeo backend fails silently — a notification such as `RoomReady` just never fires, often with an `unknown event_name` warning in the log (`11-TROUBLESHOOTING.md §9`). If the user supplies an SDK, ask where it came from and how old it is. At the first SDK-enabled run (Step 10), note the SDK's version line from the log (`LudeoSDK v…`, git hash, build date) in the integration notes.
 
 ### Step 3: Detect Target Name and Source Structure
 Follow **Sections 2.3 and 2.5** of `04-BUILD-INTEGRATION.md`:
