@@ -163,7 +163,7 @@ After session creation and **before** session activation, the LudeoManager **mus
 - [ ] All modifications have `#if LUDEO_SDK_ENABLED` guards
 - [ ] `.bak` backups exist for all modified files
 - [ ] **All five required session notifications registered** (LudeoSelected, RoomReady, PauseGameRequest, ResumeGameRequest, BackToMenuRequest) — §3.5
-- [ ] **`OnPauseGameRequestCallback` actually freezes the simulation tick** (not just input) — CR-011
+- [ ] **`OnPauseGameRequestCallback` actually freezes the simulation tick** (not just input) — CR-011. The SDK only sends this request in a cloud Player-Flow session, so check it locally by calling the handler directly; the real overlay check is the cloud run after `phase 7`
 
 ## Output
 

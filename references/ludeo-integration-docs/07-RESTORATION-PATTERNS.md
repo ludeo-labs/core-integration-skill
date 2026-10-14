@@ -268,6 +268,8 @@ Three consequences that decide whether restoration actually works:
 
 These notifications are **session-lifetime** (register once at session creation, not per-Ludeo), and they apply to the whole Ludeo experience, not just the moment of restoration.
 
+> ⚠️ **`PauseGameRequest` / `ResumeGameRequest` only fire in a cloud Player-Flow session** — never in a local build, never in Creator Flow. A local smoke test cannot exercise them (call the handlers directly from a debug hook instead), and a local replay is still Player Flow without them — so gate the game's own pause key on the **overlay-open bit**, not on "is this Player Flow", or a local replay leaves the player unable to pause (CR-011).
+
 ### 2.5 Local trigger — `--ludeo=<id>` launch arg
 
 To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `phase 5 · task 3` Step 3.

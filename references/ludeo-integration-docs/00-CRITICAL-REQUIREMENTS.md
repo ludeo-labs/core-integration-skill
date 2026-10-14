@@ -542,11 +542,20 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 > pause primitive, which emits `PauseLudeo`/`ResumeLudeo` once per transition (`phase 6 · task 2` Step 5).
 > In `phase 3 · task 4` the handlers only freeze; the report is added in phase 6.
 
+> ⚠️ **Cloud Player Flow only — these requests never fire in a local build** (and never in Creator Flow). So this
+> contract **cannot be exercised locally**: opening the overlay on a local build does not call the handlers, and a
+> clean local run is no evidence they work. Locally, verify registration and call the handlers directly from a debug
+> hook; the real check is the cloud run after `phase 7`.
+>
+> **Don't gate the game's own pause key on "is this Player Flow".** A local build replays Ludeos in Player Flow too,
+> and there `PauseGameRequest` never arrives — a flow-gated ESC handler leaves the player unable to pause at all. Let
+> the game's pause key stand down only **while the overlay is actually open** (the CR-011 overlay bit).
+
 **Validation:**
-- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`phase 3 · task 4` §3.5).
-- [ ] Opening the Ludeo overlay during an active playback session **freezes the simulation tick** (not just input).
-- [ ] Closing the overlay **resumes** the game.
-- [ ] Repeated open/close cycles behave the same — handlers are idempotent across multiple toggles.
+- [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`phase 3 · task 4` §3.5) — confirm with a log line per registration.
+- [ ] **Locally (debug hook):** invoking the pause handler **freezes the simulation tick** (not just input); invoking the resume handler **resumes**; twice in a row behaves the same — handlers are idempotent.
+- [ ] **In the cloud (after `phase 7`):** opening the overlay mid-playback freezes the game; closing it resumes.
+- [ ] The game's own pause key is gated on the overlay bit, not on Player Flow.
 - [ ] After phase 6: the overlay pause sends `PauseLudeo` and its close sends `ResumeLudeo`, once each.
 
 #### CR-010 and CR-011 are INDEPENDENT — do not collapse them into one `m_paused` boolean
@@ -635,9 +644,9 @@ Before considering integration complete, verify these critical requirements:
 
 ### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)
 - [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation
-- [ ] Opening the Ludeo overlay during playback **freezes the simulation tick** (not just input)
-- [ ] Closing the overlay **resumes** the game
-- [ ] Repeated open/close cycles behave the same (handlers idempotent across toggles)
+- [ ] The pause handler **freezes the simulation tick** (not just input), the resume handler resumes — checked locally by calling them directly, idempotent across toggles
+- [ ] The requests only fire in a **cloud** Player-Flow session — the real overlay check happens after `phase 7`
+- [ ] The game's own pause key is gated on the overlay bit, not on Player Flow
 
 ---
 
