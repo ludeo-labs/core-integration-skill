@@ -528,7 +528,7 @@ void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams* data)
 
 **IMPORTANT:** Called from SDK callbacks (Sections 6.4 and 6.5), not directly from game code. Both `OnPlayerAddedCallback` and `OnRoomReadyCallback` call `TryBeginGameplaySession()`, which checks if both conditions are met.
 
-> ⚠️ **The two callbacks can arrive in EITHER order — never assume one precedes the other.** `OnPlayerAddedCallback` and `OnRoomReadyCallback` are independent async completions; depending on timing, SDK version, and (during playback) when the player presses Play, either may fire first. That is *why* both call the same `TryBeginGameplaySession()` and it gates on **both** flags rather than either one acting alone. Do not wire `Begin` (or, during restoration, the unpause/apply) to assume a fixed arrival order. Anchor the apply to the `RoomReady` edge (where the unpause happens) so it is correct regardless of which flag was set first.
+> ⚠️ **The two callbacks can arrive in EITHER order — never assume one precedes the other.** `OnPlayerAddedCallback` and `OnRoomReadyCallback` are independent async completions; depending on timing, SDK version, and (during playback) when the player presses Play, either may fire first. That is *why* both call the same `TryBeginGameplaySession()` and it gates on **both** flags rather than either one acting alone. Do not wire `Begin` to assume a fixed arrival order. During restoration the apply has already run before the room opened; on `RoomReady`, `Begin` and then the unfreeze — correct regardless of which flag was set first.
 
 ```cpp
 void TryBeginGameplaySession()

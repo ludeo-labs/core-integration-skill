@@ -101,12 +101,15 @@ Per `§2.1`, specify the handling of a `LudeoSelected` event that can fire in **
    `resultCode != Success` → ignore the selection. Reader not populated (`GetObjectsInfo` `Success && objectsCount > 0`)
    → ignore the cycle; a deadline ignores the selection if it never populates. Populated → **read the entry identity**
    and decide whether this integration can play it (identity present; a supported level/slice) — if not, ignore.
-3. **Commit** a validated selection: `SetRestoring(true)` (arms the §9.11 start-of-run skips before the load fires
-   them); promote the candidate to `m_pending_ludeo_id` / the pending reader — the id feeds `OpenRoom`, and passing it
-   there is what makes the rerun a *scored Player-Flow replay* rather than a new recording (`05 §6.2`, §6.11; `nullptr`
-   is the silent "state restored but the rerun isn't scored" failure). **If a Ludeo is already playing**, run
-   `EndCurrentLudeo()`: `End(isAbort=true)` → `RemovePlayer` → `Close`, reset prior-Ludeo state, and start the new
-   play only once the close completes. Turn the **restoration hold** on (input off, start-of-run mechanisms skipped).
+3. **Commit** a validated selection — holding its id and reader by value. **If a Ludeo is playing or an earlier
+   restore is still in progress**, run `EndCurrentLudeo()` **first**: `End(isAbort=true)` if `Begin` ran →
+   `RemovePlayer` → `Close`, reset prior-Ludeo state, and continue only once the close completes. **Then**
+   `SetRestoring(true)` (arms the §9.11 start-of-run skips before the load fires them), bump a restore generation that
+   stale continuations check, and set `m_pending_ludeo_id` / the pending reader — the id feeds `OpenRoom`, and passing
+   it there is what makes the rerun a *scored Player-Flow replay* rather than a new recording (`05 §6.2`, §6.11;
+   `nullptr` is the silent "state restored but the rerun isn't scored" failure). Turn the **input hold** on (input off
+   until `Begin`). Plan the skip of the Creator-Flow "`OpenRoom` when the level starts loading" hook while
+   `IsRestoring()`.
 4. **Reach active gameplay on the captured level** — load that level / boot the run (generic level if the game has no
    rooms). **At the menu / startup there is no game — you *boot* a run here** (scene-based → level load + spawn;
    state-machine entry → trigger new-game/load so player+world+state exist); restoring into a menu silently no-ops
@@ -187,7 +190,7 @@ the same two-pass discipline (usually no references → Pass 2 is pure property 
 ### Step 10: Specify the Wait-For-Player Flow
 
 Per `§7` and **CR-010**: the restored moment is **built before Play**. Plan how the game is **held** through the
-load (input off, start-of-run mechanisms skipped, the sim running as much as loading needs), how it is **frozen**
+load (input off until `Begin`, start-of-run skips via `IsRestoring()`, the sim running as much as loading needs), how it is **frozen**
 for the apply (the tick, not just input), how the **settle** runs (~0.5 s of time with input still suppressed — the
 freeze controller needs an explicit settle mode), and how it is **frozen again** to hold the finished moment behind
 the overlay. Only then does the room open (Step 3, step 7), so when the Play button appears the captured moment is
@@ -223,7 +226,7 @@ Write `ludeo-integration-plan/RESTORATION_PLAN.md`:
 | Marshal off notification thread | ... | Never block the SDK thread |
 | Stash candidate id + dispatch `GetLudeo` | ... | Nothing else in the handler — no teardown, freeze or `OpenRoom` before validation |
 | Validate (populated reader + entry identity) | ... | `GetLudeo` may fire repeatedly; accept only a **populated** reader (`GetObjectsInfo` Success && objectsCount>0), read the entry identity, check it is playable; failure/timeout/unplayable → **ignore the selection** (07 §2.2.1) |
-| Commit | ... | `SetRestoring(true)`; promote to `m_pending_ludeo_id`; if a Ludeo is playing → `EndCurrentLudeo` (`End(isAbort=true)` → RemovePlayer → CloseRoom), new play only after the close completes; restoration hold on |
+| Commit | ... | If a Ludeo is playing or still restoring → `EndCurrentLudeo` first (`End(isAbort=true)` if Begin ran → RemovePlayer → CloseRoom), continue after the close; then `SetRestoring(true)`, pending id/reader, restore generation, input hold on; skip the Creator-Flow level-load `OpenRoom` while restoring |
 | Reach active gameplay | ... | Load the captured level / boot the run (generic if no rooms); wait for native-spawn-done |
 | Apply held | ... | Freeze → SetCurrent → two-pass (§3) → environment (§8.2, after entities) |
 | Settle + freeze | ... | ~0.5 s of time with input off, then freeze; `SetRestoring(false)` |

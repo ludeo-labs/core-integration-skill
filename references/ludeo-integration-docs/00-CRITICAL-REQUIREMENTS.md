@@ -327,7 +327,7 @@ Some SDK operations are **triggered by SDK callbacks**, NOT by game events.
 |-----------|--------------|------------|
 | `ludeo_Initialize()` | Game startup | Main init |
 | `ludeo_Session_Activate()` | After init | Startup sequence |
-| `ludeo_Session_OpenRoom()` | Level loading **starts** | Level loader |
+| `ludeo_Session_OpenRoom()` | Level loading **starts** — Creator Flow only; skip while `IsRestoring()` (Player Flow opens its room after the restore settles, CR-010) | Level loader |
 | `ludeo_GameplaySession_End()` | Gameplay ends | All exit paths |
 | `ludeo_Shutdown()` | Game exit | Shutdown sequence |
 
@@ -374,37 +374,48 @@ nothing overwrites the snapshot as it lands, and `Begin` (which starts SDK recor
 
 **Sequence (mirrors `07 §2.1`):**
 
-1. `LudeoSelected` fires → marshal off the SDK thread, stash the id as a **candidate**, dispatch `GetLudeo(id)`.
-   **No teardown, no freeze, no `OpenRoom` yet.**
-2. **Validate** in the `GetLudeo` callback: `resultCode != Success` → ignore the selection. Empty reader (early cycle)
-   → wait for a later cycle; timeout → ignore. Populated reader (`GetObjectsInfo` Success && `objectsCount > 0`, `07
-   §2.2.1`) → read the **entry identity** and check this integration can play it; if not, ignore. Ignoring is safe
-   because nothing has been touched — a running Ludeo or the menu carries on.
-3. **Commit:** `SetRestoring(true)` (arms the start-of-run skips before the load fires them) → if a run is live,
-   `EndCurrentLudeo` (interrupt = `End(isAbort=true)` → `RemovePlayer` → `CloseRoom`; start the new play only once the
-   close completes) → restoration **hold** on: input off, start-of-run mechanisms skipped. The sim runs as much as
-   the game's own load path needs.
+1. `LudeoSelected` fires → marshal off the SDK thread. If this id is already validating or restoring, return. Otherwise
+   stash it as a **candidate** and dispatch `GetLudeo(id)`, tagged with the id. **No teardown, no freeze, no `OpenRoom`.**
+2. **Validate** in the `GetLudeo` callback (drop callbacks for anything but the current candidate):
+   `resultCode != Success` → ignore the selection. Empty reader (early cycle) → wait for a later cycle; timeout →
+   ignore. Populated reader (`GetObjectsInfo` Success && `objectsCount > 0`, `07 §2.2.1`) → read the **entry identity**
+   and check this integration can play it; if not, ignore. Ignoring clears the candidate and nothing else — a running
+   Ludeo or the menu carries on.
+3. **Commit:** if a Ludeo is playing **or an earlier restore is still in progress**, `EndCurrentLudeo` **first**
+   (`End(isAbort=true)` if `Begin` ran → `RemovePlayer` → `CloseRoom`; continue only once the close completes). The
+   new id and reader are held **by value** through it. **Then** `SetRestoring(true)` (arms the start-of-run skips before
+   the load fires them), set the pending id/reader, reset the `Begin` gates and freeze bits, bump the restore
+   generation, and turn the input **hold** on. The sim runs as much as the game's own load path needs.
 4. **Reach active gameplay** on the captured level (load it / boot the run; generic level if the game has no rooms)
-   and wait for the game's native spawn to finish.
+   and wait for the game's native spawn to finish. The Creator-Flow "`OpenRoom` when the level starts loading" hook
+   (CR-009) must skip while `IsRestoring()` — this load must not open an unscored room.
 5. **Freeze → apply** (`SetCurrent` → Pass 1 + Pass 2 + environment) **→ settle** ~0.5 s with time running and input
-   still off (teleports, controllers, pooled spawns and deferred properties take) **→ freeze again** →
+   still off — the deferred-property queue (`07 §6`) drains on its first tick — **→ freeze again** →
    `SetRestoring(false)`.
 6. **`OpenRoom(ludeoId)`** (Player Flow — `nullptr` would record a NEW Ludeo, `05 §6.2`) → `AddPlayer` →
    `OnPlayerAdded`. The finished moment is now on screen, frozen, behind the overlay.
-7. **`RoomReady`** (the viewer pressed Play) → `TryBeginGameplaySession()` → `Begin` → **unfreeze**. `Begin` needs
-   `player_added`, `room_ready` and `applied`; the callbacks can arrive in either order (`05 §6.6`).
+7. **`RoomReady`** (the viewer pressed Play) → `TryBeginGameplaySession()` → `Begin` → **unfreeze** and release the
+   input hold. `Begin` needs `player_added`, `room_ready` and `applied`; the callbacks can arrive in either order
+   (`05 §6.6`).
 
 ```cpp
 // ✅ 1. LudeoSelected — validate first; touch nothing else.
 void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
-    if (m_candidate_ludeo_id == data->ludeoId) return;   // repeated fire for the same Ludeo — dispatch once
-    m_candidate_ludeo_id = data->ludeoId;
+    const std::string id = data->ludeoId;
+    if (id == m_candidate_ludeo_id || (m_restore_in_progress && id == m_pending_ludeo_id)) return;  // same Ludeo in flight
+    m_candidate_ludeo_id = id;                           // "play again" on a finished Ludeo is NOT in flight — it proceeds
     m_candidate_reader = nullptr; m_candidate_deadline = Now() + kRestoreTimeout;
-    GetLudeoAsync(m_candidate_ludeo_id);                 // read-only: commits to nothing
+    GetLudeoAsync(id);                                   // read-only; the callback carries the id (clientData) for matching
+}
+
+void LudeoManager::IgnoreSelection(const char* why) {   // pre-commit only: clear the candidate, touch nothing else
+    LUDEO_LOG("[Ludeo] selection ignored: %s", why);
+    m_candidate_ludeo_id.clear(); m_candidate_reader = nullptr; m_candidate_deadline = {};
 }
 
 // ✅ 2. Validate. May fire REPEATEDLY; early cycles return Success + an EMPTY reader.
-void LudeoManager::OnGetLudeoCallback(const LudeoSessionGetLudeoCallbackParams* data) {
+void LudeoManager::OnGetLudeoCallback(const LudeoSessionGetLudeoCallbackParams* data, const std::string& forId) {
+    if (forId != m_candidate_ludeo_id) return;           // late callback for a selection we've moved past
     if (data->resultCode != LudeoResult::Success) { IgnoreSelection("GetLudeo failed"); return; }
     if (!ReaderIsPopulated(data->dataReader) || m_candidate_reader) return;   // empty cycle, or already accepted
     const EntryId entry = ReadEntryIdentity(data->dataReader);               // start_mode / room_x / room_y …
@@ -423,32 +434,44 @@ bool ReaderIsPopulated(LudeoHDataReader reader) {
     return ok;
 }
 
-// ✅ 3–4. Commit, tear down if needed, hold, reach active gameplay.
+// ✅ 3. Commit — tear down FIRST, then set the new restore's state (held by value through the teardown).
 void LudeoManager::CommitAndRestore(const EntryId& entry) {
-    SetRestoring(true);                                   // arm start-of-run skips BEFORE the load fires them
-    m_pending_ludeo_id = m_candidate_ludeo_id; m_pending_reader = m_candidate_reader;
-    m_room_ready = m_player_added = m_applied = false;
-    auto restore = [this, entry] {
-        GameSimulation::Get().SetRestorationHold(true);   // input off, start-of-run mechanisms skipped
-        ReachActiveGameplay(entry, [this] { ApplyHeld(); });  // game's own load path; callback once native spawn is done
-    };
-    if (IsLudeoActive()) EndCurrentLudeo(restore);        // async: start the new play only once the close completed
-    else restore();
+    const std::string id = m_candidate_ludeo_id; LudeoHDataReader reader = m_candidate_reader;
+    m_candidate_ludeo_id.clear(); m_candidate_reader = nullptr;
+    auto start = [this, id, reader, entry] { StartRestore(id, reader, entry); };
+    if (IsLudeoActive() || m_restore_in_progress) EndCurrentLudeo(start);   // async: start once the close completed
+    else start();
 }
 
-// ✅ 5. Apply frozen, settle with input off, freeze again.
-void LudeoManager::ApplyHeld() {
+void LudeoManager::StartRestore(const std::string& id, LudeoHDataReader reader, const EntryId& entry) {
+    const uint32_t gen = ++m_restore_generation;          // continuations of an older restore check this and no-op
+    m_restore_in_progress = true;
+    SetRestoring(true);                                   // arm start-of-run skips BEFORE the load fires them
+    m_pending_ludeo_id = id; m_pending_reader = reader;
+    m_room_ready = m_player_added = m_applied = false;
+    GameSimulation::Get().ResetRestoreFreezeBits();       // CR-010 bit; CR-011 bit only if no overlay is open
+    GameSimulation::Get().SetInputHold(true);             // player input off until Begin
+    ReachActiveGameplay(entry, [this, gen] {              // 4. game's own load path; callback once native spawn is done
+        if (gen == m_restore_generation) ApplyHeld(gen);
+    });
+}
+
+// ✅ 5. Apply frozen, settle with input off (deferred queue on its first tick), freeze again.
+void LudeoManager::ApplyHeld(uint32_t gen) {
     GameSimulation::Get().SetRestorationFreeze(true);     // nothing may overwrite the snapshot while it lands
     ludeo_DataReader_SetCurrent(m_pending_reader);
-    StateAdapter::Get().RestoreTwoPass(m_pending_reader);
+    StateAdapter::Get().RestoreTwoPass(m_pending_reader); // queues deferred properties (07 §6)
     StateAdapter::Get().RestoreEnvironment(m_pending_reader);
     m_pending_reader = nullptr;                           // one-shot
-    GameSimulation::Get().Settle(0.5f, [this] {           // time runs, input stays off
-        GameSimulation::Get().SetRestorationFreeze(true); // hold the finished moment
-        SetRestoring(false);                              // restore window closes (NOT the whole replay — 07 §2.3)
-        m_applied = true;
-        OpenRoom(m_pending_ludeo_id);                     // 6. ludeoId set ⇒ Player Flow; → AddPlayer → OnPlayerAdded
-    });
+    GameSimulation::Get().Settle(0.5f,
+        /*onFirstTick*/ [this, gen] { if (gen == m_restore_generation) StateAdapter::Get().ApplyDeferred(); },
+        /*onDone*/      [this, gen] {
+            if (gen != m_restore_generation) return;
+            GameSimulation::Get().SetRestorationFreeze(true);   // hold the finished moment
+            SetRestoring(false);                                // restore window closes (NOT the whole replay — 07 §2.3)
+            m_applied = true;
+            OpenRoom(m_pending_ludeo_id);                       // 6. ludeoId set ⇒ Player Flow; → AddPlayer → OnPlayerAdded
+        });
 }
 
 // ✅ 7. RoomReady = the viewer pressed Play.
@@ -460,8 +483,9 @@ void LudeoManager::OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams
 void LudeoManager::TryBeginGameplaySession() {          // also called from OnPlayerAddedCallback
     if (!(m_player_added && m_room_ready && m_applied)) return;
     BeginGameplaySession();                               // SDK records from the restored state
+    m_restore_in_progress = false;
     GameSimulation::Get().SetRestorationFreeze(false);    // Play resumes exactly the moment the viewer chose
-    GameSimulation::Get().SetRestorationHold(false);
+    GameSimulation::Get().SetInputHold(false);
 }
 
 // ✅ Per-frame fallback — bound the readiness wait; still pre-commit, so nothing to undo.
@@ -489,7 +513,8 @@ void LudeoManager::Update() {
 **Validation:**
 - [ ] A selection that fails `GetLudeo`, never populates, or carries an unplayable entry identity is **ignored** —
       the running Ludeo (or the menu) is untouched.
-- [ ] `SetRestoring(true)` runs at the commit, **before** the level load, so start-of-run sequences hit the `07 §9.11`
+- [ ] A selection that validates **while another restore is still in progress** tears that restore down first; its pending load/settle continuations no-op (restore generation), and re-selecting a Ludeo that already finished playing ("play again") is not dropped as a duplicate.
+- [ ] `SetRestoring(true)` runs at the commit (after any teardown), **before** the level load, so start-of-run sequences hit the `07 §9.11`
       gate when they fire.
 - [ ] The apply runs **frozen**, followed by a ~0.5 s settle with input off, then a second freeze — all **before**
       `OpenRoom`.
