@@ -20,6 +20,7 @@
 8. [Environment Restoration](#8-environment-restoration)
 9. [Common Mistakes](#9-common-mistakes)
 10. [Validation Checklist](#10-validation-checklist)
+11. [Play-Forward Hazards](#11-play-forward-hazards)
 
 ---
 
@@ -38,6 +39,48 @@ game must:
 
 The order of operations matters. Skipping or reordering steps causes the
 issues catalogued in Section 9.
+
+### 1.1 The Mirror Principle — and Its Three Exceptions
+
+Every restore decision inverts a capture decision in `OBJECT_TRACKING.md`: same `objectType` strings, same
+attribute names and types, same stable keys — Pass 2 reverses capture row for row (§3.1). **You cannot restore
+what capture didn't write**; a gap is fixed in `phase 4` / `phase 5 · task 1`, not here.
+
+The mirror is deliberately not absolute. Restore lands the game *past* the machinery that normally establishes
+a live encounter, so a faithful mirror alone can leave entities existing but not established. Three exceptions,
+and only these:
+
+1. **Normalize** transient action-phase flags to idle instead of applying them (§1.2).
+2. **Re-drive** activation the replay skipped — an entity authored into the level but switched on only by a
+   trigger the player crossed before the capture (a boss, a gated encounter) is activated by the restore, then
+   reset, then applied (§5.4).
+3. **Skip the reposition** branch of a scripted moment the restore re-triggers, keeping its presentation (§11.3).
+
+Mirror everything else verbatim.
+
+### 1.2 Transient Action-Phase State — Normalize, Don't Mirror
+
+The snapshot is taken at an arbitrary instant, so entities come back mid-action — mid-attack, mid-reload,
+mid-jump, mid-cast, mid-stagger, animation-locked. A captured **transient action-phase** flag must not be
+written back verbatim: the code that clears it is the *end of the action itself* (the swing's last frame, the
+reload timer, the landing), which the restore never runs. Any loop gated on it (`if (!m_is_attacking) …`,
+`can_act = (move_state == MoveState::None)`) then never runs again — the entity is restored "correctly" and
+sits **jammed** for the whole Ludeo. On the player this presents as dead input
+([11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §8).
+
+Classify every captured attribute in `RESTORATION_PLAN.md`:
+
+- **Durable** — HP, position, inventory, ammo, score, AI target, quest progress → apply verbatim.
+- **Transient action-phase** — attacking / casting / reloading / dodging / jump-phase / stunned / knockback
+  flags, combo index, animation-lock booleans, in-progress action timers → **reset to the idle baseline** in
+  Pass 2, or re-drive the action through the game's own entry point if it can resume cleanly. Never apply the
+  captured mid-action value.
+
+The tell: a field one code path sets at the start of an action and only the end of that action clears. When in
+doubt, idle is safe — the AI re-derives its attack next tick; a stuck flag never recovers. A timer whose
+duration is written only when the action starts (and so was never captured) cannot be resumed at all — idle is
+the only option. This differs from a deferred property (§6 — applied, just later) and from the matched-instance
+reset (§5.4 — clears *uncaptured* leakage): here a *captured* value is deliberately dropped.
 
 ---
 
@@ -300,6 +343,36 @@ These notifications are **session-lifetime** (register once at session creation,
 
 To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `phase 5 · task 3` Step 3.
 
+### 2.6 Replay → Replay: What the Teardown Must Reset
+
+The easy re-entry to miss is the **second Ludeo picked from the overlay without quitting**: no app restart, no
+menu, so the long-lived `LudeoManager` *and the game's own singletons and registries* carry the first play's
+state straight into the second. `end_current_ludeo(then)` (§2.2) with the restore-generation bump handles the
+Ludeo side; the teardown is complete only when every row below is reset before `then` starts the new restore:
+
+| Stale state | Failure on the next play | Reset by |
+|---|---|---|
+| `m_freeze_overlay` left set by a backend-ended play (`PauseGameRequest`, no `ResumeGameRequest`) | the new moment never unfreezes after `Begin` — dead input | `EndCurrentLudeo` and again at the commit (§2.1 step 3), only if no overlay is open — §2.4, [11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §8 |
+| Previous gameplay session + room not ended / closed | `OpenRoom` opens a second room over the live one; `Begin` can land on the stale session | `end_current_ludeo(then)` — the new restore starts only in `then`, after the close completed (§2.2) |
+| Gameplay-active flags — `m_is_player_flow_replay`, `IsRestoring()`, and the game's own "in gameplay" / "match started" flags the start-of-run skips (§9.11) key on | skips fire, or stay suppressed, on the wrong play; capture resumes mid-replay (§2.3) | `EndCurrentLudeo` (`phase 5 · task 3` Step 5) + the game's own level-unload / run-reset path |
+| The game's own registries (enemy roster, target / aggro lists, spatial buckets, spawn-manager lists) still holding entities the teardown destroyed | queries return dead entries — systems iterate ghosts, counts are wrong, Pass 1 can match a dead instance | purge on teardown — below |
+
+**Purge dead references from the game's own registries — without clearing the live ones.** Teardown usually
+destroys entities without unregistering them, so the game's global collections fill with dangling entries that
+come back on the next run. Two parts: (1) make registry *queries* skip dead entries (the game's own validity
+test — a handle generation, a pending-destroy flag, a weak reference); (2) on teardown, **remove the dead
+entries, but never `clear()` a collection that also holds live objects carried across the teardown** — a
+persistent player, pooled objects, level-persistent managers. Remove the dead, keep the live. This is the
+collection-level counterpart of the matched-instance reset (§5.4); call it from `EndCurrentLudeo` beside the
+Ludeo-flag reset.
+
+**Issue each teardown step from the main-thread queue, not from inside the previous step's callback.**
+`End(isAbort=true) → RemovePlayer → Room_Close` is chained through completion callbacks, which `ludeo_Tick`
+dispatches. Queue the next call (`03 §8.3`) so it runs on the next tick rather than inside that dispatch: the
+SDK shuts its video encoder down in reaction to the session end, and a production integration that issued
+`Room_Close` from inside the `End` callback hit an intermittent native abort that queueing the call removed.
+The order of the chain (`05 §6.7`–`§6.9`) is unchanged.
+
 ---
 
 ## 3. Two-Pass Restoration (CR-006)
@@ -453,17 +526,56 @@ A single game often needs both. Player and major enemies may be reconciliation;
 dynamically-attached sub-components may be manual. Drive the choice from the
 per-entity matrix, not by global policy.
 
+### 5.4 Matched Instances — Reset to a Baseline Before Applying
+
+A Pass-1 spawn starts at the game's spawn defaults. A **matched** instance (placed by the level and reconciled
+to a captured object by `match_or_spawn`, §3.1) or a **persistent singleton** (a player, camera or manager that
+survives level loads) was never re-created — it is the same live object as the previous run. Pass 2 overwrites
+only the fields you captured, so every field you didn't capture leaks across runs: inventory and ammo, score
+and kill counts, buffs / debuffs and status effects, cooldowns, combo and charge meters, the equipped item,
+dead / respawning flags — and the visual state riding on the same objects: HUD readouts, damage-number and VFX
+pools, active particle emitters, trails and decals, screen shake, post-processing left on (low-health
+vignette, tint).
+
+**At the top of its apply, reset the matched or singleton instance to a clean baseline** — call the game's own
+new-game / respawn / level-restart reset, or zero the runtime fields and clear the persistent visuals by hand —
+**then** apply the snapshot on top. You own the reset a fresh spawn would have got for free. (The `LudeoManager`
+flags have the same problem; §2.6 resets those.)
+
+- **Order: activate → reset → apply.** An entity authored into the level but **inactive until a trigger arms
+  it** (a boss, a gated encounter — exception 2 in §1.1) is a third case beside match and spawn: a reconciler
+  that enumerates candidates from the game's live registry never sees it (it registers on activation), and it
+  is not a spawn candidate either, so it silently drops out of the replay. Resolve such entities from the level
+  data *including inactive ones* — and expect the key to be ambiguous (cutscene stand-ins often share the name)
+  — then activate, reset, apply. A level-restart reset often re-arms the intro trigger and deactivates the
+  entity itself; that's fine as long as the captured values (trigger consumed, arena locked, entity active) are
+  applied after it and win. Don't skip the reset to avoid this.
+- **"Not captured" means "destroyed" only when capture demonstrably worked.** If the restore removes placed
+  instances with no captured counterpart (they were dead at capture), refuse to remove anything when the
+  capture holds **zero** objects of a type the level still has — that is a truncated capture, not a cleared
+  level — and log it loudly.
+
 ---
 
 ## 6. Deferred Property Application
 
 Some properties cannot be applied synchronously in the apply path because their setter reaches into subsystems that aren't initialized yet at that moment. Queue them in Pass 2 and apply them on the **first tick of the settle** (§2.1 step 6) — the apply itself runs frozen, and the settle is when real frames run:
 
-- **Animation state** — requires the skeletal mesh to be initialized.
-- **Physics velocity / impulses** — requires the physics body to be registered.
-- **Ability / attribute-system state** — requires the ability system to be online.
-- **Networked replicated state** — requires the replication graph to be ready.
-- **Health (or any "trivial" attribute whose setter fans out into handlers)** — the setter looks like a one-liner, but the handler chain (widget creation, mesh material updates, AI perception, damage events) crashes or no-ops on uninitialized targets. Defer.
+| Property | Why it can't be applied in the frozen apply | Apply once (in `ApplyDeferred()`) |
+|---|---|---|
+| **Animation state / playback time** | the skeletal mesh / animation graph isn't initialized, or its entry-state transition overwrites the value — a restored mid-swing snaps back to idle | the graph is initialized and past its entry state |
+| **Physics velocity / impulses** | the body isn't registered; the first physics step can zero it — an in-flight projectile stops dead at the restore frame | the body is registered, before its first physics step |
+| **Navigation agent position / path** | the agent must be placed on the navigation mesh through its own warp/teleport, or it snaps back to its old node | the navmesh is loaded and the agent registered |
+| **Ability / cooldown timers, attribute-system state** | an initializer or re-initializer resets them after spawn | the ability system is online and its initializers have run |
+| **Camera follow rig** | a smoothing update eases from the default pose toward the target over several frames | the follow target is placed — snap, no smoothing (§8.4) |
+| **Networked replicated state** | replication isn't ready | the replication graph is ready |
+| **Health (or any "trivial" attribute whose setter fans out into handlers)** | the setter looks like a one-liner, but the handler chain (widget creation, material updates, AI perception, damage events) crashes or no-ops on uninitialized targets | the handlers' targets exist |
+
+Two opposite init hazards: here, an initializer that **runs** and clobbers a restored value (defer past it); in
+§3.1, an init callback that **doesn't run** for an entity created during the level boot (so the apply is driven
+from the restore loop, never hung off that callback). A related one: an entity the game reveals only at the
+**end of a timed arrival** (dissolve, fade-in, spawn animation) stays invisible while the clock is frozen —
+place it already arrived (the arrival's end state), don't rely on the settle to run the sequence out.
 
 ### 6.1 Detection
 
@@ -548,6 +660,25 @@ Some state is deliberately not restored:
 - Replication metadata
 
 Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost.
+
+### 8.4 Camera — Snap to the Captured View
+
+The camera is the first thing the viewer sees. A follow rig that starts at a default pose and eases toward its
+target opens the Ludeo on the wrong view and slides into place — visibly wrong even when every object restored
+correctly. Restore the rig's **control state** (mode, target, pitch / yaw / distance — what capture recorded,
+not the derived transform) and force it to its final pose in one step: call the rig's snap / teleport path, or
+bypass smoothing for that update. Do it in the apply, and again in `ApplyDeferred()` on the settle's first tick
+if the rig only resolves its pose on a tick (§6), so the frozen frame behind the overlay already shows the
+captured view and Play resumes from it with no ease-in.
+
+### 8.5 Soundtrack — Restart It Explicitly
+
+Games start level music from start-of-run logic (level start, the intro, the first gameplay tick), and the
+restore gates exactly that logic on `IsRestoring()` (§9.11). The result: the state restores perfectly and the
+soundtrack never starts. `restore_environment` must (re)start the captured track itself, from the active-track
+id capture stored on the world object (§8.1). Make it idempotent — don't stack a second track on one already
+playing. Presence, not position: restarting the track from the top is fine. It isn't load-bearing for the first
+frame, but it is required for a complete restore — don't drop it.
 
 ---
 
@@ -685,6 +816,69 @@ Before considering restoration "done" on a game:
       level's default init do **not** overwrite restored state after resume (§9.10).
 - [ ] `BackToMenuRequest` returns to the menu and tears down the current Ludeo.
 - [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `phase 5 · task 3` Step 3).
+- [ ] An entity captured mid-action comes back idle and acts on its own after Play — transient action-phase
+      flags are normalized, not mirrored (§1.2).
+- [ ] Matched / singleton instances are reset to a baseline before the apply — no inventory, buffs, HUD or
+      post-processing carried over from the previous run (§5.4).
+- [ ] A **second Ludeo picked without quitting** restores cleanly: no stale pause bit, no second room, no dead
+      entries in the game's own registries (§2.6).
+- [ ] The first frame shows the captured camera view with no ease-in, and the captured soundtrack plays (§8.4, §8.5).
+- [ ] After Play: spawn triggers don't duplicate restored entities, derived counters match the restored
+      entities, and scripted moments keep their presentation without repositioning the player (§11).
+- [ ] Per-restore instrumentation is in place and live read-back checks pass after the settle and at
+      `RoomReady` ([11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §10).
+
+---
+
+## 11. Play-Forward Hazards
+
+The restore builds the moment; Play resumes it, and the game's own logic then runs forward from a state it never
+reached the normal way. These hazards show up only after Play — the frozen frame behind the overlay looks right.
+
+### 11.1 Spawn Triggers Re-Fire — Gate the Trigger, Never the Spawn Primitive
+
+`match_or_spawn` (§3.1) covers what exists when the apply runs. It does nothing about the game's own spawner
+firing **after** Play: the replay re-enters a populating state — combat start, a wave start, a room-enter
+repopulate, an aggro refill — and that trigger spawns a fresh group **on top of** the entities you restored.
+
+- **Gate the trigger** (the decision to populate), **never the spawn primitive** (the low-level factory /
+  `SpawnEnemy` call): Pass 1 calls that primitive to create the restored entities, so gating it breaks the
+  restore itself.
+- **Suppress re-create, keep advance.** A trigger that re-fires the already-restored wave is the bug; a spawner
+  that advances to the *next* wave from the restored cursor is legitimate continuation
+  ([`game-patterns/procedural-world.md`](./game-patterns/procedural-world.md) §5).
+- **Prefer the game's own "already started" guard to a global replay gate.** Capture each encounter's started
+  flag and restore it: encounters live at capture then block their own first-wave path, while encounters not yet
+  started — and every room the player reaches later in the replay — still start through the normal trigger. A
+  blanket "no wave triggers during a replay" gate starves those, and the replay plays out over an empty level.
+  Restore the recorded flag; never mark every encounter started.
+
+### 11.2 Recompute Derived Aggregates After the Apply
+
+The spawn primitive you kept ungated also maintains **derived aggregates** that live on a manager, not on any
+tracked object — the alive-enemy count, a remaining-objectives tally, a spawn budget. Pass 1 calls it once per
+restored entity, so that bookkeeping replays N times; and a start-of-run step skipped under `IsRestoring()`
+(§9.11) may have been what reset it. The counter is invisible: the moment looks perfect while its win/lose
+condition is silently unreachable — and the action that should fire when it hits zero (`06 §7`) never does.
+
+Don't try to make N incremental side effects sum correctly. At the end of the apply — after `ApplyDeferred()` if
+the count depends on deferred state, and before `OpenRoom` — **recompute each aggregate from ground truth**
+(`enemies_remaining = count of restored, still-killable enemies`). Count the right subset: when one class covers
+several kinds (structures, minions, props), the classifying field must be captured and read so the recount filters
+on it. Audit every game path the restore borrows (spawn, inventory-add, door-open): list its side effects and
+decide whether the snapshot already accounts for them or you are applying them twice.
+
+### 11.3 Scripted Moments — Keep the Presentation, Skip the Reposition
+
+A scripted moment the restore re-triggers (an encounter intro, a boss reveal, an arena cutscene the captured run
+had already entered) has two separable effects. The **presentation** — camera framing, VFX, dialogue, timeline —
+is safe: keep it; suppressing the whole moment produces "the cutscene didn't play". The **reposition** —
+teleport-to-arena, spawn-point snap, respawn, a camera possession that moves the body — warps the restored player
+off the snapshot. Gate the reposition branch, not the whole moment: on `IsRestoring()` when it fires inside the
+restore window (it joins the default-spawn teleport on the §9.11 list), and on the session-scoped Player-Flow
+replay flag (§2.3) when it fires after Play. Better still, restore the moment's consumed / triggered state so it
+doesn't re-fire at all (§5.4). When the two branches aren't separable in code, splitting them is a game-code
+change — surface it in `RESTORATION_PLAN.md` rather than silently dropping the cutscene.
 
 ---
 

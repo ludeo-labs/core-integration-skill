@@ -21,6 +21,7 @@ Jump to the symptom:
 - Restore ran but the player is at the default spawn, nothing applied → §7 Empty / early reader
 - Restored Ludeo plays but input is dead → §8 Dead input
 - A notification never fires (often `RoomReady`), `unknown event_name` in the log → §9 SDK build too old for the backend
+- Restore "works" but something is wrong and the cause isn't obvious → §10 Instrument before theorizing
 
 ---
 
@@ -171,6 +172,8 @@ A Ludeo restores correctly — the right level loads, objects spawn with their c
 
 `LudeoManager` is a **long-lived singleton** for the whole app run, so any mutable lifecycle bit it holds carries between Ludeos within that run — gate (2) is exactly that hazard.
 
+**Not a gate, same symptom: a transient action-phase flag restored verbatim.** If input flows, the sim ticks and the controller is enabled, but the player still can't move or act, check for a mid-action flag the capture caught set (attacking, dodging, stunned, knockback, a move state that only the end of the move clears). Restored verbatim it disables the controller's own input pass for the whole Ludeo. Normalize it to idle instead (`07 §1.2`).
+
 ### How to catch it
 At `Begin` (where the restore unfreezes), log the **resolved pause state** — `m_freeze_restore`, `m_freeze_overlay`, and the engine's effective `paused` bool — plus whether input suppression and control locks are still active. The tell for an inherited stale bit: the engine is paused with `m_freeze_overlay == true` but **no `PauseGameRequest` fired this play** — i.e. nothing this run set it, so it was carried in from a prior (backend-ended) play.
 
@@ -205,6 +208,36 @@ integration waits for. Nothing in your code is wrong — the same code works wit
 ### How to fix it
 
 Update to the current SDK release (phase 1 Step 2) — all of it: headers, libraries and the whole runtime folder — then do a **clean** rebuild and redeploy (an incremental build can keep the old SDK DLL in the output) and confirm the new `LudeoSDK v…` line in the run log. Don't work around a missing notification by calling `Begin` yourself.
+
+---
+
+## 10. Restore looks wrong and the cause isn't obvious — instrument before theorizing
+
+### Symptom
+The restore runs and the replay is subtly wrong: an entity that never acts, a value that is off, a wall standing that should be broken, a win condition that never triggers. Plausible theories multiply ("bad positioning", "flaky cutscene timing", "the SDK stored it wrong").
+
+### Why it happens
+Restore bugs invite confident-but-wrong theories that a single runtime log disproves. Much of the restored state is invisible on screen (counters, wave cursors, flags, clocks), and several failure modes leave no error at all: a gameplay rule **vetoes** the write (a spawn-protection buff rejecting a health decrease, a clamp, a dead-state guard); another system **re-asserts** its own value on its next tick; a deferred game command lands after the apply; the game's own spawn handshake re-places the player a second later.
+
+### How to catch it
+**Log first, theorize second.** Per restore, log:
+- the two-pass counts per object type — captured / matched / spawned / applied / references resolved;
+- each re-driven activation and each normalized transient flag (`07 §1.1`, `07 §1.2`);
+- the resolved pause state at the unfreeze (§8).
+
+A restored entity that never acts is then a one-line diagnosis: **inert** = its activation never fired (`07 §5.4`); **jammed** = a transient flag was restored verbatim (`07 §1.2`).
+
+Then make the restore **verify every value it writes**. At each apply site, register the expected value and a read-back of the **live game state** — never of a mirror, and never of a field the restore itself just set (a function that sets its flag on the first line and defers the real effect will always read back "right"). Evaluate the list at two checkpoints:
+
+1. **After the settle** — did the apply take, and did the settle's own frames undo any of it?
+2. **At `RoomReady`** — did anything rewrite the moment while it waited for Play?
+
+The same failures at both checkpoints mean the apply is wrong; new ones at the second mean something overwrote it. Compare ints, bools and strings exactly; floats and positions within a tolerance (tight for the player, looser for AI that may step during the settle); running timers with clock semantics (may advance by up to the settle's length, never go backwards). Check what you deliberately left alone too — an encounter not started at capture should still be untriggered (`07 §11.1`).
+
+Per-tick silence while the restore is frozen is the freeze working, not a hang. The real stall signal is an unfreeze that never comes (no `Begin`).
+
+### How to fix it
+Fix the cause the failing check names: write past a vetoing rule (set the underlying field, or lift the protection for the apply — restoration re-states recorded fact, it isn't gameplay); write into whichever system owns the value, so the one re-asserting it every tick reads the restored value; move a value a deferred game command overwrites into `ApplyDeferred()` (`07 §6`). Keep the checks in place: they are the regression gate for the next replay.
 
 ---
 
