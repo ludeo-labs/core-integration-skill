@@ -331,7 +331,9 @@ if (result == LudeoResult::Success) {
 
 > **⚠️ Common AI/Developer Mistake:** Trying to call these from game event handlers.
 
-Some SDK operations are **triggered by SDK callbacks**, NOT by game events.
+Some SDK operations are **triggered by SDK callbacks**, NOT by game events. And when a callback triggers the next
+SDK call, it **queues** it (`LudeoManager::QueueOperation`, `03 §8.3`) rather than calling it inline — an SDK call
+issued from inside a callback's dispatch has crashed the process at session-end teardown.
 
 **🎮 Game Code Integration Points (YOU call these):**
 | Operation | When to Call | From Where |
@@ -410,6 +412,9 @@ nothing overwrites the snapshot as it lands, and `Begin` (which starts SDK recor
    (`05 §6.6`).
 
 ```cpp
+// All callbacks below are already marshalled to the main-thread queue (03 §8.3): they run on the next Tick,
+// outside the SDK's callback dispatch, so the SDK calls they make are safe.
+
 // ✅ 1. LudeoSelected — validate first; touch nothing else.
 void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
     const std::string id = data->ludeoId;

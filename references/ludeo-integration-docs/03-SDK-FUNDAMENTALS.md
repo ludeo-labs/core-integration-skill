@@ -597,7 +597,14 @@ void GameLoop::Update() {
 
 ### 8.3 Thread-Safe Integration
 
-**If game uses multiple threads, queue SDK operations:**
+**Queue SDK operations — from other threads, and from inside SDK callbacks.** Never issue an SDK call from
+*inside* an SDK callback's dispatch (e.g. `ludeo_Room_Close` from the `GameplaySession_End` callback, or
+`ludeo_Session_GetLudeo` straight from the `LudeoSelected` notification): the SDK may still be reacting to the same
+event — tearing down its video encoder at session end, for instance — and a call landing on that same tick has been
+seen to end the process with a native `abort()` and no log. Queue the next call instead; it runs on the next `Tick`,
+outside the dispatch. Audit **every** callback that issues an SDK call, not just teardown — the chain
+`OnRoomOpened → AddPlayer → OnPlayerAdded / OnRoomReady → Begin → … → End → RemovePlayer → Close` included.
+(Synchronous quit paths, where there is no next tick, are the exception — see 05 §7.)
 ```cpp
 class LudeoManager {
     std::mutex m_queue_mutex;
@@ -634,6 +641,11 @@ private:
 LudeoManager::Instance().QueueOperation([this]() {
     LUDEO_CAPTURE_FLOAT(this, "entity", "health", m_health);
 });
+
+// Usage from inside an SDK callback: issue the NEXT SDK call from the queue, not inline
+void OnGameplayEndedCallback(const LudeoGameplaySessionEndCallbackParams* data) {
+    LudeoManager::Instance().QueueOperation([] { RemovePlayerFromRoom(player_id); });
+}
 ```
 
 ---

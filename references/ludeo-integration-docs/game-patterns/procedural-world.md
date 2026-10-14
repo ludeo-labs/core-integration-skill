@@ -135,7 +135,17 @@ restore flow's read-entry-identity step *before* reaching active gameplay (`07 �
 ## 4. Decide: capture the seed, or the resolved selection?
 
 This is the [seed-vs-stored-layout](https://www.gamedeveloper.com/design/2d-procedural-generation-in-unity-with-scriptableobjects)
-trade-off, restated for Ludeo. Pick per game and record it in `OBJECT_TRACKING.md`:
+trade-off, restated for Ludeo, and applied **per stream**. Pick per game and record it in `OBJECT_TRACKING.md`.
+
+> **First, inventory the generation streams — don't assume there's only one.** A procedural load usually pulls from
+> **several independent** RNG/seed sources, and reproducing one while ignoring another silently restores a
+> *different* moment. Enumerate every random/seed/roll the load path consumes — **by reading the generator, not just
+> grepping; an empty grep is not a closed list** — and classify each against the §3 input kinds: **content**
+> (selection / sub-roll), **placement** (easy to miss — keyed off *where* a segment lands, not *which* one),
+> **scaling** (run counters), or **cosmetic** (purely visual, safe to let roll live). Every non-cosmetic stream must
+> be captured-and-replayed or provably reproduced; the set is done only when it is *closed*.
+
+The two options, per stream:
 
 - **Resolved-selection** *(default for Ludeo)* — capture the **outcome** ids (room id, encounter id, wave
   index, combat level), i.e. the result of the rolls. Restore re-drives the generator *to those exact ids*
@@ -182,6 +192,12 @@ restore:
    first (read-then-load, `07 §2.2`) and drive `reach_active_gameplay`; entities then come back via the
    normal two-pass (`07 §3`); world/environment flags last (`07 §8.2`). The progress cursor (wave index)
    positions the encounter so remaining waves match.
+4. **Position the cursor — don't let entering the encounter *re-spawn* the restored wave.** "Remaining waves match"
+   means the spawner may **advance** to the next wave from the restored cursor. But a trigger that fires when
+   combat / the encounter (re)starts often **repopulates the current wave wholesale**, stacking a fresh wave on the
+   enemies you just restored. Gate that re-populate **trigger** — never the spawn primitive Pass 1 uses — for the
+   whole replay, not just the restore window (`07 §11.1`). Restore the live wave as a snapshot; let only genuine
+   *advancement* run.
 
 > **Where you inject depends on *when* the generator rolls.** If it rolls **lazily per room-entry**
 > (next-room-at-portal), override each entry to the captured id. If it generates the **whole floor

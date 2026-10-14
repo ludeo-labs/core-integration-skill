@@ -451,7 +451,8 @@ void OnRoomOpenedCallback(const LudeoSessionOpenRoomCallbackParams* data)
     room_handle = data->room;
     data_writer = data->dataWriter;  // CRITICAL: Store DataWriter
     
-    AddPlayerToRoom(player_id);  // ← Trigger player adding from HERE
+    // Trigger player adding from HERE — queued, never inline inside the SDK's dispatch (03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { AddPlayerToRoom(player_id); });
 }
 ```
 
@@ -485,8 +486,8 @@ void OnPlayerAddedCallback(const LudeoRoomAddPlayerCallbackParams* data)
     player_added = true;
     
     // For multiplayer: Add remaining players
-    // For single-player: Check if both conditions met to begin gameplay
-    TryBeginGameplaySession();  // ← May trigger gameplay begin from HERE
+    // For single-player: Check if both conditions met to begin gameplay (queued — 03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { TryBeginGameplaySession(); });
 }
 ```
 
@@ -517,8 +518,8 @@ void OnRoomReadyCallback(const LudeoSessionRoomReadyCallbackParams* data)
         // Room is ready
         room_ready = true;
         
-        // Check if player was already added - if both conditions met, begin gameplay
-        TryBeginGameplaySession();  // ← May trigger gameplay begin from HERE
+        // Check if player was already added - if both conditions met, begin gameplay (queued — 03 §8.3)
+        LudeoManager::Instance().QueueOperation([] { TryBeginGameplaySession(); });
     }
 }
 ```
@@ -585,8 +586,9 @@ void OnGameplayEndedCallback(const LudeoGameplaySessionEndCallbackParams* data)
 {
     gameplay_session_active = false;
     
-    // CRITICAL: Remove all players before closing room
-    RemovePlayerFromRoom(player_id);
+    // CRITICAL: Remove all players before closing room — queued, never inline: the SDK is still tearing
+    // down (video encoder) on this tick, and a call issued inside its dispatch can abort() the process (03 §8.3)
+    LudeoManager::Instance().QueueOperation([] { RemovePlayerFromRoom(player_id); });
 }
 ```
 
@@ -617,7 +619,7 @@ void OnPlayerRemovedCallback(const LudeoRoomRemovePlayerCallbackParams* data)
     // For single-player: All players removed, proceed to close room
     
     if (all_players_removed) {
-        CloseRoom();
+        LudeoManager::Instance().QueueOperation([] { CloseRoom(); });   // queued — 03 §8.3
     }
 }
 ```

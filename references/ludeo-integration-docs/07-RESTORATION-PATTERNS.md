@@ -388,7 +388,7 @@ The order of the chain (`05 §6.7`–`§6.9`) is unchanged.
 id_map = {}                       # LudeoObjectId → GameObjectId
 
 for ludeo_obj in reader.objects():
-    game_obj = match_or_spawn(ludeo_obj)   # match the level's placed instance by stable ID first; only spawn fresh if absent (§8 / Pre-Existing-Object Reconciliation)
+    game_obj = match_or_spawn(ludeo_obj)   # match the level's placed instance by stable ID first; only spawn fresh if absent (§5.4; plan: `phase 5 · task 2` Step 8)
     id_map[ludeo_obj.id] = game_obj.id
 
 # Pass 2 — Apply + Resolve
@@ -716,7 +716,7 @@ frame, but it is required for a complete restore — don't drop it.
     **repopulates it** with default-placed entities and default state, and the
     game's own init runs around your restore. Restoration must be the
     **authority**: reconcile captured objects to the level's placed instances
-    (don't blind-spawn duplicates — §8/Pre-Existing-Object Reconciliation),
+    (don't blind-spawn duplicates — §5.4 and `phase 5 · task 2` Step 8),
     apply restored values **after** the level finishes initializing, and **keep
     the simulation frozen** (§7) until the `OnRoomReadyCallback` unpauses. If the
     sim runs, or the game's default init runs after your apply, the restored
