@@ -185,10 +185,10 @@ Wait for the player's confirmation on steps 4 and 5 before declaring phase 5 · 
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
-This phase edited source files, so it is **not done** until the game still builds and runs. The agent
-cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
+log; only running the game needs the integrator:
 
-1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+1. **Rebuild — the agent, not the integrator.** **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
    loop in `3e-compile-and-fix.md` and read the build log.
 2. **Run the game and confirm it still runs** — play a Ludeo and confirm the lifecycle smoke test
    (Step 6) passes: the captured level held frozen behind the overlay before Play, an instant resume on
@@ -196,7 +196,8 @@ cannot see a running game, so this gate falls to the integrator — make the ask
    `phase 5 · task 4`, so fully-restored state isn't expected yet — you're confirming the flow fires and
    the game doesn't break.
 
-The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
-on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Then
+The agent verifies the build itself — show the build command and its result. If it cannot build here
+(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
+**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not offer to advance until the build passes and the user confirms the run** (or explicitly skips). Then
 run `5e-implement-state-reconstruction.md` to fill the apply seam.

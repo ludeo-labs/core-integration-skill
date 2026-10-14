@@ -185,14 +185,14 @@ rm -rf src/core/ludeo/   # or wherever the plan specified
 ## Next Step — rebuild + run gate (REQUIRED — do not advance without it)
 
 This phase edited source files but **deliberately did not compile** — `phase 3 · task 5` is its exit gate, and it
-is **mandatory**, not optional. The integration is **not done** until it builds and runs, and the agent
-cannot see a running game, so this falls to the integrator:
+is **mandatory**, not optional. The integration is **not done** until it builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
+log; only running the game needs the integrator:
 
-1. Run `phase 3 · task 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
+1. **Rebuild — the agent, not the integrator.** Run `phase 3 · task 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
    fix build errors with phase 3 · task 5's loop and read the build log.
 2. **Run the game** — confirm the lifecycle opens a gameplay session (the first end-to-end proof), with
    no SDK errors or crashes in the log.
 
-The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
-on its own — beyond the logs it relies on the integrator's word. **Do not advance until the user
-confirms both** (or explicitly skips).
+The agent verifies the build itself — show the build command and its result. If it cannot build here
+(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
+**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word. **Do not advance until the build passes and the user confirms the run** (or explicitly skips).
