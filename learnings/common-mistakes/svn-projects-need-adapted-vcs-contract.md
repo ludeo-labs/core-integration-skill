@@ -36,5 +36,6 @@ Nothing is `svn add`-ed or committed. Track new unversioned directories and edit
 `svn status` shows both — so the first branch commit is complete. Record the VCS type, URL, revision and "no
 commits until branch" in the state file's `decisions`, so a resumed session doesn't commit to trunk.
 
-On SVN teams build outputs are often versioned too — see
+The skill now carries this mapping as its VCS contract: `references/vcs/svn.md` (detected and loaded from phase 1
+Step 0a). On SVN teams build outputs are often versioned too — see
 `learnings/common-mistakes/tracked-binaries-exclude-rebuilt-artifacts-from-commits.md`.

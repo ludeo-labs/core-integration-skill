@@ -10,6 +10,11 @@ file records **where you are, what was decided, and what the user told you**, an
   "schemaVersion": 1,
   "gameTitle": "GameName",
   "branch": "feature/ludeosdk-integration-#1",
+  "vcs": {
+    "type": "git",
+    "commitPolicy": "per-phase | until-review | no commits until branch",
+    "git": { "remote": "origin", "branch": "feature/ludeosdk-integration-#1" }
+  },
   "engine": { "buildSystem": "cmake | msbuild | make | other", "targetOS": "windows | linux | macos" },
 
   "current": "3d",
@@ -33,7 +38,7 @@ file records **where you are, what was decided, and what the user told you**, an
   "sdk": {
     "source": "release repo | user-supplied",
     "version": "4.2.2",
-    "path": "ThirdParty/LudeoSDK",
+    "path": "external/ludeo/LudeoCoreSDK_4.2.2",
     "versionLine": "LudeoSDK v4.2.2.0, GitHash:…, Build 2026-…"
   },
 
@@ -85,8 +90,10 @@ file records **where you are, what was decided, and what the user told you**, an
 ## Fields
 
 - **`schemaVersion`** — `1`. Bump only with a migration note here.
-- **`branch`** — the integration branch (phase 1 Step 0a). The state file lives on it; a session that starts on another
-  branch finds the integration through this name.
+- **`branch`** — the integration's isolation (phase 1 Step 0a): the git branch, the SVN branch URL, or the Perforce
+  stream or changelist. The state file lives in it; a session that starts elsewhere finds the integration through it.
+- **`vcs`** — `type` (`git` | `svn` | `p4` | `none`), `commitPolicy`, and the per-VCS block the matching
+  `vcs/<type>.md` defines (`git`, `svn` or `p4`). Read before any file write: it says which contract file to load.
 - **`current`** — set when a step starts; the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5a`–`5e`,
   `6a`, `6b`, `7`, `8` (the prefix of the phase file in `references/`). Steps run in `SKILL.md`'s table order.
 - **`steps.<id>.status`** — `not_started` · `in_progress` (set when the step's work begins) · `completed` (set only

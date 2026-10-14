@@ -56,18 +56,21 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 
 ## Workflow
 
-### Step 0a: Create Integration Branch ⭐ **VERY FIRST STEP**
-First check this isn't a resumed integration: if `ludeo-integration-plan/integration.json` exists, or a
-`feature/ludeosdk-integration-*` branch already does, follow `SKILL.md` → **Start here** instead. Otherwise, before
-making any changes to the game project, create a dedicated branch:
-```bash
-git checkout -b feature/ludeosdk-integration-#1
-```
-- If a branch with that name already exists, increment the number (`#2`, `#3`, etc.)
-- This lets the user easily discard the integration attempt by deleting the branch
-- **All subsequent steps happen on this branch**
+### Step 0a: Detect the VCS and isolate the work ⭐ **VERY FIRST STEP**
+First check this isn't a resumed integration: if `ludeo-integration-plan/integration.json` exists, or an integration
+branch / stream / changelist already does, follow `SKILL.md` → **Start here** instead. Otherwise, before making any
+changes to the game project:
+- **Detect the version-control system** — `detect_vcs` in [`vcs/README.md`](vcs/README.md) (git, SVN or Perforce,
+  keyed off where the code lives) — and load the matching `vcs/<type>.md`. Its rules hold for the whole integration;
+  under Perforce that means `ensure_editable` before **every** file write, starting with the state file below.
+- **Isolate the work** — `create_isolation`: a `feature/ludeosdk-integration-#1` branch in git (increment the number
+  if it exists), a long-lived branch in SVN (a server-side commit — only on the user's go-ahead, deferred until then),
+  a task stream or a dedicated pending changelist in Perforce. Confirm the name with the user first. The isolation
+  lets them discard the attempt; **all subsequent steps happen in it**.
+- **Ask how the team wants the work recorded** — a commit (or changelist update) after each phase's gate, or nothing
+  until review — and record it as `vcs.commitPolicy` (`checkpoint` in [`vcs/README.md`](vcs/README.md)).
 - **Create the state file** `ludeo-integration-plan/integration.json` ([`state-file-schema.md`](state-file-schema.md))
-  with `schemaVersion`, `gameTitle`, `branch`, every step `not_started`, `current: "1"` and step `1` `in_progress`.
+  with `schemaVersion`, `gameTitle`, `branch`, `vcs`, every step `not_started`, `current: "1"` and step `1` `in_progress`.
   Update step `1`'s `note` as its sub-steps complete — Step 0c may restart the session.
 - **Pick this engagement's learnings codename** — an abstract name, never the studio or the title (a real name is
   itself a leak) — and add it to `config/learning-policy.json` → `sourceGameAllowlist` in this skill's directory now,
@@ -121,7 +124,9 @@ Follow **Section 2.1** of `04-BUILD-INTEGRATION.md`:
 - Report detected build system and primary build file
 
 ### Step 2: Obtain the SDK
-Follow **Section 2.2** of `04-BUILD-INTEGRATION.md`:
+Follow **Section 2.2** of `04-BUILD-INTEGRATION.md`, and bring the SDK under version control with `acquire_component`
+from the loaded `vcs/<type>.md` (fetch it **outside** the project, then copy the release into
+`external/ludeo/LudeoCoreSDK_<version>/`):
 - **Clone the latest release** of the SDK from `https://github.com/EdgeGamingGG/ludeo-sdk-releases`:
   ```bash
   git clone https://github.com/EdgeGamingGG/ludeo-sdk-releases.git
