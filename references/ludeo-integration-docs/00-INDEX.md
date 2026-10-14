@@ -149,6 +149,7 @@ Understanding which files reference each other:
 | **03-SDK-FUNDAMENTALS** | Core concepts, API patterns | Before implementation | 15 min |
 | **04-BUILD-INTEGRATION** | CMake, build system, project structure | Setting up project | 15 min |
 | **05-LIFECYCLE-MANAGEMENT** | SDK init, sessions, game flow | Implementing SDK lifecycle | 20 min |
+| **LAUNCH-AND-READINESS** | SDK-readiness gate, idle "ready" state, preselected-Ludeo launch | Lifecycle for boot-straight / auto-start / launched-into-a-Ludeo games | 10 min |
 | **06-TRACKING-PATTERNS** | Object tracking, actions, pause | Implementing tracking | 25 min |
 | **07-RESTORATION-PATTERNS** | State restoration, LudeoSelected | Implementing restoration | 20 min |
 | **11-TROUBLESHOOTING** | Common errors, solutions | When debugging | 10-20 min |

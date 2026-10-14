@@ -4,6 +4,7 @@
 > **For:** AI agents and developers integrating Ludeo SDK  
 > **Read Time:** 15 minutes  
 > **When to Load:** Before any implementation work
+> **Concepts here, headers win:** this file explains how the SDK thinks. For exact signatures, the cloned SDK headers are the authority (§4.5).
 
 **Last Updated:** December 2025
 
@@ -165,6 +166,24 @@ LUDEO_CAPTURE_FLOAT(this, "player", "health", 85.0f);  // Updated continuously
 - Game must restore state from DataReader
 - Game must pause and wait for player input
 
+### 2.8 A Room is NOT a Highlight
+
+The single most common conceptual error is treating a room as "one interesting moment".
+
+- **A Room** is the recording of one **whole gameplay instance** — a level, a match, a run (for open-world games, one
+  continuous live run, `05 §6.1`). It opens when that gameplay starts (`05 §6.2`; in Player Flow, after the restore
+  settles, `07 §2.1`), **stays open for the entire run**, and closes after `End` → `RemovePlayer`. One room per
+  gameplay instance, many per Ludeo Session.
+- **A highlight** — a moment that becomes a Ludeo — is cut by the platform **from inside an open room's recording**.
+  The game doesn't create highlights. It keeps the room open and recording, and reports actions as they happen (§2.6).
+
+**Why conflating them breaks the integration.** Opening and closing a room around each "moment" (a kill, a boss
+phase, a pickup) cuts the run into short, disconnected recordings. Each close ends the recording, so the state
+between rooms is never captured and the platform has no continuous run to cut a moment from. Each new room comes with
+a new DataWriter, so every tracked object must be created again. Every moment also repeats the whole async chain
+(`OpenRoom → AddPlayer → RoomReady → Begin`, then `End → RemovePlayer → Close`), multiplying its failure points
+and the CR-007 exit-path surface. The rule: **room boundaries follow gameplay-session boundaries, never moments.**
+
 ---
 
 ## 3. SDK Architecture
@@ -282,6 +301,20 @@ enum LudeoResult {
 ```
 
 **Always check return values!**
+
+### 4.5 Concepts Here, Headers Win
+
+These docs teach **concepts and flow**: what the SDK objects are, which call comes when, and which callback drives
+which step. They are not the authority on **exact signatures**. Parameter lists, struct field names,
+`*_API_LATEST` macro names, enum values, return types (`LudeoBool` vs `LudeoResult`) and callback param shapes can
+drift between SDK releases, and the skill clones the **latest** release.
+
+**When the SDK headers (`Include/Ludeo/*.h` in the cloned SDK, `04 §3`) disagree with these docs, the headers are
+right.** Write the call the way the header declares it, and treat the doc snippet as a shape to adapt, not code to
+paste. The split runs one way only: the headers tell you **how** to call something; the flow docs (`07 §2`, CR-009,
+CR-010) tell you **when**, and that order is not something to re-derive from the headers. If a header looks
+older than the backend — a notification never arrives, the log shows `unknown event_name` — update the SDK
+([11 §9](./11-TROUBLESHOOTING.md)); don't work around it.
 
 ---
 
@@ -629,5 +662,7 @@ LudeoManager::Instance().QueueOperation([this]() {
 2. Async operations need callbacks
 3. Always pair Enter/Leave (use RAII helpers)
 4. Release resources when done
+5. One room spans a whole gameplay instance — never one room per highlight (§2.8)
+6. Concepts here, headers win on exact signatures (§4.5)
 
 → **For mandatory rules (error handling, macro guards, etc.):** See [00-CRITICAL-REQUIREMENTS.md](./00-CRITICAL-REQUIREMENTS.md)
