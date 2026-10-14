@@ -139,7 +139,9 @@ current branch doesn't have it, check for an existing integration branch first (
 
 - **It exists** → read it. Resume at `current`: a step `in_progress` continues where it stopped (re-read that
   phase file, its inputs and the step's `note` first); a `completed` or `skipped` step advances to the next one in the
-  table above. In phase 5, resume at `wave.current` and that wave's first unfinished task (`5a`–`5e`). Read the
+  table above. In phase 5, resume at `wave.reopened` if set, else `wave.current`, at that wave's first unfinished task
+  (`5a`–`5e`). **If any `wave.plan` entry is neither `green` nor `deferred`, phase 5 isn't done** — after phase 6 (which
+  may start once wave 1 is green), return to phase 5's next wave before phase 7. Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
   `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state

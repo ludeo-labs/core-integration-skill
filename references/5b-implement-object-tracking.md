@@ -9,7 +9,7 @@ Read the Object Tracking Plan produced by `phase 4` and `phase 5 · task 0` and 
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 5 · task 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 5 · task 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. **Running this task again for the next wave is not a redo** — the wave loop runs it once per wave. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -125,7 +125,7 @@ Critical discipline:
 
 For each entry in the plan's *Batch Registration Sites* table, add a walker in `LudeoStateAdapter::RegisterAllExistingObjects()` per `06 §6.2`. Call it from the identified hook (typically `OnLevelLoadComplete`), gated by `!LudeoManager::Get().IsRestoring()` so that once restoration (phase 5 · tasks 3–4) is wired, this hook won't double-register objects that restoration recreates.
 
-**`IsRestoring()` does not exist yet in a phase-9-only integration** — restoration is built later, so there is nothing behind it now. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 5 · tasks 3–4 lands; don't invent a different check:
+**Wave 1 only: `IsRestoring()` does not exist yet** — restoration is built later (`phase 5 · task 3`), so there is nothing behind it now. **In wave ≥ 2 it already exists and is live** (task 3 made it a real setter) — use it; don't add the stub again. Add a **forward-compatible stub** on `LudeoManager` so the gate is a no-op today and correct once phase 5 · tasks 3–4 lands; don't invent a different check:
 
 ```cpp
 #if LUDEO_SDK_ENABLED

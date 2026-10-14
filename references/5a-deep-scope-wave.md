@@ -27,7 +27,7 @@ types are untouched until their turn.
 
 1. **Resolve the wave's type set** from the census. Wave 1 is the restorable spine (entry identity, player,
    time-base) plus the must-have collections; later waves are their assigned types.
-2. **Run phase 4 Part B (Steps B1–B6), scoped to those types.** Sweep each entity's **whole subsystem** — the
+2. **Run phase 4 Part B (Steps B1–B7), scoped to those types.** Sweep each entity's **whole subsystem** — the
    class, its components and the managers that hold its state — not just the census class, and give **every field a
    disposition** (`capture | defer → wave M | exclude`), with the tally (`06 §9.6`). Stopping at the anchor class, or
    listing only visibly changing fields, drops the invisible state that drives what happens next (`06 §9.1`).
@@ -35,8 +35,9 @@ types are untouched until their turn.
    target into **this** wave (when the reference is load-bearing for this wave's replay — tell the orchestrator,
    since it changes the wave plan) or mark the reference **deferred to wave M**. Never drop it silently.
 4. **Append, don't rewrite.** Add one `## Entity: <ObjectType> (wave: N)` block per type (schema in phase 4's
-   output), extend `## Cross-Entity References`, and append this wave's entities to the per-entity save matrix.
-   Leave earlier waves' blocks and the Part A tables unchanged.
+   output), extend `## Cross-Entity References`, **append B6's rows to `## Batch Registration Sites` and B1's rows to
+   `## Time-Base / Continuity`** (`phase 5 · task 1` builds its batch walkers from that table), and append this
+   wave's entities to the per-entity save matrix. Leave earlier waves' blocks and the other Part A tables unchanged.
 5. **Return** a summary, the appended `objectType`s, and any questions for the user.
 
 ## 4. Questions to ask the human

@@ -38,7 +38,10 @@ the state file and the plan files are what make that safe.
 When a gate fails (build error, missing log line, wrong replay):
 
 1. **Instrument before theorizing** (`ludeo-integration-docs/11-TROUBLESHOOTING.md` §10): get the real log first;
-   restore bugs invite confident, wrong theories that one log line kills.
+   restore bugs invite confident, wrong theories that one log line kills. Two traps: **silence from per-tick capture
+   while the restore is frozen is expected**, not a hang — the signal of a stuck restore is an *absent unfreeze* after
+   `Begin`; and an *inert* entity (its activation never fired), a *jammed* one (a transient flag restored verbatim —
+   `07 §1.2`) and *dead input* (`11 §8`) all look alike on screen — only the log separates them.
 2. Hand a fix worker the **same brief**, the failing log text or the user's report **by file**, and the files the
    previous worker touched.
 3. Root-cause every fix — no try/catch or symptom-masking (`3e-compile-and-fix.md`); propose, confirm, then change.

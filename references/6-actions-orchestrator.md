@@ -23,7 +23,7 @@ approved action shows in the log in both flows, and the environment has the trig
 | # | Task | Brief | Reads | Produces | Gate (yours) |
 |---|------|-------|-------|----------|--------------|
 | 1 | Map the actions | [`6a-map-game-actions.md`](6a-map-game-actions.md) | `CODE_MAP.json`, genre files, intake | `GAME_ACTIONS_MAP.md` (gameplay + standard trigger actions) | **user approves the map** — naming, keep/drop, scope |
-| 2 | Implement the actions | [`6b-implement-game-actions.md`](6b-implement-game-actions.md) | the approved map | `SendAction` calls, the span helper | **agent builds**; **integrator runs both flows** — capture a session, then replay a Ludeo — pausing once and entering a non-ludeoable area once; each action is in the log in **both** |
+| 2 | Implement the actions | [`6b-implement-game-actions.md`](6b-implement-game-actions.md) | the approved map | `SendAction` calls, the span helper | **agent builds**; **integrator runs both flows** — capture a session, then replay a Ludeo — pausing once and entering a non-ludeoable area once; each action is in the log in **both** (`6b`'s exit gate) |
 | — | Triggers and goals | `6b` Step 6 | the run above | Global Triggers + goals on the target environment | created with the Studio MCP and reported line by line, or handed to the user; never on Production |
 
 The map is a judgment call, so it stops for approval before any code. The triggers and goals come **after** the run
@@ -60,4 +60,6 @@ that they exist) — and steps `6a`, `6b` `completed` in the state file.
 
 ## Related / Next
 
-- **Next:** phase 7 (`7-upload-build.md`).
+- **Next:** if phase 5 has waves left (`integration.json → wave.plan` entries neither `green` nor `deferred`), go back to
+  `5-tracking-restore-orchestrator.md` for the next wave — new actions those waves expose come back through `6a`.
+  Only when every wave is green or deferred: phase 7 (`7-upload-build.md`).

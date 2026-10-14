@@ -75,6 +75,8 @@ Use §3 (Tracking Checklist) of each genre file as a **validation checklist** �
 
 Combine the genre checklist with codebase discovery. Apply `06-TRACKING-PATTERNS.md §9.2` to each candidate: visible? influences a tracked object? referenced by a tracked object? If any → it's in the census. The census is **shallow but complete**: every subsystem appears, so nothing goes unseen; per type, record class, file:line, spawn pattern (dynamic / placed / both), and a one-line note of its candidate fields. Deep detail waits for Part B.
 
+> **Look for the singletons on managers, not just on entities.** The **time-base / continuity** state (game clock, timers, the music position for time-driven games — `06 §10.6`) and the **soundtrack** (which track is playing — `06 §1.2`; `07 §8.5` restarts it on restore) usually live on a game or audio manager, not on any spawned entity. Census them as their own types.
+
 > **⚠️ Always include a world/session ENTRY-IDENTITY object — every game, not just procedural/open-world.** Restoration reaches active gameplay on the captured level before it applies anything (`07 §2.1`), and it reads *which* level/map or run to boot **from the captured Ludeo** (`07 §2.2`, `read_entry_identity`) — validation even ignores a selection without it. Capture must include it: the level/map id (or `start_mode` / `room_x` / `room_y` / save slot) for scene/state-machine games — the procedural `RunMetadata` selection id and the open-world persistent-region id are the genre-specific shapes of the same thing. It is always **load-bearing, wave 1**.
 
 ### Step A5: Flag Load-Bearing Types and Assign Waves
@@ -92,7 +94,9 @@ Write `ludeo-integration-plan/OBJECT_TRACKING.md` with the Part A sections (sche
 1. Codebase patterns + hook sites
 2. Type coverage (missing / over-tracked)
 3. The load-bearing flags
-4. The wave order, and what wave 1 contains
+4. The wave order, and what wave 1 contains — **walk the restore with only wave 1's types**: would that alone
+   produce a coherent moment (the right level, the player in place, the fight the viewer chose)? If not, something
+   load-bearing is in a later wave.
 5. Low-confidence entries
 
 **Do not start phase 5 until the user approves the census.** Record the approval in the state file's `decisions`.
@@ -103,7 +107,8 @@ This gate prevents generating capture code against a misunderstood entity model.
 ## Part B — Deep-Scope Procedure (run per wave, by `phase 5 · task 0`)
 
 Run for **one wave's types only** (`5a-deep-scope-wave.md` says how it's invoked). Append; never rewrite earlier
-waves' blocks or the Part A tables.
+waves' blocks. Of the Part A tables, only `## Batch Registration Sites` (B6) and `## Time-Base / Continuity` (B1) grow
+per wave; the census, wave plan and pattern summary don't change outside a census review.
 
 ### Step B1: Time-Base / Continuity Fields
 
@@ -118,7 +123,7 @@ Record the ID field + file:line of assignment. If a class lacks a stable ID, fla
 
 ### Step B3: Inventory Properties per Entity
 
-**Sweep the entity's whole subsystem** — its class, its components, and the managers that hold its state (inventory, skills, progression, equipment for a player) — not just the census class. For each property, classify its kind: `identity | static | dynamic-continuous | dynamic-discrete | event-driven | reference`, and give **every field a disposition** — `capture | defer → wave M | exclude (static / settings / derivable)` — recording the tally (`06 §9.6`). Apply `06 §9.3` (incl. the visible-constant exception) to decide what to keep.
+**Sweep the entity's whole subsystem** — its class, its components, and the managers that hold its state (inventory, skills, progression, equipment for a player) — not just the census class. Note whether it has **dynamically-attached sub-components** (they often defeat reflection-based serialization). For each property, classify its kind: `identity | static | dynamic-continuous | dynamic-discrete | event-driven | reference`, and give **every field a disposition** — `capture | defer → wave M | exclude (static / settings / derivable)` — recording the tally (`06 §9.6`). Apply `06 §9.3` (incl. the visible-constant exception) to decide what to keep.
 
 Capture each property as a **discrete typed attribute by default** — this is the assumed approach for every entity. Do **not** plan blob/serialized-buffer storage, and do not ask the user which to use, unless the user explicitly requested blobs or an entity genuinely warrants one (opaque/large/no stable field schema). See `06-TRACKING-PATTERNS.md §1.4` for the rule and the narrow exceptions; if an exception applies, record the entity + the specific reason under that entity's Open Questions rather than pausing for an answer. Opaque enums and ids get a readable `_name` companion (`06 §1.6`).
 
@@ -145,7 +150,7 @@ If an entity isn't in the matrix, add it there before continuing.
 
 ### Step B6: Identify Batch Registration Path
 
-For each entity type with design-time placed instances, record the iterator + the hook function (typically `OnLevelLoadComplete`, after gameplay session begin) per `06-TRACKING-PATTERNS.md §6`.
+For each entity type with design-time placed instances, record the iterator + the hook function (typically `OnLevelLoadComplete`, after gameplay session begin) per `06-TRACKING-PATTERNS.md §6`, and **append the row to `## Batch Registration Sites`** — `phase 5 · task 1` builds its batch walkers only from that table.
 
 ### Step B7: Confidence + Open Questions
 

@@ -27,7 +27,7 @@ file records **where you are, what was decided, and what the user told you**, an
     "7":  { "status": "not_started" }
   },
 
-  "wave": { "current": 2, "plan": [1, 2, 3], "green": [1], "deferred": [] },
+  "wave": { "current": 1, "plan": [1, 2, 3], "green": [], "deferred": [], "reopened": null },
 
   "sdk": {
     "source": "release repo | user-supplied",
@@ -95,8 +95,12 @@ file records **where you are, what was decided, and what the user told you**, an
   redo or skip a sub-step.
 - **`wave`** — phase 5's wave loop (`5-tracking-restore-orchestrator.md`): `plan` from `OBJECT_TRACKING.md` →
   `## Wave Rollout`, `current` the wave in progress, `green` the waves whose restore gate passed, `deferred` any the
-  user explicitly deferred. Steps `5a`–`5e` hold the status **for the current wave**; when a wave goes green, add it to
-  `green` and reset `5a`, `5b`, `5c`, `5e` to `not_started` for the next one (`5d` runs once, in wave 1).
+  user explicitly deferred. Steps `5a`–`5e` hold the status **for the current wave**. When a wave's gate 4 passes,
+  add it to `green`; **only when the user confirms widening** increment `current` and reset `5a`, `5b`, `5c`, `5e` to
+  `not_started` (`5d` runs once, in wave 1). After the last wave, leave the statuses `completed`. **Phase 5 is done
+  only when every `plan` entry is in `green` or `deferred`** — phase 6 may start after wave 1, but phase 7 may not
+  start while a wave is outstanding. A guardrail re-open of an earlier wave M: set `reopened: M`, remove M from
+  `green`, record why in `decisions`, re-run its tasks, then clear `reopened` and resume `current`.
 - **`sdk.versionLine`** — the SDK's own version line from the first SDK-enabled run (phase 1 Step 10) — the first
   thing to compare when a notification never fires (`ludeo-integration-docs/11-TROUBLESHOOTING.md` §9).
 - **`ludeoPlatform`** — everything [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) says to record. `isDefault` and

@@ -15,7 +15,7 @@ written here; the output is a reviewed plan that `phase 5 · task 3` (player-flo
 
 ## Fresh Context Check
 
-This is a sequential workflow — continuing to phase 5 · task 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 5 · task 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. **Running this task again for the next wave is not a redo** — the wave loop runs it once per wave. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -220,7 +220,7 @@ uncertainty) go in dedicated sections. These are the gate items the human resolv
 
 ### Step 12: Produce Output
 
-Write `ludeo-integration-plan/RESTORATION_PLAN.md`:
+**Wave 1** writes `ludeo-integration-plan/RESTORATION_PLAN.md`; **later waves append** their Entity blocks and extend the references, deferred, pre-existing and environment tables — the flow sections (Step 3, Step 10) are written once, in wave 1:
 
 ```markdown
 # State Restoration Plan — <GameName>
@@ -328,7 +328,7 @@ After writing the plan, summarize for the user and ask them to review:
 8. Wait-for-player mechanism
 9. Open questions + low-confidence entries
 
-**Do not proceed to `phase 5 · task 3` automatically.** This gate prevents generating restoration code against an incomplete or mis-mirrored model.
+**Do not proceed automatically** — to `phase 5 · task 3` in wave 1, or to `phase 5 · task 4` in later waves. This gate prevents generating restoration code against an incomplete or mis-mirrored model.
 
 ## Output
 
@@ -362,4 +362,4 @@ May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_S
 2. Confirm the mirror is complete — no tracked entity/property without a restoration path
 3. Resolve open questions + low-confidence entries
 4. Confirm approval
-5. Run `5d-implement-restoration-flow.md`, then `5e-implement-state-reconstruction.md`
+5. Hand back to the phase-5 orchestrator: wave 1 continues with `5d-implement-restoration-flow.md` (task 3), later waves go straight to `5e-implement-state-reconstruction.md` (task 4)

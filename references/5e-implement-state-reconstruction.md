@@ -18,7 +18,7 @@ This phase fills the **data** half of restoration — the inverse of `phase 5 ·
 
 ## Fresh Context Check
 
-This is a sequential workflow — continuing to phase 5 · task 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 5 · task 4 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 4** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. **Running this task again for the next wave is not a redo** — the wave loop runs it once per wave. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 

@@ -14,7 +14,7 @@ on — make sure each is mapped. `profile.genres` is the genre for Step 2 — us
 > ⚠️ **REQUIRED:** Run `phase 2` first.
 > This command reads `ludeo-integration-plan/CODE_MAP.json` for the game name and codebase structure.
 >
-> ⚠️ **REQUIRED:** `phase 5` complete — a captured moment replays. Actions run last so each one can be
+> ⚠️ **REQUIRED:** `phase 5` **wave 1 green** — a captured moment replays (later waves may still be outstanding). Actions run last so each one can be
 > verified firing in **both** the Creator flow and the Player flow; without a working replay you can
 > only ever check half of that.
 >
