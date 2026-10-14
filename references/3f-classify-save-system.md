@@ -28,6 +28,7 @@ step confirms it against `CODE_MAP.json` and adds the per-entity matrix.
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — **the procedure for this phase.** Detection greps (§3), questionnaire (§4), classification decision (§5), CODE_MAP schema (§6), validation (§7), and the per-entity reconciliation-vs-manual matrix (§8). Follow it end-to-end.
 - `ludeo-integration-docs/research-context/02B-RESEARCH-OBJECTS.md` — entity list that feeds the §8.1 per-entity matrix.
 - `ludeo-integration-docs/06-TRACKING-PATTERNS.md` §1.4 — why a great save system does **not** imply reconciliation (named-attribute constraint).
+- **Streaming / open-world games** (`CODE_MAP.session_boundaries` has the `{ model, start_sites[], … }` sub-structure): also `ludeo-integration-docs/game-patterns/open-world.md` §6 — the Ludeo is restored through the load-save path, so classify the **real** save (the one behind the menu's Save/Load), not an interior/exterior or streaming-cell cache, which holds only a partial delta (`02F` §9 item 7).
 
 ## Your Task
 

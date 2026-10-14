@@ -4,6 +4,10 @@
 > **For:** AI agents — load only the pattern file(s) matching your game's genre
 > **How to use:** Read this index, identify the game's genre(s), load 1-2 relevant files
 
+All catalogs here are game-design knowledge (WHAT to capture); the **how** — search idioms, `SendAction`
+wiring — lives in phase 6 ([`6a`](../../6a-map-game-actions.md), [`6b`](../../6b-implement-game-actions.md)).
+Action names are sent with `LudeoManager::Get().SendAction(name)` (`06 §7.1`).
+
 ---
 
 ## Pattern Files Come in Three Shapes
@@ -36,12 +40,12 @@ A streaming-world RPG loads **both** open-world shapes plus the relevant genre f
    - *No per-level scenes?* (open-world RPG, sandbox, MMO, streaming world) → load [open-world.md](./open-world.md) before any genre file (it answers "where does a Gameplay Session begin and end"), and when you reach object tracking also load [open-world-tracking.md](./open-world-tracking.md) (presence ≠ existence, world/cell state, identity across streaming).
    - *Levels are containers whose content is assembled at load from data + RNG?* (roguelike, procedural dungeon, wave-survival — a level/run *builder* or *pool* + RNG/seed drives content; `CODE_MAP.session_boundaries.assembly` is `"procedural"`) → load [procedural-world.md](./procedural-world.md). Capturing "which level" can't relocate the moment and reload re-rolls content, so you capture the **generation inputs** instead.
    - A game can hit **both** (a streaming procedural world) or **neither** (a plain level-based game). Load whatever applies, *in addition to* the genre file(s).
-2. **Check the gameplay-structure axis.** Does the game have bosses or other scripted encounters (a locked arena, phases/forms, summoned adds, a one-shot spawn trigger)? → load [bosses.md](./bosses.md) *in addition to* the genre file(s). It is orthogonal to the two structural axes above.
-3. **Determine genre** — web search the game name, or ask the user if not findable.
-4. **Load [common.md](./common.md) and 1-2 matching genre files** — hybrid games may need multiple. Common mappings: open-world RPG (Skyrim-like) → `rpg.md`; survival/sandbox (Valheim/Minecraft) → `survival-sandbox.md`; open-world action (GTA/Red Dead) → `shooter.md` + `racing.md` (driving) + `rpg.md` (progression); MMORPG → `rpg.md`. Turn-based tactics / SRPG / grid combat → `turn-based.md` (provisional — confirm against the game). Always pair these with the structural files from step 1 when the game streams.
-5. **Use the action catalog** as a shopping list — search the codebase for each.
-6. **Use the search keywords** to grep for relevant code patterns.
-7. **Use the tracking checklist** to validate completeness after object tracking is implemented. Checklist items are tagged **CRITICAL** (restore or the moment is visibly wrong), **IMPORTANT** (fidelity) or **OPTIONAL** (situational) — implement in that order, and don't skip a visible-but-constant item such as appearance.
+2. **Check the gameplay-structure axis.** Does the game have bosses or other scripted encounters (a locked arena, phases/forms, summoned adds, a one-shot spawn trigger)? The intake's `profile.hasBosses` ([know-your-game.md](../../know-your-game.md) `PRO-3`) or the phase 4 census says so → load [bosses.md](./bosses.md) *in addition to* the genre file(s). It is orthogonal to the two structural axes above.
+3. **Determine genre** — start from the intake's `profile.genres` (`PRO-1`); otherwise web search the game name, or ask the user if not findable.
+4. **Load [common.md](./common.md) and 1-2 matching genre files** — hybrid games may need multiple. Common mappings: open-world RPG (Skyrim-like) → `rpg.md`; survival/sandbox (Valheim/Minecraft) → `survival-sandbox.md`; survival-FPS / survival-horror (combat + inventory + a meter, no crafting) → `shooter.md` + the combat/inventory/meter subset of `survival-sandbox.md`; open-world action (GTA/Red Dead) → `shooter.md` + `racing.md` (driving) + `rpg.md` (progression); MMORPG → `rpg.md`. Turn-based tactics / SRPG / grid combat → `turn-based.md` (provisional — confirm against the game). Always pair these with the structural files from step 1 when the game streams.
+5. **Use the action catalog as _candidates_, not a checklist — read the Tier column** (below). Search the codebase for each surviving candidate, then apply the keep test before mapping it. Capturing T3 rows bloats the Ludeo and buries the real highlights.
+6. **Use the search keywords** to grep for relevant code patterns (finding ≠ capturing — the keep test decides).
+7. **Use the tracking checklist** to validate completeness — in the `phase 4` census, per wave in `phase 5`, and again in `phase 8`. Checklist items are tagged **CRITICAL** (restore or the moment is visibly wrong), **IMPORTANT** (fidelity) or **OPTIONAL** (situational) — implement in that order, and don't skip a visible-but-constant item such as appearance.
 
 ## File Structure (Genre Files)
 
@@ -49,7 +53,8 @@ Genre files (`shooter.md`, `rts.md`, `racing.md`, `rpg.md`, `survival-sandbox.md
 
 ### Section 1: Actions Catalog
 - Action names, descriptions, Ludeo objective/scoring potential
-- Grouped by category (combat, progression, etc.)
+- Grouped by category (combat, progression, etc.), each row carrying a **Tier** (below)
+- A short note above the tables names the genre's **T3 traps** and its **scope** split (player-scoped vs global)
 
 ### Section 2: Search Keywords
 - Function/variable name fragments to grep for in the codebase
@@ -66,13 +71,24 @@ Genre files (`shooter.md`, `rts.md`, `racing.md`, `rpg.md`, `survival-sandbox.md
 
 **Gameplay-structure files** (`bosses.md`) are a third shape: a framework of doctrine rather than a catalog — why the sequence's state is established by one-shot triggers, where its "phase" actually lives, restoring into a phase, restoring every one-shot latch, re-arming the processes a spawn trigger started, and minion classification flags — plus a tracking checklist, actions and known unknowns. Also loaded *in addition to* a genre file.
 
+## Action Tiers and the Keep Test
+
+Every catalog row carries a **Tier** — capture priority for *that* genre. Tier is orthogonal to scope: a row can be T1 *and* global.
+
+- **T1 — capture:** the signature scored milestones and one-shot highlights that define the genre.
+- **T2 — capture only if scored or a notable beat in *this* game;** otherwise drop.
+- **T3 — usually drop:** tracked **state** (a total, a meter, the equipped item) or high-frequency input noise (movement, reloads, orders, every harvest tick). Keep only if exceptionally scored. A row with both Objective and Scoring empty is almost always T3.
+
+**The keep test, per candidate, at `phase 6 · task 1` Step 4:** *is this a beat a viewer or an objective would care about?* Yes → keep it even if it fires often (`Kill` in a horde shooter, `ResourceGathered` toward "gather 50 wood"); no → drop it and record why (state / noise / no value) in `GAME_ACTIONS_MAP.md`, so the call is reviewable. When a candidate is plausibly state or noise, **default to dropping it** — a missed action is cheap to add later; a noisy Ludeo degrades every highlight. Milestones still count when the related state is tracked (`Death` is kept although alive/dead is tracked). Step 3's "when in doubt, keep it" is about the code *search*; this is the filter it defers to. The four non-gameplay trigger actions are never subject to it.
+
 ## Adding a New Genre or Structural Pattern
 
-For a new **genre**, create a `.md` file following the three-section genre structure above. For a new **structural pattern** (e.g. arcade-style "1 life = 1 session", roguelike "1 run = 1 session"), follow the shape of `open-world.md`. For a new **gameplay-structure pattern** (a scripted, stateful sequence such as a puzzle set-piece or an escort mission), follow the shape of `bosses.md`. Add it to the table above with the correct shape tag. No other changes needed.
+For a new **genre**, create a `.md` file following the three-section genre structure above, with a Tier on every catalog row. For a new **structural pattern** (e.g. arcade-style "1 life = 1 session", roguelike "1 run = 1 session"), follow the shape of `open-world.md`. For a new **gameplay-structure pattern** (a scripted, stateful sequence such as a puzzle set-piece or an escort mission), follow the shape of `bosses.md`. Add it to the table above with the correct shape tag. No other changes needed.
 
 ## Important Notes
 
 - Genre files describe WHAT to look for, not HOW to find it (that's the command's job)
+- **Most catalog actions are player-scoped** — `Kill` means the *player* killed, `Death` that the *player* died. Map them only where the player is the actor or subject (in no-avatar games such as RTS, the player's own units and orders) and guard sites that also fire for non-player actors (`02C §6.2`); an NPC-vs-NPC event is not an action. **Match / round / race / wave lifecycle and shared objectives are global** (`RaceStart`, `MatchWin`, `WaveComplete`, `ObjectiveComplete`, most boss beats) — they fire once for the session, with no player guard. Each genre file's catalog note lists its split.
 - Keywords are hints, not exhaustive — every codebase names things differently
 - Games often blend genres — load multiple files and merge the action catalogs
 - When in doubt about genre, start with the closest match and adjust
