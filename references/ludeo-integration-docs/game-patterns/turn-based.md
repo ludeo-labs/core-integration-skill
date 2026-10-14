@@ -19,7 +19,7 @@
 | Action Name | Description | Objective Potential | Scoring Potential |
 |-------------|-------------|---------------------|-------------------|
 | `Attack` / `Hit` | Unit performs an attack and connects | "Land 10 attacks" | 50 pts |
-| `Kill` | Unit is destroyed (per-unit-CLASS identity gives richer highlights — e.g. `Kill_HeavyInfantry`) | "Destroy 5 enemy units" | 200 pts |
+| `Kill` | Unit is destroyed. For per-class goals, also send an action from a curated class list (e.g. `KillHeavyInfantry`) next to `Kill`, never instead of it (`6a`) | "Destroy 5 enemy units" | 200 pts |
 | `AbilityUse` | Unit activates a special ability | "Use abilities 8 times" | 25 pts |
 | `CriticalHit` | Attack deals critical/bonus damage | "Land 3 critical hits" | +75 bonus |
 | `Miss` | Attack fails to connect | — | — |
