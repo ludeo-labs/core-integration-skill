@@ -171,7 +171,10 @@ when you approve).
   the game writes only to a log file, that file dies with the instance and the cloud run comes back with
   SDK logs and no game logs. Phase 1 Step 4 adapted `LudeoConfig.h`'s logging macros to the game's logging
   system — confirm that path ends up on stdout for a release build, or pass whatever flag the game uses to
-  make it so.
+  make it so. **Then check it arrived:** on one cloud session the game's stdout reached no collected log while the
+  debug channel (`OutputDebugString`) did. Mirror the integration's own diagnostics to both, flushed, and on the
+  first cloud run grep the collected log for a line only the game prints
+  (`learnings/engine-quirks/diagnostics-to-stdout-for-cloud-logs.md`).
 
   ```bat
   @echo off
@@ -360,7 +363,8 @@ Studio Lab) that the environment now shows this build.
   the property `validate-build` proves. A raw `.exe` exec-path can break path-relative asset loading.
 - **`--exec-path` is local and relative to `--local-directory`** — a path *inside* the build folder
   (`run.bat`, or `sub\dir\run.bat` if nested), **not** absolute.
-- **`run.bat` calls the executable directly (no `start`)** — game logs reach the runner only via stdout.
+- **`run.bat` calls the executable directly (no `start`)** — game logs reach the runner via stdout (and, observed
+  once, only via the debug channel — Step 4).
 - **Runtime environment defaults to `proton`** — Ludeo's cloud runs the Windows build under Proton.
   Override only if the user confirms a different target.
 - **Verify commands against `ludeo --help`** — the CLI changes; the flags here are a snapshot, not the

@@ -41,7 +41,7 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 > **"Which Steam authentication mode should I use?"**
 > 
 > - **Explicit** - You provide Steam credentials for Ludeo to authenticate via Steam
-> - **Implicit** (default) - Ludeo initializes Steam and uses the running Steam client
+> - **Implicit** (default) - Ludeo uses the running Steam client through the game's own Steamworks session — the game must have initialized Steamworks before activation (`ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` §5)
 > 
 > _(Both modes will be implemented in the code. Your choice sets the default configuration.)_
 
