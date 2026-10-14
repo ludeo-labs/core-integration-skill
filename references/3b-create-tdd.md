@@ -17,6 +17,10 @@ This is a sequential workflow — continuing to phase 3 · task 2 in the **same 
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — record `captureTimingRules` in the TDD — the `Begin` trigger, the end trigger, and
+`minimumInterestingState`, so an early, empty capture is matched against the documented threshold before anyone
+debugs it.
+
 > ⚠️ **REQUIRED:** Run these commands first:
 > 1. `phase 2` → produces `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 3 · task 1` → produces `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`

@@ -57,13 +57,18 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 ## Workflow
 
 ### Step 0a: Create Integration Branch ⭐ **VERY FIRST STEP**
-Before making any changes to the game project, create a dedicated branch:
+First check this isn't a resumed integration: if `ludeo-integration-plan/integration.json` exists, or a
+`feature/ludeosdk-integration-*` branch already does, follow `SKILL.md` → **Start here** instead. Otherwise, before
+making any changes to the game project, create a dedicated branch:
 ```bash
 git checkout -b feature/ludeosdk-integration-#1
 ```
 - If a branch with that name already exists, increment the number (`#2`, `#3`, etc.)
 - This lets the user easily discard the integration attempt by deleting the branch
 - **All subsequent steps happen on this branch**
+- **Create the state file** `ludeo-integration-plan/integration.json` ([`state-file-schema.md`](state-file-schema.md))
+  with `schemaVersion`, `gameTitle`, `branch`, every step `not_started`, `current: "1"` and step `1` `in_progress`.
+  Update step `1`'s `note` as its sub-steps complete — Step 0c may restart the session.
 
 ### Step 0b: Select Operating System
 Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:
@@ -86,8 +91,8 @@ the steps below. Copy the entries from `<skill-base-dir>/config/mcp_config.templ
 
 ### Step 0d: Ludeo environments, and who is in them
 Policy and touchpoints: [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — **reads free, writes confirmed**.
-Create `ludeo-integration-plan/LUDEO_PLATFORM.md` (schema in that file) if it doesn't exist; if it does, read
-it and update it. Once (a) records the Game ID, start **Reporting progress** there (`sdk_set_up` · `started`).
+Record everything below in the state file's `ludeoPlatform` block ([`state-file-schema.md`](state-file-schema.md));
+if it is already filled, read it and update it. Once (a) records the Game ID, start **Reporting progress** there (`sdk_set_up` · `started`).
 - **(a) Environments.** Ask the user for the Studio Lab **Game ID** (Studio Lab → **Game Options → Info**;
   the game **version** uuid, not the backend `gameId`) — phase 7 needs it either way. If
   `list_game_environments` is in your tool list, list the environments with it; otherwise ask which exist and
@@ -191,12 +196,22 @@ Follow **Section 8.2** of `04-BUILD-INTEGRATION.md`:
 - Verify DLL/SO loads (use `dumpbin /DEPENDENTS` or `ldd`)
 - Compare behavior - SDK-enabled build should run identically to baseline
 - Check for ludeo symbols (`dumpbin /EXPORTS` or `nm`) in SDK-enabled build only
+- Record the SDK in the state file's `sdk` block — source, version, path, and the **version line** the SDK logs at
+  startup (`LudeoSDK v…`)
+
+### Step 11: Know your game — the kickoff intake
+Run [`know-your-game.md`](know-your-game.md) with the user (20–30 minutes): the game and Ludeo profile, visible
+player state, game-wide phase state, the playback UX bar, capture timing, scripted systems, the launch model,
+runnability, and the game-level save system. Record every answer in `integration.json` → `intake`; record unknowns
+in `risks` with the step that must resolve them. Later steps read these answers as pre-flight checks.
+
+Then mark step `1` `completed` in the state file once the build gates above passed and the intake is recorded.
 
 ## Success Criteria
 
 - [ ] Integration branch created (`feature/ludeosdk-integration-#N`)
 - [ ] MCP servers connected (`sdk-docs`, `ludeo-mcp`) — or the fallback in use named to the user
-- [ ] `ludeo-integration-plan/LUDEO_PLATFORM.md` records the Game ID, every environment, and the integrator's membership in each
+- [ ] `ludeo-integration-plan/integration.json` exists; its `ludeoPlatform` block records the Game ID, every environment, and the integrator's membership in each
 - [ ] Build system detected correctly
 - [ ] SDK cloned from public releases repo and verified (or user-provided on clone failure)
 - [ ] Directory structure created
@@ -209,6 +224,8 @@ Follow **Section 8.2** of `04-BUILD-INTEGRATION.md`:
 - [ ] Game launches successfully WITH SDK (identical behavior)
 - [ ] No SDK errors in logs
 - [ ] Conditional compilation working correctly
+- [ ] SDK source, version and version line recorded in `integration.json` → `sdk`
+- [ ] Intake recorded in `integration.json` → `intake`, unknowns listed in `risks`
 
 ## Error Handling
 

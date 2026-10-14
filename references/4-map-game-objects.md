@@ -12,6 +12,13 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — `profile` picks the `game-patterns/` files (and `hasBosses` → `bosses.md`); every
+`visiblePlayerState.firstFrameRequired` item must be mapped; every `dynamicPhaseMetadata` value that changes or must
+be restored is an attribute on the world/session object; every `scriptedSystems` entry with `kind: "trail"` and
+`loadBearing` — and every `scriptedSystems.missionProps` entry — is mapped for the first wave, never deferred;
+`dynamicPhaseMetadata.staticMetadata` goes on the world/session object once; `visiblePlayerState.deferrable` items may
+be deferred to a later wave.
+
 > ⚠️ **REQUIRED:** These must complete first:
 > 1. `phase 2` → `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 3 · task 1` → `SDK_INTEGRATION_POINTS.json`

@@ -21,6 +21,13 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — every `playbackUXBar.startOfRunToSuppress` entry is on the Step 3 start-of-run suppression
+list; every `dynamicPhaseMetadata` value with `mustRestore` and every load-bearing trail in `scriptedSystems` has a
+restore path in the plan (for a trail: the game's own "advance to this point" entry, called during the apply with its
+side effects gated — `07 §11`); `visiblePlayerState.loadoutDependency` constrains what the player can be restored
+with; `playbackUXBar.instantAnimations` are applied in their end pose, not played; `runnability.levelLoadCommand` is
+how the restore reaches a captured level from a cold start.
+
 > ⚠️ **REQUIRED:** These must complete first:
 > 1. `4-map-game-objects.md` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
 > 2. `phase 3 · task 6` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
@@ -333,7 +340,7 @@ May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_S
 ## Important Notes
 
 - **Restoration mirrors tracking.** Every entity, property, and reference here traces back to a row in `OBJECT_TRACKING.md`. You cannot restore what tracking didn't capture — if you need to, the fix belongs in `phase 4`/`phase 5 · task 1`, not here.
-- **Snapshot, not replay.** `per-tick`/`per-change`/`event-driven` captures kept the value fresh during tracking; restoration applies the single final value. Do not design a timeline replay.
+- **Snapshot, not replay.** `per-tick`/`per-change`/`event-driven` captures kept the value fresh during tracking; restoration applies the single final value. Do not design a timeline replay. **Progression trails** (the intake's `scriptedSystems`) are no exception: capture how far the trail got and restore it through the game's own "advance to this point" entry, with that call's side effects (spawns, voice-over) gated (`07 §11`) — never by re-firing the events one by one.
 - **Two-pass is mandatory (CR-006).** Single-pass silently corrupts reference graphs by spawn order.
 - **Fail loud on missing IDs.** A Pass 2 lookup miss is a Pass 1 bug — never substitute null.
 - **Drive reconciliation/manual from the matrix**, per entity, never by global policy.

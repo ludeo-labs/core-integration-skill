@@ -37,7 +37,7 @@ it passes, the build is live in that environment. An uploaded build that is not 
       which one this build is for; never pick for the user. You need its **`envId`** for Step 11: if
       `list_game_environments` is in your tool list, read it there; otherwise ask the user for it (Studio
       Lab → the environment). The ship environment is often not the one you debugged against, so for **it**:
-      - **The integrator is in it.** If `LUDEO_PLATFORM.md` doesn't record membership as yes, ask; if they don't
+      - **The integrator is in it.** If the state file's `ludeoPlatform` doesn't record membership as yes, ask; if they don't
         know or it's no, have them check or add themselves in Studio Lab → Environments → Users management
         (`phase 1` Step 0d (b)). That doesn't block the upload, but say plainly that their captures there fail
         silently until it's done.

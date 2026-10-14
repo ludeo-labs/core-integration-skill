@@ -21,6 +21,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — `runnability.levelLoadCommand` is how Step 4 reaches the captured level from a cold
+start, and `runnability.runsTheGame` is who to ask for the Step 6 run.
+
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `3d-implement-sdk-lifecycle.md` complete — the session exists, notifications are registered at session creation, and the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`TryBeginGameplaySession()`, `OnRoomReadyCallback`, `OnPlayerAddedCallback`) is wired. This phase reuses that chain for the post-restore resume.

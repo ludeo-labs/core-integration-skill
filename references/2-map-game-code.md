@@ -68,6 +68,13 @@ Execute these searches systematically before writing the CODE_MAP. Skip sections
 - `Grep("class.*AI\|class.*Bot\|class.*NPC\|PathFind\|NavMesh\|Spawn.*Bot\|Spawn.*NPC\|Spawn.*Enemy")` in source files
 - Note: whether bots exist, how they spawn, and whether they can be controlled externally
 
+### 9. Launch Model Cross-Check
+- Compare `integration.json` → `intake.launchModel` (phase 1's kickoff intake) with the boot flow in the code: does the
+  first scene/state start a run without a menu? Is there an auto-continue or debug auto-enter path? Is a launch argument
+  already parsed for a level or save? Record what the code shows in `CODE_MAP.json` → `launch_model` with `file:line`.
+- If the code disagrees with the intake answer, flag it to the user now — the answer decides whether `phase 3` builds
+  the SDK-readiness gate.
+
 ## Your Task
 
 Build a **structural map** of the game codebase for SDK integration planning.
@@ -90,6 +97,7 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
    - `event_systems` - Delegate/event/observer patterns found, with pattern type
    - `save_system` - Format classification (custom binary, JSON, XML, third-party, engine-provided, none) **and** the existing per-object state-capture system (interface, registry/manager, object-type list, stable id) flagged as the tracking/restoration backbone
    - `ai` - Whether AI/bots exist, spawn mechanism, controllability
+   - `launch_model` - What the boot flow does (menu or straight into gameplay, auto-continue / debug auto-enter paths, launch arguments already parsed), each with `file:line`, and whether it matches `integration.json → intake.launchModel` (Analysis Checklist §9)
    - `threading` - Threading model and thread safety notes
    - `build_system` - Build files and dependencies
 

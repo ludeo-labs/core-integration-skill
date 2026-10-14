@@ -12,6 +12,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — every `dynamicPhaseMetadata` value with `changesDuringMoment` is written **every
+tick** on the world/session object, not once at room open.
+
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `phase 4` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
