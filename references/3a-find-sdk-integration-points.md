@@ -56,7 +56,7 @@ For each SDK function, find the best location from the CODE_MAP:
 | `ludeo_Initialize()` | Game startup, early | `lifecycle_hooks.initialization` - earliest point |
 | `ludeo_Session_Create()` | After Initialize | Same location as Initialize |
 | `ludeo_Session_Activate()` | After window/GL ready | `lifecycle_hooks.initialization` - after graphics init |
-| `ludeo_Session_Tick()` | Every frame | `lifecycle_hooks.main_loop` |
+| `ludeo_Tick()` | Every frame | `lifecycle_hooks.main_loop` |
 | `ludeo_Session_OpenRoom()` | Level/match loading starts (ALL paths) | `session_boundaries.start_sites[]` (open-world / state-machine games — pick **one** per `open-world.md` §3) or the level/scene-load hook in `lifecycle_hooks` for level-driven games |
 | `ludeo_GameplaySession_End()` | Gameplay ends (ALL exit paths) | `session_boundaries.exit_sites[]` (open-world / state-machine games — wire **every** entry) or the equivalent level/match-end hooks for level-driven games |
 | `ludeo_Session_Release()` | Game shutdown | `lifecycle_hooks.shutdown` |
