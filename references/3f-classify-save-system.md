@@ -12,6 +12,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — start from `saveSystem` (mechanism, format, group, entry points recorded at kickoff); this
+step confirms it against `CODE_MAP.json` and adds the per-entity matrix.
+
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 2` → `ludeo-integration-plan/CODE_MAP.json` (provides the light `save_system` field and `core_classes`)
 > 2. `phase 3 · task 1` → `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`

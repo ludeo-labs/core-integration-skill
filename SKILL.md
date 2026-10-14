@@ -41,15 +41,14 @@ side and then turn a capture into a playable Ludeo; **actions come last** of the
 once the player flow is proven, because an action that fires into a flow you cannot yet replay cannot
 be verified. Phase 7 then gets the build onto the Ludeo platform.
 
-Always start at phase 1 unless the user explicitly says they have already completed earlier phases.
-Complete one phase at a time and confirm with the user before advancing. Report each phase's start and
+Where to start is decided by the state file, not assumed — see **Start here**. Complete one phase at a time and confirm with the user before advancing. Report each phase's start and
 finish from this top level, per **Reporting progress** in
 [`references/ludeo-studio-mcp.md`](references/ludeo-studio-mcp.md), and tell any subagent you dispatch not
 to call `ludeo-mcp` tools.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
-| 1 | `references/1-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
+| 1 | `references/1-build-game-with-sdk.md` | State file, MCP servers, Ludeo environments, build environment, conditional compilation, baseline + SDK builds, then the kickoff intake (`references/know-your-game.md`) |
 | 2 | `references/2-map-game-code.md` | Produce CODE_MAP of game architecture |
 | 3 · task 1 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
 | 3 · task 2 | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
@@ -69,6 +68,10 @@ to call `ludeo-mcp` tools.
 ## Important rules
 
 - **One phase at a time.** Get user confirmation before advancing to the next phase.
+- **Keep the state file current.** Set a step `in_progress` in `ludeo-integration-plan/integration.json` when its
+  work begins and `completed` only once its exit gate passes; record user decisions and code findings as they happen,
+  and read the intake fields a step depends on before it starts (`references/state-file-schema.md`). Preserve fields
+  you don't recognise — never rewrite the file from the template.
 - 🛑 **Never upload or assign a build without explicit user confirmation.** Phase 7 publishes to Ludeo's
   cloud and changes what an environment serves — outward-facing and not trivially reversible. Present the
   fully-resolved command after a clean `--dry-run` and stop; a clean dry-run is not approval, and approving
@@ -95,9 +98,12 @@ to call `ludeo-mcp` tools.
 ## Reference material
 
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
+- `references/state-file-schema.md` — `ludeo-integration-plan/integration.json`: where the integration is, what
+  was decided, the intake answers, the Ludeo platform record. Read it at the start of every session.
+- `references/know-your-game.md` — the kickoff intake (phase 1 Step 11): design, UX and launch decisions that can't
+  be read from code, each feeding a check in a later step.
 - `references/ludeo-studio-mcp.md` — the `ludeo-mcp` touchpoints (environments, beta version name, invites,
-  goals and constraints, Global Triggers, progress reporting), the platform record
-  `ludeo-integration-plan/LUDEO_PLATFORM.md`, and the read/write policy.
+  goals and constraints, Global Triggers, progress reporting) and the read/write policy.
 
 ## MCP configuration
 
@@ -116,4 +122,18 @@ which fallback you're using.
 
 ## Start here
 
-Read `references/1-build-game-with-sdk.md` and follow it.
+At the start of **every** session, look for `ludeo-integration-plan/integration.json` in the game's repo
+([`references/state-file-schema.md`](references/state-file-schema.md)):
+
+- **It exists** → read it. Resume at `current`: a step `in_progress` continues where it stopped (re-read that
+  phase file and its inputs first); a `completed` step advances to the next one in the table above. Read the
+  `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
+- **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
+  `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state
+  file existed. Create the state file, infer each step's status from the artifacts it produces, fold
+  `LUDEO_PLATFORM.md` into `ludeoPlatform` (then delete it), show the user the inferred status and confirm it
+  before resuming. Run the intake (`references/know-your-game.md`) if `intake` is empty — its answers gate later
+  steps.
+- **Neither** → a new integration: read `references/1-build-game-with-sdk.md` and follow it.
+
+Never re-run a `completed` step unless the user asks; if they do, set it back to `in_progress` first.

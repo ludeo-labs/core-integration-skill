@@ -23,6 +23,9 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — every `visiblePlayerState.firstFrameRequired` item is **restored, not stubbed**, before
+this task completes, and the Step 7 hand-off asks the user to confirm `playbackUXBar.firstSecondsMustFeel`.
+
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `5b-implement-object-tracking.md` complete — `LudeoStateAdapter` and `LudeoCaptureMacros.h` exist, `objectType` strings and stable-ID fields are in code

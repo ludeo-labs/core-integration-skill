@@ -29,30 +29,20 @@ in your tool list. Which deployment to use:
 Record the deployment you chose in the platform record (below) so this doesn't come back every session. From
 then on, **"in your tool list" means on that server**: a tool only the other one has doesn't count.
 
-## The platform record — `ludeo-integration-plan/LUDEO_PLATFORM.md`
+## The platform record — `integration.json` → `ludeoPlatform`
 
-Everything this file says to "record" goes here. Create it in `phase 1` Step 0d; read it at the start of every
-later phase. **If a later phase finds it missing** — an integration that finished phase 1 before this file
-existed — run `phase 1` Step 0d (a) and (b) once, each with its own tool gate, before continuing. It is a **cache, not the truth** — the platform is the source of truth, so re-read with
-`list_game_environments` wherever the table below says to.
+Everything this file says to "record" goes in the state file's `ludeoPlatform` block
+([`state-file-schema.md`](state-file-schema.md) has the fields and their rules). Phase 1 Step 0d fills it; every
+later step reads it from the state file. **If a later step finds it empty** — an integration that finished phase 1
+before this block existed — run `phase 1` Step 0d (a) and (b) once, each with its own tool gate, before continuing.
+It is a **cache, not the truth** — the platform is the source of truth, so re-read with `list_game_environments`
+wherever the table below says to.
 
-```markdown
-# Ludeo platform — <GameName>
-
-- **Studio MCP server:** ludeo-mcp | ludeo-mcp-staging | none
-- **Game ID:** <game version uuid from Studio Lab → Game Options → Info>
-- **progress reporting disclosed:** yes | no
-
-## Environments
-| Name | envId | Beta Version Name | Default? | Dialog value | Integrator is member? | Steam branch | Invited |
-|------|-------|-------------------|----------|--------------|-----------------------|--------------|---------|
-| Production | 1a2b… | `{}` | yes | `{}` | yes | (default) | — |
-| QA | 3c4d… | qa | no | qa | ? | qa | Dana, Lee |
-```
-
-`Default?` and `Dialog value` come **only** from the Studio Lab dialog check (Matching step 1); `?` = not yet
-checked. `Integrator is member?`: `?` = unknown. `Steam branch` is filled at `phase 3 · task 4` — `(default)`
-= Steam's default branch, which a user saying "public" means. `Invited` holds names, never emails.
+- `mcpServer` — the deployment chosen above; `gameId`; `progressReportingDisclosed`; `debugTarget`.
+- `environments[]` — `{ envId, name, betaVersionName, isDefault, dialogValue, integratorIsMember, steamBranch, invited }`.
+  `isDefault` and `dialogValue` come **only** from the Studio Lab dialog check (Matching step 1); `null` = not yet
+  checked. `integratorIsMember: null` = unknown. `steamBranch` is filled at `phase 3 · task 4` — `""` = Steam's
+  default branch, which a user saying "public" means; `null` = not asked. `invited` holds names, never emails.
 
 ## Touchpoints
 
@@ -92,13 +82,13 @@ The platform is the source of truth. Work through these in order:
    or not they carry the marker. Ask the user to open Studio Lab → Environments → *Assign to beta version* on
    **every** environment and report what each shows (read it, then cancel): the default one shows `{}`, and any
    other value is that environment's beta name even where the tool read `null`. "I think so" isn't a
-   confirmation. Record the result per environment — `Default?` and `Dialog value` — only from this check, and
+   confirmation. Record the result per environment — `isDefault` and `dialogValue` — only from this check, and
    reuse it. A re-read updates the Beta Version Name but never the default flag; when it shows the Beta Version
-   Name changed, set the dialog value back to not checked (`?`). **An environment's beta name** — the name a
+   Name changed, set `dialogValue` back to not checked (`null`). **An environment's beta name** — the name a
    branch must report to reach it, which is what "has a name" means in steps 4–5, never the display label it's
    recorded under — is its Beta Version Name if that is a name, otherwise its recorded dialog value if that is a
    name — a name is anything but `{}`, `""` or `null`. If neither is a name it has none; if its Beta Version
-   Name isn't a name and no dialog value is recorded yet (`?`), its name is **unknown**. Steps 4 and 5, the
+   Name isn't a name and no dialog value is recorded yet (`null`), its name is **unknown**. Steps 4 and 5, the
    clash check, `old` in a write confirmation and every copy into `ludeo.ini` use that name, and none of them
    resolves an unknown one: run step 1 on that environment first, and until then make no
    `set_beta_version_name` call on any environment. Until the default environment is confirmed, write nothing.
@@ -134,8 +124,8 @@ invariant depends on local state is re-called whenever that state changes.
 `report_integration_progress` sends only the Game ID (`gameVersionId`, from the platform record), a phase and
 `started`/`finished`.
 
-- **Tell the user once per integration.** Before your first report, unless the record says
-  `progress reporting disclosed: yes`, say *"I'll also report to Ludeo which phase we're in, against this Game ID —
+- **Tell the user once per integration.** Before your first report, unless the record has
+  `progressReportingDisclosed: true`, say *"I'll also report to Ludeo which phase we're in, against this Game ID —
   nothing from your project."* and set it.
 - **Report the phase you're in:** `started` as its work begins (a resumed session sends it again), `finished`
   when the user confirms it's done — unless the table says otherwise. No Game ID yet → don't report. Never

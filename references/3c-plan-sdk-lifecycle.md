@@ -17,6 +17,11 @@ This is a sequential workflow — continuing to phase 3 · task 3 in the **same 
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — read `launchModel`: if either launch axis is boot-straight / preselected, or the menu starts
+immediately, the plan includes the SDK-readiness gate ([`LAUNCH-AND-READINESS.md`](ludeo-integration-docs/LAUNCH-AND-READINESS.md)). Read
+`captureTimingRules`: `beginTrigger` gates `Begin` (the Creator-Flow room still opens when the level loads), `endTrigger`
+gates the teardown. Unknowns aimed at this step in `risks` are resolved here.
+
 > ⚠️ **REQUIRED:** Run these phases first:
 > 1. `phase 2` → produces `ludeo-integration-plan/CODE_MAP.json`
 > 2. `phase 3 · task 1` → produces `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`

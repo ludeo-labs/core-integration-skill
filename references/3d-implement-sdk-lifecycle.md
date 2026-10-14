@@ -59,7 +59,7 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 
 A local run reaches the environment whose **Beta Version Name** matches the branch it reports, so the branch is
 **never invented here** — it follows from the target environment. List the environments from
-`ludeo-integration-plan/LUDEO_PLATFORM.md` (re-read them with `list_game_environments` if it is in your tool
+the state file's `ludeoPlatform` block (re-read them with `list_game_environments` if it is in your tool
 list) and ask which one this build should reach. Then follow **Matching a branch to an environment** in
 [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — it decides whether anything is written, including the one case
 where `set_beta_version_name` names the environment (a confirmed write).
@@ -69,7 +69,7 @@ where `set_beta_version_name` names the environment (a confirmed write).
 - **Implicit mode:** ask *"Which Steam beta branch do you run the game on?"* — never *"what name do you want?"* —
   and record it as that environment's Steam branch. `betaBranch` stays empty; the Steam client reports the branch.
 
-Record the target and the Steam branch in `LUDEO_PLATFORM.md`. A placeholder branch name would route the run
+Record the target as `ludeoPlatform.debugTarget` and the Steam branch on that environment in the state file. A placeholder branch name would route the run
 to no environment at all, so never write one.
 
 ---

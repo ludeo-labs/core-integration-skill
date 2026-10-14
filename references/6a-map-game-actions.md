@@ -8,6 +8,9 @@ This is a sequential workflow — continuing to phase 6 · task 1 in the **same 
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — `profile.keyActions` and `profile.ludeoConcept` are the actions a creator will build goals
+on — make sure each is mapped.
+
 > ⚠️ **REQUIRED:** Run `phase 2` first.
 > This command reads `ludeo-integration-plan/CODE_MAP.json` for the game name and codebase structure.
 >

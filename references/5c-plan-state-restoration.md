@@ -21,6 +21,11 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 
 ## Prerequisites
 
+**From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — every `playbackUXBar.startOfRunToSuppress` entry is on the Step 3 start-of-run suppression
+list; every `dynamicPhaseMetadata` value with `mustRestore` and every load-bearing trail in `scriptedSystems` has a
+restore path in the plan (a trail's replay drives the game's own progression call during the apply/settle);
+`runnability.levelLoadCommand` is how the restore reaches a captured level from a cold start.
+
 > ⚠️ **REQUIRED:** These must complete first:
 > 1. `4-map-game-objects.md` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
 > 2. `phase 3 · task 6` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`

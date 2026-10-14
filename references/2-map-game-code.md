@@ -68,6 +68,13 @@ Execute these searches systematically before writing the CODE_MAP. Skip sections
 - `Grep("class.*AI\|class.*Bot\|class.*NPC\|PathFind\|NavMesh\|Spawn.*Bot\|Spawn.*NPC\|Spawn.*Enemy")` in source files
 - Note: whether bots exist, how they spawn, and whether they can be controlled externally
 
+### 9. Launch Model Cross-Check
+- Compare `integration.json` → `intake.launchModel` (phase 1's kickoff intake) with the boot flow in the code: does the
+  first scene/state start a run without a menu? Is there an auto-continue or debug auto-enter path? Is a launch argument
+  already parsed for a level or save? Record what the code shows in `CODE_MAP.json` → `launch_model` with `file:line`.
+- If the code disagrees with the intake answer, flag it to the user now — the answer decides whether `phase 3` builds
+  the SDK-readiness gate.
+
 ## Your Task
 
 Build a **structural map** of the game codebase for SDK integration planning.
