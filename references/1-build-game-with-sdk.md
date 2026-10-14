@@ -100,7 +100,7 @@ it and update it. Once (a) records the Game ID, start **Reporting progress** the
   Studio Lab → Environments → Users management. Record the answer, never off the back of a tool call, and ask
   again whenever the target environment changes.
 - **(c) Anyone else.** Ask: *"anyone else on your team who needs to capture — teammates, QA?"* — and in which
-  environment. If `invite_user_to_env` is in your tool list, invite them (a **write** — show
+  environment. If `invite_users_to_environment` is in your tool list, invite them (a **write** — show
   `environment · every invitee's email` and wait for a go-ahead); otherwise ask the user to invite them in
   Studio Lab. Default: just them.
 
