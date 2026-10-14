@@ -127,7 +127,7 @@ After object tracking is implemented, verify these are covered. Sections are tie
 - [ ] Team ID
 - [ ] Appearance / equipped cosmetics (skin, outfit, character-model or team-color variant — by content ID, never a pointer). Constant through the clip, but **visible**: constants are normally skipped (`06 §9.3` step 1) — this is the exception, because a default-skin replay is visibly wrong
 
-### Enemies / NPCs — IMPORTANT
+### Enemies / NPCs — CRITICAL (the combatants in the moment are load-bearing — `06 §1.5`)
 - [ ] Position, rotation
 - [ ] Health
 - [ ] AI state (idle, alert, attacking, fleeing)

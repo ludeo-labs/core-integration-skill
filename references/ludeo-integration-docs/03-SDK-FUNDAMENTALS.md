@@ -324,7 +324,7 @@ older than the backend — a notification never arrives, the log shows `unknown 
 
 ## 5. Data Type Mapping
 
-### 6.1 Type Correspondence
+### 5.1 Type Correspondence
 
 | C++ Type | SDK Set Function | SDK Get Function | Notes |
 |----------|------------------|------------------|-------|
@@ -337,7 +337,7 @@ older than the backend — a notification never arrives, the log shows `unknown 
 | `Vec4/Quat` | `SetVec4Float()` | `GetVec4Float()` | Pass `float[4]` array |
 | `const char*` | `SetString()` | `GetString()` | Null-terminated string |
 
-### 6.2 Usage Examples
+### 5.2 Usage Examples
 
 **Float:**
 ```cpp
@@ -431,7 +431,7 @@ if (ludeo_DataReader_GetUInt64("owner_id", &restored_owner_id)) {
 
 ## 6. Handle Management
 
-### 7.1 Handle Lifecycle
+### 6.1 Handle Lifecycle
 
 **Handles are created and managed by SDK:**
 ```cpp
@@ -455,7 +455,7 @@ void OnLudeoDataReceived(const LudeoSessionGetLudeoCallbackParams* data) {
 }
 ```
 
-### 7.2 Handle Storage
+### 6.2 Handle Storage
 
 **Store handles in manager class:**
 ```cpp
@@ -473,7 +473,7 @@ public:
 };
 ```
 
-### 7.3 Handle Validity
+### 6.3 Handle Validity
 
 **Always check handles before use:**
 ```cpp
@@ -490,7 +490,7 @@ ludeo_DataWriter_SetCurrent(writer);
 
 ## 7. Callback Pattern
 
-### 8.1 Callback Function Signature
+### 7.1 Callback Function Signature
 
 All callbacks follow this pattern:
 ```cpp
@@ -510,7 +510,7 @@ void MyCallback(const LudeoXxxCallbackParams* data)
 }
 ```
 
-### 8.2 Singleton Callback Pattern
+### 7.2 Singleton Callback Pattern
 
 LudeoManager is a singleton, so callbacks access it via `LudeoManager::Instance()`:
 ```cpp
@@ -553,7 +553,7 @@ private:
 
 **Pattern:** Callbacks are `static` and access the singleton via `LudeoManager::Instance()`.
 
-### 8.3 Common Callbacks
+### 7.3 Common Callbacks
 
 | Operation | Callback Type | Data Available |
 |-----------|---------------|----------------|
@@ -604,7 +604,15 @@ event — tearing down its video encoder at session end, for instance — and a 
 seen to end the process with a native `abort()` and no log. Queue the next call instead; it runs on the next `Tick`,
 outside the dispatch. Audit **every** callback that issues an SDK call, not just teardown — the chain
 `OnRoomOpened → AddPlayer → OnPlayerAdded / OnRoomReady → Begin → … → End → RemovePlayer → Close` included.
-(Synchronous quit paths, where there is no next tick, are the exception — see 05 §7.)
+(Synchronous quit paths, where there is no next tick, are the exception — see 05 §7.4.)
+
+**Pick one of two equivalent forms and use it everywhere in the integration:**
+- **(a) Marshal at registration** — the function you register with the SDK only copies what it needs out of `data`
+  (strings by value — `data` is valid only during the call; handles are fine) and queues the real handler. Every
+  handler body then runs from the queue and may call the SDK directly. CR-010's code assumes this form.
+- **(b) Queue the next call inside each callback** — the callback runs inline and wraps each SDK call it makes in
+  `QueueOperation`. `05 §6`'s snippets show this form.
+Mixing them is how an inline call slips through.
 ```cpp
 class LudeoManager {
     std::mutex m_queue_mutex;

@@ -126,7 +126,7 @@ not the whole save). Sections are tiered by restoration priority:
 - [ ] Current region/cell ID (open-world)
 - [ ] Faction reputation / standing
 
-### NPCs / Enemies — IMPORTANT
+### NPCs / Enemies — CRITICAL for combatants in the moment (load-bearing — `06 §1.5`); IMPORTANT for bystanders
 - [ ] Position, rotation, health
 - [ ] AI state (idle, combat, fleeing, schedule)
 - [ ] Disposition / faction / is-hostile

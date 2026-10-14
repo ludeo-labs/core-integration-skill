@@ -195,8 +195,9 @@ restore:
 4. **Position the cursor — don't let entering the encounter *re-spawn* the restored wave.** "Remaining waves match"
    means the spawner may **advance** to the next wave from the restored cursor. But a trigger that fires when
    combat / the encounter (re)starts often **repopulates the current wave wholesale**, stacking a fresh wave on the
-   enemies you just restored. Gate that re-populate **trigger** — never the spawn primitive Pass 1 uses — for the
-   whole replay, not just the restore window (`07 §11.1`). Restore the live wave as a snapshot; let only genuine
+   enemies you just restored. Restore the encounter's **already-started** state so that trigger sees a running encounter and
+   doesn't repopulate (`07 §11.1`); if the game has no such state, gate the re-populate **trigger** — never the spawn
+   primitive Pass 1 uses — and let genuine advancement through. Restore the live wave as a snapshot; let only genuine
    *advancement* run.
 
 > **Where you inject depends on *when* the generator rolls.** If it rolls **lazily per room-entry**

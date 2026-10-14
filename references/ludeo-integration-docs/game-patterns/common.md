@@ -37,7 +37,9 @@ frame.
 - **View location + rotation** — usually the camera follows the avatar + the look/aim rotation above, so
   capturing the look rotation (§1) lets the game reconstruct the camera. Capture the **camera transform
   explicitly only** when the camera is decoupled from the avatar at capturable moments (spectator, free
-  cam, scripted/cinematic camera).
+  cam, scripted/cinematic camera). When the player controls the view **independently** of the avatar (orbit
+  distance, zoom level, a decoupled aim offset), capture that rig control state — see `../06-TRACKING-PATTERNS.md`
+  (§10.7).
 - **Field of View (FOV)** — *recommended-but-usually-derived.* Player Flow restores a snapshot and the game
   resumes its own logic, so FOV is normally **re-derived** from captured state (aim-down-sights/zoom active,
   sprint, current weapon). **Capture FOV explicitly only when it is driven by something transient or

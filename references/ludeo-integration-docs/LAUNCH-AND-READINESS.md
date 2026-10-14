@@ -115,7 +115,8 @@ void LudeoManager::OnSessionActivatedCallback(const LudeoSessionActivateCallback
     if (!m_pending_local_ludeo_id.empty()) {                   // preselected launch: dispatch once, now (§4)
         const std::string id = m_pending_local_ludeo_id;
         m_pending_local_ludeo_id.clear();
-        OnLudeoSelected(id);                                   // the SDK's own handler → 07 §2.1 step 1
+        QueueOperation([this, id] { OnLudeoSelected(id); });   // the SDK's own handler → 07 §2.1 step 1 — queued:
+                                                               // GetLudeo must not be issued inside Activate's dispatch (03 §8.3)
     }
 }
 

@@ -54,7 +54,8 @@ and only these:
 2. **Re-drive** activation the replay skipped — an entity authored into the level but switched on only by a
    trigger the player crossed before the capture (a boss, a gated encounter) is activated by the restore, then
    reset, then applied (§5.4).
-3. **Skip the reposition** branch of a scripted moment the restore re-triggers, keeping its presentation (§11.3).
+3. **Don't re-trigger a scripted moment the captured run had already passed** — restore its consumed flag; if it
+   re-triggers anyway, skip its reposition branch and keep the presentation (§11.3).
 
 Mirror everything else verbatim.
 
@@ -77,7 +78,8 @@ Classify every captured attribute in `RESTORATION_PLAN.md`:
   captured mid-action value.
 
 The tell: a field one code path sets at the start of an action and only the end of that action clears. When in
-doubt, idle is safe — the AI re-derives its attack next tick; a stuck flag never recovers. A timer whose
+doubt, idle is safe — the AI re-derives its attack next tick; a stuck flag never recovers. (The re-drive case done
+right: a boss restored mid-attack, `game-patterns/bosses.md`, and projectiles in flight, `06 §9.7`.) A timer whose
 duration is written only when the action starts (and so was never captured) cannot be resumed at all — idle is
 the only option. This differs from a deferred property (§6 — applied, just later) and from the matched-instance
 reset (§5.4 — clears *uncaptured* leakage): here a *captured* value is deliberately dropped.
@@ -271,9 +273,11 @@ update():                                # per-frame fallback — don't depend o
 
 end_current_ludeo(then):                 # every exit path, and before a new restore (phase 5 · task 3 Step 5)
     restore_generation += 1                      # any pending load/settle continuation of the old restore now no-ops
-    if gameplay_session_begun: ludeo_GameplaySession_End(isAbort = true)
-    if room_open: remove_player_then_close_room(on_closed = () => reset_flags() and then())
-    else: reset_flags(); then()                  # mid-load restore: no room yet, nothing to close
+    close_room = () => room_open ? remove_player_then_close_room(on_closed = () => reset_flags() and then())
+                                 : (reset_flags(), then())   # mid-load restore: no room yet, nothing to close
+    if gameplay_session_begun:
+        ludeo_GameplaySession_End(isAbort = true, on_ended = () => queue(close_room))   # continue from End's callback, queued
+    else: close_room()
 ```
 
 > **On `read_entry_identity` — read-then-load, all before Play:** which level/scene to load (or which save / new-game flow to drive) is **read from the `DataReader`** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `phase 5 · task 1` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. So the reader comes first and the load second — and reading the identity is also what **validates** the selection before anything is torn down. The whole sequence still completes **before** the viewer presses Play. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `phase 4`/`phase 5 · task 1`, not a missing SDK function.
@@ -367,8 +371,8 @@ collection-level counterpart of the matched-instance reset (§5.4); call it from
 Ludeo-flag reset.
 
 **Issue each teardown step from the main-thread queue, not from inside the previous step's callback.**
-`End(isAbort=true) → RemovePlayer → Room_Close` is chained through completion callbacks, which `ludeo_Tick`
-dispatches. Queue the next call (`03 §8.3`) so it runs on the next tick rather than inside that dispatch: the
+`End(isAbort=true) → RemovePlayer → Room_Close` is chained through completion callbacks — each step starts only once
+the previous one's callback has fired — which `ludeo_Tick` dispatches. Queue the next call (`03 §8.3`) so it runs on the next tick rather than inside that dispatch: the
 SDK shuts its video encoder down in reaction to the session end, and a production integration that issued
 `Room_Close` from inside the `End` callback hit an intermittent native abort that queueing the call removed.
 The order of the chain (`05 §6.7`–`§6.9`) is unchanged.
@@ -677,8 +681,10 @@ Games start level music from start-of-run logic (level start, the intro, the fir
 restore gates exactly that logic on `IsRestoring()` (§9.11). The result: the state restores perfectly and the
 soundtrack never starts. `restore_environment` must (re)start the captured track itself, from the active-track
 id capture stored on the world object (§8.1). Make it idempotent — don't stack a second track on one already
-playing. Presence, not position: restarting the track from the top is fine. It isn't load-bearing for the first
-frame, but it is required for a complete restore — don't drop it.
+playing. Presence, not position: restarting the track from the top is fine — **unless the game is time-driven** (rhythm,
+music-synced or timed games, `06 §9.5`): there, seek to the captured `music_position` and re-arm the game's clocks
+and timers from the captured time-base (`06 §10.6`) in `restore_environment`. It isn't load-bearing for the first
+frame of an ordinary game, but it is required for a complete restore — don't drop it.
 
 ---
 
@@ -872,12 +878,13 @@ decide whether the snapshot already accounts for them or you are applying them t
 
 A scripted moment the restore re-triggers (an encounter intro, a boss reveal, an arena cutscene the captured run
 had already entered) has two separable effects. The **presentation** — camera framing, VFX, dialogue, timeline —
-is safe: keep it; suppressing the whole moment produces "the cutscene didn't play". The **reposition** —
+can stay; suppressing a moment the viewer should see produces "the cutscene didn't play". The **reposition** —
 teleport-to-arena, spawn-point snap, respawn, a camera possession that moves the body — warps the restored player
 off the snapshot. Gate the reposition branch, not the whole moment: on `IsRestoring()` when it fires inside the
 restore window (it joins the default-spawn teleport on the §9.11 list), and on the session-scoped Player-Flow
-replay flag (§2.3) when it fires after Play. Better still, restore the moment's consumed / triggered state so it
-doesn't re-fire at all (§5.4). When the two branches aren't separable in code, splitting them is a game-code
+replay flag (§2.3) when it fires after Play. **The default, though, is to restore the moment's consumed / triggered
+state so it doesn't re-fire at all** (§5.4) — a moment the captured run had already passed (a boss intro, `game-patterns/bosses.md`) should
+not replay; keep-the-presentation is the fallback for a moment the restore can't avoid re-triggering. When the two branches aren't separable in code, splitting them is a game-code
 change — surface it in `RESTORATION_PLAN.md` rather than silently dropping the cutscene.
 
 ---

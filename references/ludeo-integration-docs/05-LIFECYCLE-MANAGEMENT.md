@@ -805,6 +805,15 @@ void GameShutdown()
 
 ---
 
+### 7.4 Quit Path — There Is No Next Tick
+
+Every teardown step is queued to the next `Tick` (`03 §8.3`) — but when the player quits, there may be no next
+tick, and a queued `RemovePlayer` / `Room_Close` is silently dropped; ending a recording is also asynchronous, so
+shutting down on the line after `End` loses it. On the quit path, drive the teardown to completion before
+`ludeo_Shutdown`: issue `End(isAbort=true)`, then keep pumping the queue and `ludeo_Tick()` in a **bounded** loop
+(a few seconds at most) until `OnRoomClosedCallback` has fired, then release the session and shut down. If the
+bound runs out, log it and shut down anyway — never hang the game's exit.
+
 ## 8. Integration Points Summary
 
 ### Game Code Integration Points

@@ -263,7 +263,7 @@ for (each object) {
 | Level restart | `OnRestartLevel()` | ✅ YES |
 | Network disconnect | `OnDisconnected()` | ✅ YES (multiplayer) |
 | Error recovery | `OnFatalError()` | ✅ YES |
-| Mid-run `LudeoSelected` — a **validated** selection while a Ludeo is playing or still restoring (another Ludeo from the overlay, "play again") | `CommitAndRestore()` → `EndCurrentLudeo()` | ✅ YES — `isAbort=true` (only if `Begin` ran) → `RemovePlayer` → `CloseRoom`, then reset the `Begin` gates and both freeze bits **before** the new restore starts (CR-010 step 3, `07 §2.1`). **Not** in `OnLudeoSelected()` — an unvalidated selection touches nothing |
+| Mid-run `LudeoSelected` — a **validated** selection while a Ludeo is playing or still restoring (another Ludeo from the overlay, "play again") | `CommitAndRestore()` → `EndCurrentLudeo()` | ✅ YES — `isAbort=true` (only if `Begin` ran) → `RemovePlayer` → `CloseRoom`, then reset the `Begin` gates and the freeze bits (the CR-011 bit only if no overlay is actually open) **before** the new restore starts (CR-010 step 3, `07 §2.1`). **Not** in `OnLudeoSelected()` — an unvalidated selection touches nothing |
 | Overlay "back to menu" | `OnBackToMenuRequestCallback()` (`BackToMenuRequest`) | ✅ YES — `isAbort=true` via `EndCurrentLudeo()`, then navigate to the menu (`05 §6.11`) |
 
 **Required Pattern:**
@@ -412,8 +412,9 @@ nothing overwrites the snapshot as it lands, and `Begin` (which starts SDK recor
    (`05 §6.6`).
 
 ```cpp
-// All callbacks below are already marshalled to the main-thread queue (03 §8.3): they run on the next Tick,
-// outside the SDK's callback dispatch, so the SDK calls they make are safe.
+// These handlers assume form (a) of 03 §8.3: the function registered with the SDK copies what it needs and queues
+// the handler, so each body below runs on the next Tick, outside the SDK's dispatch, and may call the SDK directly.
+// With form (b), wrap each SDK call these bodies make in QueueOperation instead.
 
 // ✅ 1. LudeoSelected — validate first; touch nothing else.
 void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams* data) {
@@ -427,6 +428,7 @@ void LudeoManager::OnLudeoSelected(const LudeoSessionLudeoSelectedCallbackParams
 void LudeoManager::IgnoreSelection(const char* why) {   // pre-commit only: clear the candidate, touch nothing else
     LUDEO_LOG("[Ludeo] selection ignored: %s", why);
     m_candidate_ludeo_id.clear(); m_candidate_reader = nullptr; m_candidate_deadline = {};
+    m_launching_into_ludeo = false;                    // a preselected launch falls back to the menu (LAUNCH-AND-READINESS §4)
 }
 
 // ✅ 2. Validate. May fire REPEATEDLY; early cycles return Success + an EMPTY reader.
@@ -462,6 +464,7 @@ void LudeoManager::CommitAndRestore(const EntryId& entry) {
 void LudeoManager::StartRestore(const std::string& id, LudeoHDataReader reader, const EntryId& entry) {
     const uint32_t gen = ++m_restore_generation;          // continuations of an older restore check this and no-op
     m_restore_in_progress = true;
+    m_launching_into_ludeo = false;                       // the restore owns the start from here (LAUNCH-AND-READINESS §4)
     SetRestoring(true);                                   // arm start-of-run skips BEFORE the load fires them
     m_pending_ludeo_id = id; m_pending_reader = reader;
     m_room_ready = m_player_added = m_applied = false;
@@ -554,9 +557,10 @@ So the guard depends on the shape of the work:
 
 - **Synchronous writes** (setters, spawn-and-return, the two passes) → **freeze** them, as in step 5.
 - **Frame-dependent work** → run it in the **settle**, where time runs, and make **suppression** the overwrite
-  guard instead of the freeze: input is already held, and the state-mutating systems (AI and behaviour logic,
-  spawners, cinematics, scripted start-of-run events) are gated on `IsRestoring()`, which stays `true` until the
-  settle ends (`07 §9.11`). Extend the settle until that work has finished, bounded like every other restore wait,
+  guard instead of the freeze: input is already held, and the state-mutating systems that would overwrite the snapshot
+  during that work (spawners, cinematics and scripted start-of-run events — `07 §9.11` — and, while the
+  frame-dependent work runs, AI and behaviour logic) are gated on `IsRestoring()`, which stays `true` until the
+  settle ends. Gating AI here is an addition to `07 §9.11`, needed only for the duration of that work. Extend the settle until that work has finished, bounded like every other restore wait,
   then **freeze** again as usual.
 
 This is the same rule the core order already encodes — writes that need frames go in the settle or the deferred queue
