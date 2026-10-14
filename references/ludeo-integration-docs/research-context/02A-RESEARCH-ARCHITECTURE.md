@@ -136,8 +136,8 @@ MainMenu → Loading → Playing → GameOver → MainMenu
 ### 3.1 Scene/Level Management
 
 **What system manages scenes/levels?**  
-[ ] Unity SceneManager  
-[ ] Unreal Level Streaming  
+[ ] Engine level/world manager (describe):  
+[ ] Streaming / chunk loader (describe):  
 [ ] Custom system (describe):
 
 **Scene/Level loading function(s):**  

@@ -1,10 +1,10 @@
-# Find SDK Integration Points
+# Phase 3 · Task 1 — Find SDK Integration Points
 
 Read an existing CODE_MAP and identify specific locations for Ludeo SDK lifecycle integration.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 3 · task 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3 · task 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -16,7 +16,7 @@ This is a sequential workflow — continuing to phase 2 in the **same session as
 
 ## Prerequisites
 
-Run `phase 1` first to generate `ludeo-integration-plan/CODE_MAP.json`.
+Run `phase 2` first to generate `ludeo-integration-plan/CODE_MAP.json`.
 
 ## Your Task
  

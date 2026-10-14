@@ -67,7 +67,7 @@ the captured state there.**
 > **The game is in player flow or creator flow from launch, decided by whether a Ludeo ID was provided** — it does **not** switch a player's own creator run into a replay mid-run. So restoration (the player-flow path) only ever starts from one of **two** states, and `LudeoSelected` handling must cover both:
 >
 > - **No Ludeo run active yet** — startup / main menu. **There is no live game: no player, no world, no in-gameplay state.** This is the *common production case*, not an edge case — the platform (and the forced-Ludeo launch path) routinely fires `LudeoSelected` at startup, before any game exists. The handler must **drive the game's normal new-game / enter-gameplay flow** so a player + world + in-gameplay state come into being. Scene-based game → level load + spawn; state-machine-entry game with no per-level scene (e.g. Daggerfall's `StartGameBehaviour`) → trigger that entry flow — there is no scene to "load," so reaching active gameplay *is* booting a run.
-> - **A Ludeo is already playing** — another `LudeoSelected` arrives during an active playback (or while it's paused awaiting Play). Tear down the current Ludeo's gameplay session and room (`GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close`; the persistent SDK `Session` stays alive) **and reset all prior-Ludeo state** — release the old `DataReader`, re-arm `IsRestoring`, and replace `m_pending_ludeo_id` with the new id — so the previous play can't leak into the new one (this is `EndCurrentLudeo()`; see `/11`). Then reach active gameplay for the **new** Ludeo and restore it.
+> - **A Ludeo is already playing** — another `LudeoSelected` arrives during an active playback (or while it's paused awaiting Play). Tear down the current Ludeo's gameplay session and room (`GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close`; the persistent SDK `Session` stays alive) **and reset all prior-Ludeo state** — release the old `DataReader`, re-arm `IsRestoring`, and replace `m_pending_ludeo_id` with the new id — so the previous play can't leak into the new one (this is `EndCurrentLudeo()`; see `phase 5 · task 3`). Then reach active gameplay for the **new** Ludeo and restore it.
 >
 > See [`game-patterns/open-world.md`](./game-patterns/open-world.md) §6 for the streaming-world (no-per-level-scene) walkthrough of both.
 
@@ -129,7 +129,7 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 ```pseudo
 on_ludeo_selected(ludeoId):              # SDK notification thread — marshal to main thread FIRST
     if a_ludeo_is_already_playing:           # another Ludeo selected mid-play → tear down + reset prior-Ludeo state
-        end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (/11)
+        end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (phase 5 · task 3)
     set_restoring(true)                      # arm pre-match skip gating (§9.11) — the skips fire later, during the load
     pending_ludeo_id = ludeoId               # stash the NEW id: used for BOTH GetLudeo (state) and OpenRoom (flow select)
     pending_reader = null; room_ready = false; applied = false; ready_deadline = now() + RESTORE_TIMEOUT   # re-arm gate + readiness retry
@@ -184,11 +184,11 @@ maybe_apply_restore():                   # gate: fire ONCE, when a POPULATED rea
                                                  # Begin AFTER apply — SDK records from restored state (05 §6.6, §6.11)
 ```
 
-> **On `read_entry_identity` — why the order is read-then-load:** which level/scene to load (or which save / new-game flow to drive) is **read from the cached `DataReader`, inside the apply** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `/9` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. This is exactly why the flow is **synchronous read-then-load**: you must hold the reader before you can decide which level to boot, so `GetLudeo` is dispatched *first* and the load waits for the apply. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `/8`/`/9`, not a missing SDK function.
+> **On `read_entry_identity` — why the order is read-then-load:** which level/scene to load (or which save / new-game flow to drive) is **read from the cached `DataReader`, inside the apply** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `phase 5 · task 1` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. This is exactly why the flow is **synchronous read-then-load**: you must hold the reader before you can decide which level to boot, so `GetLudeo` is dispatched *first* and the load waits for the apply. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `phase 4`/`phase 5 · task 1`, not a missing SDK function.
 >
 > **Procedural / non-deterministic-assembly games** (roguelike / procedural dungeon / wave-survival — `game-patterns/procedural-world.md`): the entry identity is the captured **generation inputs** (room/chunk id, encounter id, wave index, combat level), and "reach active gameplay" means **re-drive the level builder/pool to those inputs with the random re-roll suppressed** (gate the generator's selection on `IsRestoring()`), restoring the scaling counter before any spawn — *not* just loading a level, which here yields an empty container that re-rolls its content. See `procedural-world.md §5`.
 >
-> **Fail loud on the entry identity, and distinguish two failures.** The reader can be **populated** (§2.2.1 passed — `objectsCount > 0`) yet the **entry-identity attribute** specifically reads back **empty/absent**. That is almost always **version skew**: the Ludeo was captured by a build *before* the identity attribute existed (`/9` added it later), so there is nothing to route on. This is **different** from reading a valid id that then **resolves to no level** ("room 'X' not found") — a genuine routing/content bug. Branch them with distinct messages so a stale-Ludeo re-capture isn't chased as a code bug:
+> **Fail loud on the entry identity, and distinguish two failures.** The reader can be **populated** (§2.2.1 passed — `objectsCount > 0`) yet the **entry-identity attribute** specifically reads back **empty/absent**. That is almost always **version skew**: the Ludeo was captured by a build *before* the identity attribute existed (`phase 5 · task 1` added it later), so there is nothing to route on. This is **different** from reading a valid id that then **resolves to no level** ("room 'X' not found") — a genuine routing/content bug. Branch them with distinct messages so a stale-Ludeo re-capture isn't chased as a code bug:
 > - entry identity **absent/empty** → log "entry identity missing — Ludeo predates the identity capture; **RE-CAPTURE** on the current build", then `abort_restoration` (do **not** `Begin` a scored replay on a guessed level).
 > - entry identity **present but unresolvable** → log "level/room '<id>' not found — routing/content bug, not version skew".
 >
@@ -247,7 +247,7 @@ These notifications are **session-lifetime** (register once at session creation,
 
 ### 2.5 Local trigger — `--ludeo=<id>` launch arg
 
-To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `/11` Step 3.
+To exercise this flow **without the platform overlay** (useful while integrating), the game can accept a launch arg (e.g. `--ludeo=<id>`, engine-specific format) and synthesize a `LudeoSelected` to the same handler once the session is active. The arg only changes the *source* of the id — the same handler still calls `ludeo_Session_GetLudeo`, whose async callback still delivers the `DataReader`. Implementation lives in `phase 5 · task 3` Step 3.
 
 ---
 
@@ -280,14 +280,14 @@ for ludeo_obj in reader.objects():
 
 **The concrete read loop the pseudocode stands in for (reproduced from `DataReader.h` + `DataReaderTypes.h` so you don't re-derive it from the headers):**
 
-- `reader.objects()` = **`ludeo_DataReader_GetObjectsInfo(handle, &params, &objectsInfo)`** (`params.apiVersion = LUDEO_DATAREADER_GETOBJECTSINFO_API_LATEST`). It yields a `LudeoObjectsInfo*` with `LudeoObjectInfo* objects` and `uint32_t objectsCount`. Iterate `objects[0 .. objectsCount)`; each `LudeoObjectInfo` gives you `objectId` (the `LudeoObjectId` → your `id_map` key) and `objectType` (the `const char*` dispatch key for `spawn`, identical to the string `/9` passed to `CreateObject`). **Object order is unspecified** — never depend on it (precisely why two-pass exists). When done, **`ludeo_ObjectsInfo_Release(objectsInfo)`** — mandatory, or you leak.
+- `reader.objects()` = **`ludeo_DataReader_GetObjectsInfo(handle, &params, &objectsInfo)`** (`params.apiVersion = LUDEO_DATAREADER_GETOBJECTSINFO_API_LATEST`). It yields a `LudeoObjectsInfo*` with `LudeoObjectInfo* objects` and `uint32_t objectsCount`. Iterate `objects[0 .. objectsCount)`; each `LudeoObjectInfo` gives you `objectId` (the `LudeoObjectId` → your `id_map` key) and `objectType` (the `const char*` dispatch key for `spawn`, identical to the string `phase 5 · task 1` passed to `CreateObject`). **Object order is unspecified** — never depend on it (precisely why two-pass exists). When done, **`ludeo_ObjectsInfo_Release(objectsInfo)`** — mandatory, or you leak.
 - `ludeo_obj.attributes()` is **not** a real iterator in the normal path — attribute reads are **plan-driven, by known name**. For each property the plan lists for that object, enter it (`ludeo_DataReader_EnterObject(objectId)` / `LeaveObject`, via the RAII scope) and call the typed getter for that name: `ludeo_DataReader_GetFloat("health", &out)`, `GetUInt64`, `GetVec3Float`, etc. Each returns `false` if the attribute is absent — **check the bool, branch explicitly on it**; do not use `read-or-default` helpers where the default is itself a valid value. A missing read and a real read that returns the default look identical downstream, which silently turns a type-lock drop or a partial capture into "the apply fired with a plausible-but-wrong value" (real failure mode: "the missing identity attribute defaulted to 0 → 4 spawned entities all read as the player"). Either skip / fail-loud on absence, or compare against an impossible sentinel. (`ludeo_DataReader_AttributeExists` / `ludeo_DataReader_VisitAttributes` exist if you genuinely must discover names at runtime, but a complete plan already lists them.)
 - **Assert type invariants on the apply side.** Cheap one-liners like "this object's `objectType` is `player` — assert the apply's target is the player entity, not an NPC" convert baffling gameplay glitches into a single explicit log line at the exact failure point. Add invariant checks at Pass 1 dispatch and Pass 2 apply.
 - `GetString`/`GetBlob` are **sized first**: `ludeo_DataReader_GetSize(name, &size)` → allocate → `GetString`/`GetBlob`; they don't allocate for you. The fixed-width getters (`GetFloat`/`GetInt32`/…) need no sizing.
 
 This is the same two-callback-then-enumerate path described in §2 — the SDK calls here are stable enough to reproduce; if one ever disagrees with the cloned headers, the headers win.
 
-**Pass 2 is the inverse of `/9`'s capture, row for row.** Every `LUDEO_CAPTURE_*` `/9` emitted has exactly one mirror here: the matching `ludeo_DataReader_Get*` (same attribute name, same type) **whose returned value is written back into the same field `/9` captured from**, on the **live entity** (the one the player sees in the loaded level — not a detached spawn). `LUDEO_CAPTURE_FLOAT(player, "health", m_health)` mirrors to `ludeo_DataReader_GetFloat("health", &h)` + `m_health = h` (or `entity->SetHealth(h)`). Walk `OBJECT_TRACKING.md` row by row and reverse each capture into a get-then-apply. Any row left un-reversed stays at the level's default — that is the "Ludeo loaded but state didn't restore, the player sees mid-level positions as level-start" symptom.
+**Pass 2 is the inverse of `phase 5 · task 1`'s capture, row for row.** Every `LUDEO_CAPTURE_*` `phase 5 · task 1` emitted has exactly one mirror here: the matching `ludeo_DataReader_Get*` (same attribute name, same type) **whose returned value is written back into the same field `phase 5 · task 1` captured from**, on the **live entity** (the one the player sees in the loaded level — not a detached spawn). `LUDEO_CAPTURE_FLOAT(player, "health", m_health)` mirrors to `ludeo_DataReader_GetFloat("health", &h)` + `m_health = h` (or `entity->SetHealth(h)`). Walk `OBJECT_TRACKING.md` row by row and reverse each capture into a get-then-apply. Any row left un-reversed stays at the level's default — that is the "Ludeo loaded but state didn't restore, the player sees mid-level positions as level-start" symptom.
 
 > **The restore driver applies the snapshot — never defer the apply to the spawned entity's own init.** Pass 2 above writes every value **from the restore loop's own call stack**. Do **not** instead stash the captured data on the freshly-spawned entity and rely on the entity's **own engine-invoked initialization or first-tick callback** (constructor body, the engine's spawn/begin-play hook, the first `Update`/tick) to pull it back and apply it. Two failure modes: (1) **those callbacks are not guaranteed to run — or to run before `Begin` and before the freeze lifts — for an entity created during the level boot/transition** (the restore path loads the level *inside* the apply, §2.1); a skipped callback leaves the entity at its spawn defaults with the snapshot silently dropped, and the symptom is worst on a **second back-to-back replay** in one session (the level reload lands inside the same window). (2) Self-application fires in **unspecified order**, so it cannot honor two-pass reference resolution (§3.2). Keep entity *creation/activation* in whatever callback the engine guarantees at spawn; keep the **state apply in the driver's Pass-2 sweep**; and make the apply **idempotent** so a late init callback that re-applies is harmless.
 
@@ -416,7 +416,7 @@ Some properties cannot be applied synchronously in the apply path because their 
 
 ### 6.1 Detection
 
-Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output of `/10-plan-state-restoration`). General rule: **if a setter's handler reaches into another subsystem, defer it.** Heuristic: anything that fails, no-ops, or crashes when set in a constructor lands here.
+Properties needing deferral are usually marked in `RESTORATION_PLAN.md` (output of `5c-plan-state-restoration.md`). General rule: **if a setter's handler reaches into another subsystem, defer it.** Heuristic: anything that fails, no-ops, or crashes when set in a constructor lands here.
 
 ### 6.2 Pattern
 
@@ -543,8 +543,8 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     or camera **after** the apply overwrites the restored snapshot. The signature
     failure: "first frame after Play is the level-start cinematic / default spawn,
     not the captured mid-level moment." For playback: **identify every such
-    mechanism during planning (`/10` Step 3) and gate it on `IsRestoring()` (or
-    equivalent) in `/11`** — skip the cutscene, suppress the default-spawn teleport,
+    mechanism during planning (`phase 5 · task 2` Step 3) and gate it on `IsRestoring()` (or
+    equivalent) in `phase 5 · task 3`** — skip the cutscene, suppress the default-spawn teleport,
     short-circuit the countdown. **Set `IsRestoring(true)` FIRST (at `LudeoSelected`)
     and freeze the sim then too**; the level loads later, *inside* the apply (after Play),
     and the start-of-match skips fire during that load while `IsRestoring` is still set —
@@ -612,7 +612,7 @@ Before considering restoration "done" on a game:
 - [ ] The property apply runs **from the two-pass driver loop**, not deferred to a spawned entity's own
       init / first-tick callback (§3.1, §9.14); the apply is idempotent. Verified by a **second back-to-back
       replay** in one session, not just the first.
-- [ ] Entry identity is captured (`/8`/`/9`) and read back to route the load; an **absent/empty** entry
+- [ ] Entry identity is captured (`phase 4`/`phase 5 · task 1`) and read back to route the load; an **absent/empty** entry
       identity aborts with a distinct "re-capture (version skew)" message vs an unresolvable id's "not found"
       (§2.2). Re-captured after any capture-schema change.
 - [ ] Deferred properties (animation pose, physics, abilities) appear correct
@@ -626,12 +626,12 @@ Before considering restoration "done" on a game:
       when it closes (§2.4).
 - [ ] After a Ludeo loads, the game is paused (sim frozen) **until `RoomReady` fires**;
       the post-restore resume is driven by `RoomReady → Begin` (the chain `05-LIFECYCLE`
-      wired for `/4`) — **not** a self-built prompt, **not** `PlayerReady` (which does
+      wired for `phase 3 · task 4`) — **not** a self-built prompt, **not** `PlayerReady` (which does
       not exist), **not** `ResumeGameRequest` (that's the mid-play resume).
 - [ ] Restored values survive: spot-check that the live simulation and the
       level's default init do **not** overwrite restored state after resume (§9.10).
 - [ ] `BackToMenuRequest` returns to the menu and tears down the current Ludeo.
-- [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `/11` Step 3).
+- [ ] Local launch-arg trigger (`--ludeo=<id>` or engine-equivalent) runs the full restoration flow without the platform overlay (§2.5 / `phase 5 · task 3` Step 3).
 
 ---
 
@@ -641,6 +641,6 @@ Before considering restoration "done" on a game:
 - `06-TRACKING-PATTERNS.md` → what was captured determines what can be restored
 - `research-context/02D-RESEARCH-ENVIRONMENT.md` → environment inventory
 - `research-context/02F-RESEARCH-SAVE-SYSTEM.md` → group-based strategy selection
-- `commands/10-plan-state-restoration.md` → produces `RESTORATION_PLAN.md`
-- `commands/11-implement-restoration-flow.md` → wires the `LudeoSelected` flow, freeze, apply gate, and wait-for-player (calls the read-back as a stub)
-- `commands/12-implement-state-reconstruction.md` → fills the `LudeoStateAdapter` two-pass read-back
+- `commands/5c-plan-state-restoration.md` → produces `RESTORATION_PLAN.md`
+- `commands/5d-implement-restoration-flow.md` → wires the `LudeoSelected` flow, freeze, apply gate, and wait-for-player (calls the read-back as a stub)
+- `commands/5e-implement-state-reconstruction.md` → fills the `LudeoStateAdapter` two-pass read-back

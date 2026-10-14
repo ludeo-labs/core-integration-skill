@@ -116,8 +116,8 @@ Unlike §1–§5, these are **hard crashes** during restoration or playback. Alm
 
 ### 6.5 Pointer captured as a reference
 **Stack:** crash inside a setter applying a captured "id" to a `target` field; the bytes look like a pointer from another session.
-**Cause:** During `/9`, a reference property was captured with `(uintptr_t)target` instead of `target->GetEntityId()`. The "id" is a stale pointer from the capture session — garbage in this one.
-**Fix:** Recapture as the target's stable game id (`06 §4.4`); update the Cross-Entity References row in `OBJECT_TRACKING.md`; re-run `/9` for that property; re-test.
+**Cause:** During `phase 5 · task 1`, a reference property was captured with `(uintptr_t)target` instead of `target->GetEntityId()`. The "id" is a stale pointer from the capture session — garbage in this one.
+**Fix:** Recapture as the target's stable game id (`06 §4.4`); update the Cross-Entity References row in `OBJECT_TRACKING.md`; re-run `phase 5 · task 1` for that property; re-test.
 
 ### 6.6 Use-after-`ObjectsInfo_Release`
 **Stack:** crash iterating `objects[...]` after `ludeo_ObjectsInfo_Release` was already called.
@@ -126,12 +126,12 @@ Unlike §1–§5, these are **hard crashes** during restoration or playback. Alm
 
 ### 6.7 SDK call before `Activate` (or after `Release`)
 **Stack:** `ludeo_*` returns an invalid handle / null and a downstream deref crashes; or an unhandled exception inside the SDK.
-**Cause:** A handler fires (or the `/11` Step 3 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
+**Cause:** A handler fires (or the `phase 5 · task 3` Step 3 launch-arg dispatch fires) before `ludeo_Session_Activate` has succeeded, or after `ludeo_Session_Release`.
 **Fix:** Gate every SDK call on session state. For the launch-arg dispatch, hold the pending ludeo id until the `Activate` success callback (or first `ludeo_Tick` after activation) before invoking `LudeoSelected`.
 
 ### 6.8 Old Ludeo + new attribute schema (assert on read)
 **Stack:** assert / crash inside `ludeo_DataReader_Get*` (or a reader-side scope guard) on a previously-working playback path.
-**Cause:** `/9` added a new captured attribute (or renamed/retyped one) but the test Ludeo was recorded before that change. The SDK **asserts** when `ReadData` is called for an attribute that doesn't exist in the captured data — it does not gracefully return absent.
+**Cause:** `phase 5 · task 1` added a new captured attribute (or renamed/retyped one) but the test Ludeo was recorded before that change. The SDK **asserts** when `ReadData` is called for an attribute that doesn't exist in the captured data — it does not gracefully return absent.
 **Fix:** Re-record the Ludeo against the current write-side schema. When the captured-attribute set changes, document it as a breaking change and re-record old test Ludeos.
 
 ---
@@ -172,7 +172,7 @@ A Ludeo restores correctly — the right level loads, objects spawn with their c
 At the apply's unpause point, log the **resolved pause state** — `m_freeze_restore`, `m_freeze_overlay`, and the engine's effective `paused` bool — plus whether input suppression and control locks are still active. The tell for an inherited stale bit: the engine is paused with `m_freeze_overlay == true` but **no `PauseGameRequest` fired this play** — i.e. nothing this run set it, so it was carried in from a prior (backend-ended) play.
 
 ### How to fix it
-- **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`/11` Step 5), but a backend-ended play may not have routed through it; re-arm the bits at the **start of the `LudeoSelected` handler** too (alongside `m_room_ready`/`m_applied`), clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
+- **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`phase 5 · task 3` Step 5), but a backend-ended play may not have routed through it; re-arm the bits at the **start of the `LudeoSelected` handler** too (alongside `m_room_ready`/`m_applied`), clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
 - **Lift input suppression and control locks at `Begin`**, not earlier — but make sure they *are* lifted on every restore path.
 - The two-bit model itself is correct ([CR-011](00-CRITICAL-REQUIREMENTS.md)); the failure here is a bit left dirty across plays, not a collapsed shared flag.
 

@@ -1,19 +1,19 @@
-# /10-plan-state-restoration — Design the Two-Pass Restoration Flow
+# Phase 5 · Task 2 — Plan State Restoration
 
 > **Stage:** State Restoration — Planning (analysis only, no code yet)
-> **Prerequisite:** `/8-map-game-objects` approved (entity model is fixed)
+> **Prerequisite:** `4-map-game-objects.md` approved (entity model is fixed)
 > **Inputs:** `OBJECT_TRACKING.md`, `GAME_ANALYSIS_SAVE_SYSTEM.md` (+ `GAME_ANALYSIS_ENVIRONMENT.md`, produced in Step 9 if absent)
 > **Output:** `ludeo-integration-plan/RESTORATION_PLAN.md` — two-pass algorithm, deferred-property list, wait-for-player flow, environment restoration
-> **Gate:** Human approval required before `/11-implement-restoration-flow` (and the `/12` reconstruction that follows it)
+> **Gate:** Human approval required before `5d-implement-restoration-flow.md` (and the `phase 5 · task 4` reconstruction that follows it)
 
 Restoration is the inverse of tracking. This command does **not** invent a new
 state model — it reads the already-approved `OBJECT_TRACKING.md` and, row by row,
 specifies how each captured thing is rebuilt when a Ludeo is selected. No code is
-written here; the output is a reviewed plan that `/11` (player-flow/lifecycle) and `/12` (two-pass data reconstruction) both consume.
+written here; the output is a reviewed plan that `phase 5 · task 3` (player-flow/lifecycle) and `phase 5 · task 4` (two-pass data reconstruction) both consume.
 
 ## Fresh Context Check
 
-This is a sequential workflow — continuing to phase 10 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 10** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 5 · task 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 5 · task 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -22,18 +22,18 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > ⚠️ **REQUIRED:** These must complete first:
-> 1. `/8-map-game-objects` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
-> 2. `phase 2c` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
+> 1. `4-map-game-objects.md` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
+> 2. `phase 3 · task 6` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
 >
 > **Produced by this phase if absent:** the **environment inventory** (`GAME_ANALYSIS_ENVIRONMENT.md`). No earlier phase produces it, so Step 9 builds it from `02D-RESEARCH-ENVIRONMENT.md` before planning environment restoration — you do **not** need it in hand to start.
 >
-> **Recommended:** `/9-implement-object-tracking` done, so the tracking code (and its
-> `objectType` strings + stable-ID fields) exists to mirror against. If `/9` hasn't run,
+> **Recommended:** `5b-implement-object-tracking.md` done, so the tracking code (and its
+> `objectType` strings + stable-ID fields) exists to mirror against. If `phase 5 · task 1` hasn't run,
 > plan against `OBJECT_TRACKING.md` and flag any field the implementation may still rename.
 
-This command reads those artifacts and does **NOT** re-analyze the entity model — that's fixed by `/8`. The one exception is the **environment inventory** (Step 9): if `GAME_ANALYSIS_ENVIRONMENT.md` doesn't exist yet, this phase produces it from `02D-RESEARCH-ENVIRONMENT.md`, since no earlier phase does.
+This command reads those artifacts and does **NOT** re-analyze the entity model — that's fixed by `phase 4`. The one exception is the **environment inventory** (Step 9): if `GAME_ANALYSIS_ENVIRONMENT.md` doesn't exist yet, this phase produces it from `02D-RESEARCH-ENVIRONMENT.md`, since no earlier phase does.
 
-> 🛑 **Planning scope — do not go exploring.** This phase produces a *plan*, not code. You do **not** need exact SDK signatures, struct fields, or the `GetLudeo` callback shape, and you must **not** read the SDK headers here. Reference the restoration API only at the level of *which call maps to which step*; the entry mechanism (`LudeoSelected → GetLudeo → DataReader`, async, reader delivered in a callback) is described in `07-RESTORATION-PATTERNS.md §2` and is implemented by `/11`. If you find yourself opening `Session.h`/`DataReader.h` to answer a question, stop — either the answer is in `07 §2`, or it's a `/11` concern; note it as an Open Question instead.
+> 🛑 **Planning scope — do not go exploring.** This phase produces a *plan*, not code. You do **not** need exact SDK signatures, struct fields, or the `GetLudeo` callback shape, and you must **not** read the SDK headers here. Reference the restoration API only at the level of *which call maps to which step*; the entry mechanism (`LudeoSelected → GetLudeo → DataReader`, async, reader delivered in a callback) is described in `07-RESTORATION-PATTERNS.md §2` and is implemented by `phase 5 · task 3`. If you find yourself opening `Session.h`/`DataReader.h` to answer a question, stop — either the answer is in `07 §2`, or it's a `phase 5 · task 3` concern; note it as an Open Question instead.
 
 ## Context Files
 
@@ -42,11 +42,11 @@ This command reads those artifacts and does **NOT** re-analyze the entity model 
 - `ludeo-integration-docs/07-RESTORATION-PATTERNS.md` — the core input. §2 (LudeoSelected flow), §3 (two-pass / CR-006), §4 (per-group strategy), §5 (reconciliation vs manual), §6 (deferred properties), §7 (wait-for-player), §8 (environment).
 - `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md` — CR-006 (two-pass restoration is mandatory).
 - `ludeo-integration-docs/06-TRACKING-PATTERNS.md` — §4 (identity & references). **What was captured determines what can be restored** — read it as the other half of each mirror row.
-- `ludeo-integration-docs/12-SDK-API-REFERENCE.md` — the restoration API surface *at a glance* (what exists), so the plan's spawn/setter rows map onto real calls: the typed `ludeo_DataReader_Get*` getters mirror the `Set*` writers (and return `false` when an attribute is absent — the plan must say what happens then); objects are enumerated with `GetObjectsInfo`; the entry point is `LudeoSelected` → `GetLudeo` *(async)* → `DataReader`. **For planning you do not need exact signatures, the GetLudeo callback shape, or any header detail** — the entry mechanism is fully described in `07-RESTORATION-PATTERNS.md §2`, and `/11` implements it. **Do not read SDK headers in this phase.**
+- `ludeo-integration-docs/12-SDK-API-REFERENCE.md` — the restoration API surface *at a glance* (what exists), so the plan's spawn/setter rows map onto real calls: the typed `ludeo_DataReader_Get*` getters mirror the `Set*` writers (and return `false` when an attribute is absent — the plan must say what happens then); objects are enumerated with `GetObjectsInfo`; the entry point is `LudeoSelected` → `GetLudeo` *(async)* → `DataReader`. **For planning you do not need exact signatures, the GetLudeo callback shape, or any header detail** — the entry mechanism is fully described in `07-RESTORATION-PATTERNS.md §2`, and `phase 5 · task 3` implements it. **Do not read SDK headers in this phase.**
 - `ludeo-integration-docs/research-context/02D-RESEARCH-ENVIRONMENT.md` — environment inventory template; produces `ludeo-integration-plan/GAME_ANALYSIS_ENVIRONMENT.md`.
 - `ludeo-integration-docs/research-context/02F-RESEARCH-SAVE-SYSTEM.md` — per-entity reconciliation-vs-manual matrix; produces `ludeo-integration-plan/GAME_ANALYSIS_SAVE_SYSTEM.md`.
 
-> **Artifact naming convention:** each `research-context/02X-RESEARCH-<TOPIC>.md` template produces a matching `ludeo-integration-plan/GAME_ANALYSIS_<TOPIC>.md`. `GAME_ANALYSIS_SAVE_SYSTEM.md` is produced by **`phase 2c`**; `GAME_ANALYSIS_ENVIRONMENT.md` is produced by **Step 9 of this phase** if it doesn't already exist (no earlier phase emits it).
+> **Artifact naming convention:** each `research-context/02X-RESEARCH-<TOPIC>.md` template produces a matching `ludeo-integration-plan/GAME_ANALYSIS_<TOPIC>.md`. `GAME_ANALYSIS_SAVE_SYSTEM.md` is produced by **`phase 3 · task 6`**; `GAME_ANALYSIS_ENVIRONMENT.md` is produced by **Step 9 of this phase** if it doesn't already exist (no earlier phase emits it).
 
 ## The Mirror Principle
 
@@ -105,13 +105,13 @@ Per `§2`, specify the handler for a `LudeoSelected` event that can fire in **an
 
 Also plan five distinct sets of hooks:
 - **Reader readiness + retry** (07 §2.2.1) — the forced-launch path fires `LudeoSelected → GetLudeo` **repeatedly**, and early cycles return `Success` with an **empty** reader. Plan: validate populated (`GetObjectsInfo` `Success && objectsCount > 0`) before applying; retry-until-ready (re-check each `GetLudeo` callback + an `Update` poll) with a **timeout → abort** (don't `Begin` an empty Ludeo); keep the populated reader (don't clobber); guard `OpenRoom`/the handler to run once. Confirm with the integrator/SDK owner how the forced-launch path behaves for this game (how many cycles, typical delay) so the timeout is sane.
-- **Post-restore resume** — reuse `/4`'s `OnRoomReadyCallback` / `TryBeginGameplaySession()` (`05-LIFECYCLE-MANAGEMENT.md`). Apply state inside this callback, after unpause, before `Begin`.
+- **Post-restore resume** — reuse `phase 3 · task 4`'s `OnRoomReadyCallback` / `TryBeginGameplaySession()` (`05-LIFECYCLE-MANAGEMENT.md`). Apply state inside this callback, after unpause, before `Begin`.
 - **Mid-play overlay open/close** (07 §2.4) — `PauseGameRequest` → freeze the sim, `ResumeGameRequest` → resume, `BackToMenuRequest` → tear down + go to menu. Session-lifetime; easy to forget because they sit outside the restore path. Map each onto a game hook. **Do not plan around `PlayerReady` — it does not exist in this SDK.**
 - **Playback-end handling** (`05 §6.11`) — plan both end paths. **Backend ends the Ludeo** (timer hits 0, objective met/failed, or any backend-decided reason): the backend sends **`PauseGameRequest`** → the game **pauses (freezes) and waits**; it does **NOT** detect end-of-moment, call `End`, or submit (the backend owns submission, and `PauseGameRequest` is the universal end-of-moment cue — there is no game-facing "moment ended" callback). **Game-initiated interrupt** (another `LudeoSelected` mid-play, `BackToMenuRequest`, quit): the **game** calls `ludeo_GameplaySession_End(isAbort=true)` then `RemovePlayer → CloseRoom`. Name the hook for the interrupt path; the backend-ends path needs no `End` call, only the `PauseGameRequest` freeze.
 - **Start-of-run suppression — two categories** (07 §9.11) — identify every mechanism the game runs between launch and the first interactive frame, in **both** categories (don't filter the scan to state-touching ones and miss a blocking modal): (1) **state-clobbering** — would overwrite restored values: intro cutscenes, countdowns, slow-mo intros, fly-in cameras, default-spawn teleports, respawn-on-load logic, scripted level-start events; miss one → Ludeo loads at the **wrong** state. (2) **flow-blocking** — stall reaching the playable frame *without* touching state: "press start"/"press any key"/"click to continue" gates, modal popups (daily-reward, news, "what's new"), EULA/login/age-gate prompts, tutorial overlays, confirmation dialogs, between-segment reward/shop screens; miss one → Ludeo loads at the **right** state but never becomes **interactive**. List each with its hook (file:function) and the plan to gate it on `IsRestoring()` so it's skipped during playback. The Ludeo must start *exactly* at the captured state, **interactive**, on the first visible frame — anything between launch and that frame is a candidate to suppress.
 - **Procedural-assembly re-drive + re-roll suppression** (only if `CODE_MAP.session_boundaries.assembly == "procedural"`; `game-patterns/procedural-world.md §5`) — for these games the **entry identity** read in step 8 is the captured `RunMetadata` generation inputs, and "reach active gameplay" is **re-driving the level builder/pool to those inputs**, not just loading a level: gate the generator's random selection (`RandomChunk`/encounter/wave roll) on `IsRestoring()` so it returns the *captured* ids instead of rolling, and restore the run-scaling counter (combat level) **before** any post-restore spawn. Loading the level alone yields an empty container (the procedural cousin of §9.10/§9.12). Note *when* the generator rolls — lazily per room-entry (override each) vs. whole-floor up-front (inject the full resolved set / re-seed before the call). **Single vs multi-room (§2.1):** one room live at a time → `07 §8` + these deltas suffice; several rooms navigable → **procedural ∩ open-world**, also restore the layout/connectivity + per-room `RoomDelta` state (`open-world-tracking.md §3`), scoped to the reachable set.
 
-Map each step onto a concrete game hook (file:function) where known; flag any that don't yet exist as an Open Question for `/11`.
+Map each step onto a concrete game hook (file:function) where known; flag any that don't yet exist as an Open Question for `phase 5 · task 3`.
 
 ### Step 4: Specify the Two-Pass Algorithm (CR-006)
 
@@ -119,7 +119,7 @@ Document the two passes concretely for this game (`§3`):
 - **Pass 1 — Create:** iterate reader objects, spawn type-only via the spawn function, populate `id_map[LudeoObjectId] → native id`.
 - **Pass 2 — Apply + Resolve:** iterate again, apply non-reference attributes via setters, resolve reference attributes through `id_map`.
 
-Define the `id_map`: key = `LudeoObjectId`, value = the native identifier the game uses for runtime lookup (pointer / handle / EntityId — match what `/8` chose as the stable-ID anchor). State that it is **per-Ludeo** and discarded after restoration.
+Define the `id_map`: key = `LudeoObjectId`, value = the native identifier the game uses for runtime lookup (pointer / handle / EntityId — match what `phase 4` chose as the stable-ID anchor). State that it is **per-Ludeo** and discarded after restoration.
 
 If the spawn graph has ordering constraints (e.g. player must exist before per-player UI), split Pass 1 into **1a (foundational)** and **1b (dependent)** per `§3.4`, and record which entities go in each.
 
@@ -129,7 +129,7 @@ This is the heart of the plan and the direct mirror of `OBJECT_TRACKING.md`'s en
 blocks. For **each** tracked entity, fill one restoration block:
 - **Spawn function** — the inverse of the creation hook; takes `objectType` (and minimal identity), returns a fresh, property-less instance.
 - **`id_map` key** — derived from the stable-ID field; note whether the entity is *created fresh* or *matched to a pre-existing instance* (Step 8).
-- **Per-property apply** — for every property `/8` captured, name the setter and whether it applies in Pass 2 or is **deferred** (Step 7). Reference properties get a Pass 2 `id_map` lookup.
+- **Per-property apply** — for every property `phase 4` captured, name the setter and whether it applies in Pass 2 or is **deferred** (Step 7). Reference properties get a Pass 2 `id_map` lookup.
 - **Approach** — `reconciliation` (route through the game's recreate path, per `§5.1`) or `manual` (explicit setters, per `§5.2`), taken from the matrix — never re-decided here by global policy.
 
 ### Step 6: Resolve Cross-Entity References
@@ -150,7 +150,7 @@ too early — animation pose, physics velocity, ability state, replicated state.
 
 ### Step 8: Plan Pre-Existing-Object Reconciliation
 
-Mirror of `/8`'s Batch Registration Sites. Objects that exist at level load (placed,
+Mirror of `phase 4`'s Batch Registration Sites. Objects that exist at level load (placed,
 not spawned) must **not** be double-created. For each batch-registered entity type,
 decide: does restoration *match* the captured object to the level-placed instance (and
 just apply properties), or *spawn* a fresh one? Specify the match key (stable ID) and the
@@ -175,7 +175,7 @@ waits for the player; the level is not loaded until the apply, so the freeze gua
 ticks before the restored state is in place. By this point the room is **already open (with the
 `ludeoId`) and the player already added** (Step 3, step 6) — only `room_ready` is pending.
 **Resume comes via `RoomReady → Begin`** — the platform **withholds `RoomReady` until the player
-presses Play**; the rest of the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`/4` wired it in
+presses Play**; the rest of the `OpenRoom → AddPlayer → RoomReady → Begin` chain (`phase 3 · task 4` wired it in
 `05-LIFECYCLE-MANAGEMENT.md`) already ran during the handler. Plan the resume hook on the
 `RoomReady` callback (unpause → read entry identity → load level → apply → `TryBeginGameplaySession()`); `Begin` fires once **both**
 gates are met and the two callbacks may arrive in either order, so don't assume a fixed order
@@ -188,8 +188,8 @@ the overlay during playback. Note whether the game has an existing pause system 
 ### Step 11: Confidence + Open Questions
 
 Tag each entity restoration block `high | medium | low`. Low-confidence blocks and genuine
-ambiguities (missing hooks, unresolved references, fields `/9` may rename, deferred-order
-uncertainty) go in dedicated sections. These are the gate items the human resolves before `/11`.
+ambiguities (missing hooks, unresolved references, fields `phase 5 · task 1` may rename, deferred-order
+uncertainty) go in dedicated sections. These are the gate items the human resolves before `phase 5 · task 3`.
 
 ### Step 12: Produce Output
 
@@ -257,7 +257,7 @@ Write `ludeo-integration-plan/RESTORATION_PLAN.md`:
 
 ## Overlay Control & Wait-For-Player
 - Pause mechanism: <reuse game pause | build minimal tick-freeze>
-- **Post-restore resume hook:** `OnRoomReadyCallback` → `TryBeginGameplaySession()` + unpause (`05-LIFECYCLE-MANAGEMENT.md`'s chain; `/4` already wired this for tracking-start). NOT `ResumeGameRequest`, NOT `PlayerReady` (doesn't exist), NOT a self-built prompt unless game-specific.
+- **Post-restore resume hook:** `OnRoomReadyCallback` → `TryBeginGameplaySession()` + unpause (`05-LIFECYCLE-MANAGEMENT.md`'s chain; `phase 3 · task 4` already wired this for tracking-start). NOT `ResumeGameRequest`, NOT `PlayerReady` (doesn't exist), NOT a self-built prompt unless game-specific.
 - **Mid-play overlay hooks** (07 §2.4): PauseGameRequest → <file:function>  ·  ResumeGameRequest → <file:function>  ·  BackToMenuRequest → <file:function>
 - Game stays frozen between "restoration complete" and the `RoomReady` callback so the sim can't overwrite restored state.
 
@@ -272,14 +272,14 @@ Write `ludeo-integration-plan/RESTORATION_PLAN.md`:
 
 ### Step 12.5: Self-validate the plan before the human review
 
-Before handing off to the user, walk the plan you just wrote and confirm each item below — catch gaps now rather than letting them surface in `/11`/`/12`:
+Before handing off to the user, walk the plan you just wrote and confirm each item below — catch gaps now rather than letting them surface in `phase 5 · task 3`/`phase 5 · task 4`:
 
 - [ ] **Mirror is complete.** For every entity in `OBJECT_TRACKING.md` there is a restoration block; for every property row there is a setter + Pass-2 mapping (or it's in the deferred queue). No row left un-reversed.
 - [ ] **No stub rows.** Every spawn function, setter, `id_map` key, and hook is named with a file:function (or a clearly-flagged Open Question) — not `TODO`, not "to be filled."
 - [ ] **Cross-Entity References table covers every reference property.** Missing rows silently break two-pass.
 - [ ] **Order is right.** Sequence: freeze at `LudeoSelected` → dispatch `GetLudeo` + `OpenRoom(ludeoId)` in the handler → in `OnGetLudeo` accept only a **populated** reader (`GetObjectsInfo` Success && objectsCount>0) → apply once (populated reader + room_ready): **unpause → read identity → load level → apply (Pass 1 + Pass 2 + env) → `Begin`** (CR-010). Not Begin-then-apply; not apply-in-GetLudeo; not apply-on-empty-reader; not level-load-before-GetLudeo; not OpenRoom-on-level-load.
 - [ ] **Reader readiness handled.** `GetLudeo` repeated-fire + empty early cycles covered (07 §2.2.1): validate populated, retry-until-ready with a timeout, abort (no `Begin`) on timeout/empty, don't clobber a cached populated reader.
-- [ ] **Overlay-control hooks named** (`PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` → CR-011), not "TBD" and not deferred to `/4`'s discretion.
+- [ ] **Overlay-control hooks named** (`PauseGameRequest`/`ResumeGameRequest`/`BackToMenuRequest` → CR-011), not "TBD" and not deferred to `phase 3 · task 4`'s discretion.
 - [ ] **Deferred queue is ordered** and each entry names *why* it defers (which subsystem it waits on).
 - [ ] **Pre-existing reconciliation chose match-vs-spawn per entity** with a stable-ID match key — no placed-by-default entity left as "spawn fresh."
 - [ ] **Start-of-run mechanisms enumerated and each has a suppression hook — both categories** (07 §9.11): state-clobbering (intro cutscenes, countdowns, slow-mo, fly-in cameras, default-spawn teleports, respawn-on-load, scripted start events) **and** flow-blocking (press-start/click-to-continue gates, modal popups, EULA/login/age-gate, tutorial overlays, confirmation dialogs). None left as "TBD"; each gated on `IsRestoring()` or equivalent. The Ludeo reaches the captured state *and* is interactive on the first visible frame.
@@ -302,33 +302,33 @@ After writing the plan, summarize for the user and ask them to review:
 8. Wait-for-player mechanism
 9. Open questions + low-confidence entries
 
-**Do not proceed to `/11` automatically.** This gate prevents generating restoration code against an incomplete or mis-mirrored model.
+**Do not proceed to `phase 5 · task 3` automatically.** This gate prevents generating restoration code against an incomplete or mis-mirrored model.
 
 ## Output
 
 | File | Purpose |
 |------|---------|
-| `ludeo-integration-plan/RESTORATION_PLAN.md` | Approved plan that `/11` (flow) and `/12` (reconstruction) consume |
+| `ludeo-integration-plan/RESTORATION_PLAN.md` | Approved plan that `phase 5 · task 3` (flow) and `phase 5 · task 4` (reconstruction) consume |
 | `ludeo-integration-plan/GAME_ANALYSIS_ENVIRONMENT.md` | World-state inventory (produced in Step 9 if it didn't already exist) |
 
 May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_SAVE_SYSTEM.md` for the user to reconcile.
 
 ## Important Notes
 
-- **Restoration mirrors tracking.** Every entity, property, and reference here traces back to a row in `OBJECT_TRACKING.md`. You cannot restore what tracking didn't capture — if you need to, the fix belongs in `/8`/`/9`, not here.
+- **Restoration mirrors tracking.** Every entity, property, and reference here traces back to a row in `OBJECT_TRACKING.md`. You cannot restore what tracking didn't capture — if you need to, the fix belongs in `phase 4`/`phase 5 · task 1`, not here.
 - **Snapshot, not replay.** `per-tick`/`per-change`/`event-driven` captures kept the value fresh during tracking; restoration applies the single final value. Do not design a timeline replay.
 - **Two-pass is mandatory (CR-006).** Single-pass silently corrupts reference graphs by spawn order.
 - **Fail loud on missing IDs.** A Pass 2 lookup miss is a Pass 1 bug — never substitute null.
 - **Drive reconciliation/manual from the matrix**, per entity, never by global policy.
 - **Environment after entities; pause simulation, not just input.**
-- **Analysis only.** This command writes no game code — `/11` and `/12` do.
+- **Analysis only.** This command writes no game code — `phase 5 · task 3` and `phase 5 · task 4` do.
 
 ## Related Commands
 
-- `/8-map-game-objects` — produces `OBJECT_TRACKING.md`, the spine this plan mirrors (run FIRST)
-- `/9-implement-object-tracking` — emits the capture code; restoration is its inverse
-- `/11-implement-restoration-flow` — consumes this plan after approval (player-flow/lifecycle half)
-- `/12-implement-state-reconstruction` — consumes this plan after `/11` (two-pass data half)
+- `4-map-game-objects.md` — produces `OBJECT_TRACKING.md`, the spine this plan mirrors (run FIRST)
+- `5b-implement-object-tracking.md` — emits the capture code; restoration is its inverse
+- `5d-implement-restoration-flow.md` — consumes this plan after approval (player-flow/lifecycle half)
+- `5e-implement-state-reconstruction.md` — consumes this plan after `phase 5 · task 3` (two-pass data half)
 
 ## Next Steps
 
@@ -336,4 +336,4 @@ May also surface disagreements between `OBJECT_TRACKING.md` and `GAME_ANALYSIS_S
 2. Confirm the mirror is complete — no tracked entity/property without a restoration path
 3. Resolve open questions + low-confidence entries
 4. Confirm approval
-5. Run `/11-implement-restoration-flow`, then `/12-implement-state-reconstruction`
+5. Run `5d-implement-restoration-flow.md`, then `5e-implement-state-reconstruction.md`

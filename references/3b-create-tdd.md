@@ -1,10 +1,10 @@
-# Create Technical Design Document
+# Phase 3 · Task 2 — Create Technical Design Document
 
 Produce a TDD (Technical Design Document) from the CODE_MAP and SDK integration points analysis. The TDD captures architecture assessment, integration strategy, and risk analysis before implementation planning begins.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 2b in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 2b** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 3 · task 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3 · task 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## 📚 Context Files
 
@@ -18,8 +18,8 @@ This is a sequential workflow — continuing to phase 2b in the **same session a
 ## Prerequisites
 
 > ⚠️ **REQUIRED:** Run these commands first:
-> 1. `phase 1` → produces `ludeo-integration-plan/CODE_MAP.json`
-> 2. `phase 2` → produces `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`
+> 1. `phase 2` → produces `ludeo-integration-plan/CODE_MAP.json`
+> 2. `phase 3 · task 1` → produces `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`
 >
 > This command reads those files. It does **NOT** analyze game code directly.
 
@@ -27,8 +27,8 @@ This is a sequential workflow — continuing to phase 2b in the **same session a
 
 ### 1. Read Input Files
 
-- `ludeo-integration-plan/CODE_MAP.json` (from `phase 1`)
-- `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json` (from `phase 2`)
+- `ludeo-integration-plan/CODE_MAP.json` (from `phase 2`)
+- `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json` (from `phase 3 · task 1`)
 - `ludeo-integration-docs/TDD_TEMPLATE.md` (output format)
 
 ### 2. Fill TDD Sections
@@ -56,7 +56,7 @@ This is the strategic section. Based on the CODE_MAP analysis, define:
 - Design the capture flow based on `CODE_MAP.event_systems` and `CODE_MAP.lifecycle_hooks`
 - Create a mermaid sequence diagram showing the capture flow for this specific game
 - **Object Lifecycle Management:** Based on `CODE_MAP.core_classes` — how will objects be detected, tracked, and marked as destroyed?
-- **Non-Ludeoable Areas:** Identify from code the segments that should never become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones, in-game menus. These are **not** a capture concern (tracking runs through them); they are marked by enter/exit **boundary actions** wired to global triggers on Ludeo's platform. Note the boundary hooks here so `/6`–`/7` can emit the actions. See `06 §7.3`.
+- **Non-Ludeoable Areas:** Identify from code the segments that should never become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones, in-game menus. These are **not** a capture concern (tracking runs through them); they are marked by enter/exit **boundary actions** wired to global triggers on Ludeo's platform. Note the boundary hooks here so `phase 6` can emit the actions. See `06 §7.3`.
 - **Actions Capture:** Based on `CODE_MAP.event_systems` — how will player actions be captured? Reference genre patterns if applicable
 
 #### State Reconstruction Solution
@@ -102,11 +102,11 @@ Use the game name from `CODE_MAP.codebase_summary`. Replace spaces with undersco
 
 ## Related Phases
 
-- `phase 1` - Creates structural code map (run FIRST)
-- `phase 2` - Finds integration points (run SECOND)
-- `phase 2c` - Classifies the save system; the **State Reconstruction** section here is provisional until that classification exists
-- `phase 3` - Creates implementation plan from TDD (run NEXT)
+- `phase 2` - Creates structural code map (run FIRST)
+- `phase 3 · task 1` - Finds integration points (run SECOND)
+- `phase 3 · task 6` - Classifies the save system; the **State Reconstruction** section here is provisional until that classification exists
+- `phase 3 · task 3` - Creates implementation plan from TDD (run NEXT)
 
 ## Next Step
 
-After creating the TDD, run `phase 3` to create the detailed implementation plan. The detailed save-system classification (group + per-entity reconciliation/manual matrix) is produced by `phase 2c` and is required before `phase 8`; if the TDD's reconstruction notes rest on save-system assumptions, confirm them in `phase 2c`.
+After creating the TDD, run `phase 3 · task 3` to create the detailed implementation plan. The detailed save-system classification (group + per-entity reconciliation/manual matrix) is produced by `phase 3 · task 6` and is required before `phase 4`; if the TDD's reconstruction notes rest on save-system assumptions, confirm them in `phase 3 · task 6`.

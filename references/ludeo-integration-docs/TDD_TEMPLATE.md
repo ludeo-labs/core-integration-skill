@@ -22,7 +22,7 @@ DESCRIPTION: Essential game information that affects integration complexity and 
 
 ### Engine
 
-<!-- EXAMPLE: "Unreal Engine 4.27.2" -->
+<!-- EXAMPLE: "In-house C++ engine, CMake build, custom ECS" -->
 
 ### Game Modes
 

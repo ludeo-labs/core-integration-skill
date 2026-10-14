@@ -989,7 +989,7 @@ void OnLevelLoadComplete()
 }
 ```
 
-> **Two distinct gates — don't conflate them.** `IsRestoring()` is the **restore-window** seam (`LudeoSelected` → end of apply): use it to skip batch registration here (in Player Flow the level loads *inside* the restore, so objects come from the snapshot, not from `RegisterAllExistingObjects()`) and to gate pre-match skips (`07 §9.11`). It is a forward-compatible stub: in a tracking-only integration (before restoration is wired in phases 11–12) add `bool IsRestoring() const { return m_is_restoring; }` returning `false`, so this gate is a harmless no-op now and becomes correct once restoration lands — no need to revisit the call site.
+> **Two distinct gates — don't conflate them.** `IsRestoring()` is the **restore-window** seam (`LudeoSelected` → end of apply): use it to skip batch registration here (in Player Flow the level loads *inside* the restore, so objects come from the snapshot, not from `RegisterAllExistingObjects()`) and to gate pre-match skips (`07 §9.11`). It is a forward-compatible stub: in a tracking-only integration (before restoration is wired in phase 5 · tasks 3–4) add `bool IsRestoring() const { return m_is_restoring; }` returning `false`, so this gate is a harmless no-op now and becomes correct once restoration lands — no need to revisit the call site.
 >
 > **Separately, *all* state capture must stay off for the entire Player-Flow replay** — `CreateObject`, `Set*`, and especially **per-tick `CaptureFrame`**. Gate those on a **session-scoped** "is this a Player-Flow replay?" flag (set when this gameplay session's `OpenRoom` carried a `ludeoId`, cleared at session end), **not** on `IsRestoring()`. `IsRestoring()` goes false the instant the snapshot lands, so per-tick capture gated on it alone **resumes mid-replay** and turns the scored replay into a new recording (`06 §7`, `07 §2.3`). Don't substitute an ad-hoc "is this a replay" check for either gate.
 
@@ -1010,11 +1010,11 @@ This means action call sites **must not** be gated behind `IsRestoring()` or any
 
 | Concern | Owned by |
 |---|---|
-| Which events should become Actions (discovery, genre catalogs, categories, naming conventions) | `/6-map-game-actions` + `research-context/02C-RESEARCH-ACTIONS.md` + `game-patterns/*.md` |
-| Inserting action calls at discovered sites (propose-confirm-execute flow, insertion rules, edge cases) | `/7-implement-game-actions` |
+| Which events should become Actions (discovery, genre catalogs, categories, naming conventions) | `6a-map-game-actions.md` + `research-context/02C-RESEARCH-ACTIONS.md` + `game-patterns/*.md` |
+| Inserting action calls at discovered sites (propose-confirm-execute flow, insertion rules, edge cases) | `6b-implement-game-actions.md` |
 | The `SendAction` method and `LUDEO_ACTION` macro (below) | This section |
 
-If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `/6` or `02C`. This section is only for the SDK call definitions.
+If you're picking action names, reading genre catalogs, or deciding where in the game code an action belongs, you're in the wrong document — go to `phase 6 · task 1` or `02C`. This section is only for the SDK call definitions.
 
 > ⚠️ **Verify every SDK signature against your cloned headers before using.** The C-API snippets in this document are illustrative of the *shape* of each call, not a version-locked contract. The skill clones the **latest** Ludeo SDK release (`github.com/EdgeGamingGG/ludeo-sdk-releases`), so exact parameter lists, struct fields, `*_API_LATEST` macro names, and enum spellings can drift between releases. Before you paste any `ludeo_*` call into a game, open the matching header in the cloned SDK (e.g. `ludeo_DataWriter.h`) and confirm the signature. The signatures here reflect the 4.1.x API surface as last reviewed.
 
@@ -1095,7 +1095,7 @@ Defined in `LudeoCaptureMacros.h`:
 
 The macro compiles to nothing when `LUDEO_SDK_ENABLED=0`. Callers do not need to wrap `LUDEO_ACTION(...)` in their own `#if` guards.
 
-**Note:** `/7-implement-game-actions` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
+**Note:** `6b-implement-game-actions.md` currently inserts direct `LudeoManager::Get().SendAction(...)` calls, not the macro. A forthcoming Phase 2 pass will replace those direct calls with `LUDEO_ACTION` once `LudeoCaptureMacros.h` ships.
 
 ### 7.3 Non-ludeoable area boundary actions
 
@@ -1106,7 +1106,7 @@ The integration's responsibility is two things, and nothing more:
 1. **Emit boundary actions.** Send an ordinary action at each edge of the area — e.g. `ShopEntered` when the player opens the shop and `ShopExited` when they leave; `DialogueStarted` / `DialogueEnded` around NPC conversations; `MenuOpened` / `MenuClosed` for an in-game menu. They go through the exact same `SendAction` path as every other action (§7.1) — there is nothing special about them in code, and they are **never** gated.
 2. **Connect them once to the global triggers** on Ludeo's platform. This is a one-time, out-of-code configuration step: map each enter/exit action onto the platform's non-ludeoable-area start/end triggers. From then on the **backend** marks those time windows and excludes them from Ludeo creation.
 
-Discovery of these boundaries belongs to `/6` (they are an action category), emission to `/7`. The platform-trigger wiring is a manual step the agent cannot do from the codebase — flag it for the user.
+Discovery of these boundaries belongs to `phase 6 · task 1` (they are an action category), emission to `phase 6 · task 2`. The platform-trigger wiring is a manual step the agent cannot do from the codebase — flag it for the user.
 
 ---
 
@@ -1119,7 +1119,7 @@ Tracking should be paused during:
 - Cutscenes or cinematics playing (scripted/cosmetic motion, not gameplay state)
 - Loading screens or transitions
 
-These are **local capture-hygiene** pauses tied to the gameplay-session lifecycle. They are a different thing from **non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): those are backend-controlled, do **not** pause tracking, and are handled via boundary actions — see §7.3 and phases `/6`–`/7`.
+These are **local capture-hygiene** pauses tied to the gameplay-session lifecycle. They are a different thing from **non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): those are backend-controlled, do **not** pause tracking, and are handled via boundary actions — see §7.3 and phases `phase 6`.
 
 ### 8.2 Tracking State Manager
 
@@ -1242,7 +1242,7 @@ void CutsceneManager::OnCutsceneComplete()
 
 ### 8.5 Non-ludeoable areas are NOT a tracking concern
 
-"Non-ludeoable areas" — shops, NPC dialogue, tutorials, safe zones, in-game menus — are **backend-controlled**. They do **not** pause or alter local tracking: capture keeps running through them. You mark their **boundaries** by sending ordinary Ludeo **actions** (e.g. `ShopEntered` / `ShopExited`) and connecting those actions, once, to the **global triggers** on Ludeo's platform; the backend then excludes those time windows from Ludeo creation. This is an *actions* task — see §7.3 and phases `/6`–`/7`. Do **not** implement it with the local tracking-pause flags above.
+"Non-ludeoable areas" — shops, NPC dialogue, tutorials, safe zones, in-game menus — are **backend-controlled**. They do **not** pause or alter local tracking: capture keeps running through them. You mark their **boundaries** by sending ordinary Ludeo **actions** (e.g. `ShopEntered` / `ShopExited`) and connecting those actions, once, to the **global triggers** on Ludeo's platform; the backend then excludes those time windows from Ludeo creation. This is an *actions* task — see §7.3 and phases `phase 6`. Do **not** implement it with the local tracking-pause flags above.
 
 ---
 
@@ -1545,7 +1545,7 @@ Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERE
 **Tracking State:**
 - [ ] Tracking pauses when game paused
 - [ ] Tracking suspends during cutscenes
-- [ ] Non-ludeoable area boundaries (shop/NPC/menu/tutorial/safe-zone) emit enter/exit Ludeo actions (§7.3, `/6`–`/7`) — tracking is *not* paused for them
+- [ ] Non-ludeoable area boundaries (shop/NPC/menu/tutorial/safe-zone) emit enter/exit Ludeo actions (§7.3, `phase 6`) — tracking is *not* paused for them
 
 **Performance:**
 - [ ] Measured frame-time impact against the game's budget

@@ -16,9 +16,7 @@
 5. [CMake Integration](#5-cmake-integration)
 6. [Visual Studio Integration](#6-visual-studio-integration)
 7. [Makefile Integration](#7-makefile-integration)
-8. [Unity Integration](#8-unity-integration)
-9. [Unreal Engine Integration](#9-unreal-engine-integration)
-10. [Verification](#10-verification)
+8. [Verification](#8-verification)
 
 **For AI Agents:** See [build-integration/04A-AGENT-AUTOMATION.md](./build-integration/04A-AGENT-AUTOMATION.md) for programmatic detection and automation.
 
@@ -69,12 +67,12 @@ Development/Debug configuration, or any reachable cheat / debug console / dev me
 (a cheated or debug-instrumented session yields an invalid Ludeo), exposes internal UI, and is an abuse
 surface on a public machine. **Layer the defense — no single check is sufficient:**
 
-1. **Ship the Release configuration + the Release SDK binary.** Build Release (Unreal: **Shipping**;
-   C++: Release / `NDEBUG`), and link/copy `*-Release.dll`/`.so`/`.dylib`, **never** the `*-Development`
+1. **Ship the Release configuration + the Release SDK binary.** Build the Release configuration
+   (`NDEBUG` / your engine's release define), and link/copy `*-Release.dll`/`.so`/`.dylib`, **never** the `*-Development`
    variant. Confirm the binary that actually shipped, not just the IDE's selected config.
 2. **Gate debug behavior on the build configuration, not a runtime data flag (strongest).** Wrap cheats,
-   debug consoles, dev menus, and verbose logging in `#if !UE_BUILD_SHIPPING` (Unreal) / `#ifdef NDEBUG`
-   (or your release define) so a release build **cannot** run them even if someone forgets a setting. A
+   debug consoles, dev menus, and verbose logging in `#ifndef NDEBUG`
+   (or `#if !<YOUR_RELEASE_DEFINE>`) so a release build **cannot** run them even if someone forgets a setting. A
    runtime `if (cheatsEnabled)` flag still **ships the code** and can be reached — not sufficient on its own.
 3. **Assert data-driven debug flags off at build/package time — don't auto-fix.** For flags that genuinely
    live in data/config, fail the build (throw / error out) when shipping with any on; auto-fixing hides the
@@ -89,7 +87,7 @@ surface on a public machine. **Layer the defense — no single check is sufficie
 
 > **Engine note:** the Unity sibling skill enforces this with an editor build hook
 > (`IPreprocessBuildWithReport`) that reads the *baked* build options and hard-fails a Development Build,
-> profiler/script-debugging hooks, or debug flags before an artifact exists. The native/Unreal equivalent
+> profiler/script-debugging hooks, or debug flags before an artifact exists. The native equivalent
 > is the build system + CI (above); the principle is identical.
 
 ---
@@ -212,7 +210,7 @@ public:
     const std::string& GetExplicitAuthID()const { return m_explicitAuthId; }
     const std::string& GetBetaBranch()    const { return m_betaBranch; }
     // Debug affordance: if non-empty, the integration synthesizes a LudeoSelected
-    // with this id once the session is active (see /11 Step 3). Persistent
+    // with this id once the session is active (see phase 5 · task 3, Step 3). Persistent
     // alternative to the --ludeo=<id> launch arg.
     const std::string& GetActivationLudeoId() const { return m_activationLudeoId; }
 
@@ -304,7 +302,7 @@ betaBranch     =
 
 # Debug affordance: if set, the integration auto-fires a LudeoSelected with this id
 # once the session is active (equivalent to passing --ludeo=<id> on the command line,
-# but persistent). Leave blank to disable. See /11 Step 3.
+# but persistent). Leave blank to disable. See phase 5 · task 3, Step 3.
 activationLudeoId =
 ```
 
@@ -513,96 +511,7 @@ endif
 
 ---
 
-## 8. Unity Integration
-
-### Plugin Structure
-```
-Assets/Plugins/
-├── Ludeo/
-│   ├── x86_64/
-│   │   ├── LudeoSDK-Win64-Development.dll
-│   │   └── LudeoSDK-Win64-Release.dll
-│   └── Android/
-│       └── libLudeoSDK-Android-Release.so
-└── LudeoIntegration/
-    └── LudeoNative.cs
-```
-
-### Native Wrapper
-```csharp
-using System.Runtime.InteropServices;
-
-public static class LudeoNative
-{
-#if LUDEO_SDK_ENABLED
-    // Use actual DLL name (without extension)
-    const string DLL_NAME = "LudeoSDK-Win64-Release";
-    
-    [DllImport(DLL_NAME)]
-    public static extern int ludeo_Initialize(IntPtr initParams);
-    
-    [DllImport(DLL_NAME)]
-    public static extern void ludeo_Tick();
-#endif
-}
-```
-
-### Enable/Disable
-- **Enable:** Project Settings → Player → Scripting Define Symbols → Add `LUDEO_SDK_ENABLED`
-- **Disable:** Remove `LUDEO_SDK_ENABLED` from Scripting Define Symbols
-
----
-
-## 9. Unreal Engine Integration
-
-### Plugin Structure
-```
-Plugins/Ludeo/
-├── Ludeo.uplugin
-├── Source/Ludeo/
-│   ├── Ludeo.Build.cs
-│   ├── Private/
-│   └── Public/
-└── ThirdParty/LudeoSDK/
-    ├── Include/
-    ├── Lib/Win64/
-    └── Bin/Win64/
-```
-
-### Build.cs
-```csharp
-public class Ludeo : ModuleRules
-{
-    public Ludeo(ReadOnlyTargetRules Target) : base(Target)
-    {
-        bool bEnableLudeoSDK = true;
-        
-        if (bEnableLudeoSDK)
-        {
-            PublicDefinitions.Add("LUDEO_SDK_ENABLED=1");
-            
-            string SDKPath = Path.Combine(ModuleDirectory, "../../ThirdParty/LudeoSDK");
-            PublicIncludePaths.Add(Path.Combine(SDKPath, "Include"));
-            
-            string LibName = (Target.Configuration == UnrealTargetConfiguration.Debug
-                          || Target.Configuration == UnrealTargetConfiguration.Development)
-                ? "LudeoSDK-Win64-Development.lib" 
-                : "LudeoSDK-Win64-Release.lib";
-            
-            PublicAdditionalLibraries.Add(Path.Combine(SDKPath, "Lib/Win64", LibName));
-            RuntimeDependencies.Add(Path.Combine(SDKPath, "Bin/Win64/*.dll"));
-        }
-        else
-        {
-            PublicDefinitions.Add("LUDEO_SDK_ENABLED=0");
-        }
-    }
-}
-```
-
----
-
-## 10. Verification
+## 8. Verification
 
 ### Compilation Tests
 

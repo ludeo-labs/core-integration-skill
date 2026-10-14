@@ -110,7 +110,7 @@ creator-flow-only via `IsRestoring()` (`06 §6.3`). Two open-world notes:
 ## 7. Restoration interaction (forward pointer)
 
 On the play flow, the world is rebuilt from the Ludeo, then streamed around the restored player. The
-restore (`07`, phases 11–12) recreates the captured neighborhood and world/cell state, then resolves
+restore (`07`, phase 5 · tasks 3–4) recreates the captured neighborhood and world/cell state, then resolves
 relationships through the ID map; the game's **load-save plumbing** is the natural vehicle (a Ludeo is
 "a save from elsewhere" — [`open-world.md §6`](./open-world.md)). Objects that stream in *after*
 restore are normal spawns in the play flow → state capture stays creator-only (`06 §7`). Capture the

@@ -38,20 +38,23 @@ build_config = {
 
 **Goal:** Identify the project's build system type.
 
-**Priority Order:** CMake → Visual Studio → Makefile → Unity → Unreal Engine
+**Priority Order:** engine check (stop) → CMake → Visual Studio → Makefile
 
 ```python
 def detect_build_system():
+    # This skill covers proprietary C++ engines. Unity and Unreal have their own
+    # skills, which install a real engine plugin rather than a hand-rolled one.
+    if exists("Assets/") and exists("ProjectSettings/"):
+        stop("Unity project — use ludeo-unity-integration")
+    if exists("*.uproject") and exists("Source/"):
+        stop("Unreal project — use ludeo-unreal-integration")
+
     if exists("CMakeLists.txt"):
         return "CMake", "CMakeLists.txt"
     if exists("*.sln"):
         return "Visual Studio", find_largest("*.sln")
     if exists("Makefile") or exists("makefile"):
         return "Makefile", "Makefile"
-    if exists("Assets/") and exists("ProjectSettings/"):
-        return "Unity", "ProjectSettings/ProjectSettings.asset"
-    if exists("*.uproject") and exists("Source/"):
-        return "Unreal Engine", find("*.uproject")
     return None, None
 ```
 
@@ -130,7 +133,6 @@ target_pattern = r'TARGET\s*[:=]\s*(\w+)'
 
 ```python
 logging_patterns = {
-    r'UE_LOG\s*\(': "Unreal Engine",
     r'LogInfo\s*\(': "Custom LogInfo",
     r'LOG_INFO\s*\(': "Custom LOG_INFO",
     r'OutputDebugString': "Windows Debug",
@@ -139,9 +141,7 @@ logging_patterns = {
 
 # Generate adapted macros based on detected system
 def get_logging_macros(system):
-    if system == "Unreal Engine":
-        return "#define LogInfo(...) UE_LOG(LogTemp, Log, TEXT(__VA_ARGS__))"
-    # ... fallback to printf
+    # Map onto whatever the game already uses; fall back to printf.
 ```
 
 ---

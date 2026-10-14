@@ -1,15 +1,19 @@
-# Map Game Actions - Find Ludeo Action Points
+# Phase 6 · Task 1 — Map Game Actions
 
 Analyze the game codebase to identify where Ludeo actions (`LUDEO_ACTION()`) should be placed, based on the game's genre and gameplay event patterns.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 6 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 6** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 6 · task 1 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 6 · task 1** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Prerequisites
 
-> ⚠️ **REQUIRED:** Run `phase 1` first.
+> ⚠️ **REQUIRED:** Run `phase 2` first.
 > This command reads `ludeo-integration-plan/CODE_MAP.json` for the game name and codebase structure.
+>
+> ⚠️ **REQUIRED:** `phase 5` complete — a captured moment replays. Actions run last so each one can be
+> verified firing in **both** the Creator flow and the Player flow; without a working replay you can
+> only ever check half of that.
 >
 > **Recommended:** If `ludeo-integration-plan/TDD_<GameName>.md` exists, read its **Actions Capture** section — it defines the capture strategy and attribution approach already agreed upon.
 
@@ -79,7 +83,7 @@ For each found gameplay event function:
 Also check for **gaps**: review the genre action catalog for expected actions that were NOT found in the code. Flag these as:
 > "Expected `<ActionName>` for this genre but no matching code found. This may be named differently or handled in a non-obvious way. Manual review recommended."
 
-**Also map non-ludeoable area boundaries.** Search for places the player enters/leaves a segment that should not become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus. Map each as an **enter/exit action pair** (e.g. `ShopEntered`/`ShopExited`, `DialogueStarted`/`DialogueEnded`, `MenuOpened`/`MenuClosed`) under a dedicated **Non-Ludeoable Boundaries** category. These are emitted like any other action in `/7`, then connected once to the global triggers on Ludeo's platform so the backend excludes those windows from Ludeo creation. They do **not** pause tracking — capture keeps running through them. See `06-TRACKING-PATTERNS.md §7.3`.
+**Also map non-ludeoable area boundaries.** Search for places the player enters/leaves a segment that should not become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus. Map each as an **enter/exit action pair** (e.g. `ShopEntered`/`ShopExited`, `DialogueStarted`/`DialogueEnded`, `MenuOpened`/`MenuClosed`) under a dedicated **Non-Ludeoable Boundaries** category. These are emitted like any other action in `phase 6 · task 2`, then connected once to the global triggers on Ludeo's platform so the backend excludes those windows from Ludeo creation. They do **not** pause tracking — capture keeps running through them. See `06-TRACKING-PATTERNS.md §7.3`.
 
 ### Step 5: Produce Output
 
@@ -141,12 +145,12 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 
 ## Related Phases
 
-- `phase 1` - Creates CODE_MAP (run FIRST)
-- `phase 2` - Lifecycle integration points (phase 0)
+- `phase 2` - Creates CODE_MAP (run FIRST)
+- `phase 3 · task 1` - Lifecycle integration points (phase 1)
 
 ## Next Steps
 
 After running this command:
 1. Review `GAME_ACTIONS_MAP.md` with the user
 2. Confirm/adjust action names and priorities
-3. Run `phase 7` to implement `LUDEO_ACTION()` calls at each identified location
+3. Run `phase 6 · task 2` to implement `LUDEO_ACTION()` calls at each identified location

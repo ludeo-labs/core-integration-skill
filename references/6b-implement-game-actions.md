@@ -1,16 +1,16 @@
-# Implement Game Actions - Insert LUDEO_ACTION Calls
+# Phase 6 · Task 2 — Implement Game Actions
 
-Read the action map produced by `phase 6` and implement `SendAction` calls at each identified location in the game code.
+Read the action map produced by `phase 6 · task 1` and implement `SendAction` calls at each identified location in the game code.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 7 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 7** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 6 · task 2 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 6 · task 2** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. Phase 0 complete — LudeoManager exists and SDK lifecycle works
-> 2. `phase 6` complete — `ludeo-integration-plan/GAME_ACTIONS_MAP.md` exists
+> 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
+> 2. `phase 6 · task 1` complete — `ludeo-integration-plan/GAME_ACTIONS_MAP.md` exists
 > 3. User has reviewed and approved the action map
 
 ## Context Files
@@ -163,8 +163,8 @@ After all actions are inserted, output a summary:
 
 ## Related Phases
 
-- `phase 6` - Creates the action map (run FIRST)
-- `phase 5` - Run after implementation to verify compilation
+- `phase 6 · task 1` - Creates the action map (run FIRST)
+- `phase 3 · task 5` - Run after implementation to verify compilation
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
@@ -172,7 +172,7 @@ This phase edited source files, so it is **not done** until the game still build
 cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
 
 1. **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
-   project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 5` and read the build log.
+   project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 3 · task 5` and read the build log.
 2. **Run the game and confirm it still runs** — enter gameplay and verify `SendAction` log lines appear
    with no SDK errors or crashes.
 

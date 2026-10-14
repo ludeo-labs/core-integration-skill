@@ -1,10 +1,10 @@
-# Classify Save System — Produce the Save-System Group & Per-Entity Matrix
+# Phase 3 · Task 6 — Classify Save System
 
-Classify the game's save/load system into one of three groups and record a per-entity restoration approach (reconciliation vs manual). This produces the artifacts that `phase 8` and `phase 9` require — without this phase, those phases reference a classification that nothing produced.
+Classify the game's save/load system into one of three groups and record a per-entity restoration approach (reconciliation vs manual). This produces the artifacts that `phase 4` and `phase 5 · task 1` require — without this phase, those phases reference a classification that nothing produced.
 
 ## 🚦 Fresh Context Check
 
-This is a sequential workflow — continuing to phase 2c in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 2c** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
+This is a sequential workflow — continuing to phase 3 · task 6 in the **same session as earlier phases is normal**; do **not** stop just because prior phases ran here. Only stop if **phase 3 · task 6** was already completed in this conversation and you're about to redo/regenerate its output — then confirm with the user first. If context has grown very large you may *suggest* a fresh session, but it is not required.
 
 ## Engine Scope
 
@@ -13,10 +13,10 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 > **REQUIRED:** These must be complete before running this command:
-> 1. `phase 1` → `ludeo-integration-plan/CODE_MAP.json` (provides the light `save_system` field and `core_classes`)
-> 2. `phase 2` → `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`
+> 1. `phase 2` → `ludeo-integration-plan/CODE_MAP.json` (provides the light `save_system` field and `core_classes`)
+> 2. `phase 3 · task 1` → `ludeo-integration-plan/SDK_INTEGRATION_POINTS.json`
 >
-> **Recommended:** Run before `phase 8`. If `TDD_<GameName>.md` (phase 2b) already exists, its State Reconstruction section is provisional until this classification is done — reconcile any conflicts here.
+> **Recommended:** Run before `phase 4`. If `TDD_<GameName>.md` (phase 3 · task 2) already exists, its State Reconstruction section is provisional until this classification is done — reconcile any conflicts here.
 
 ## Context Files
 
@@ -29,7 +29,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Your Task
 
 ### Step 1: Read Prior Artifacts
-From `ludeo-integration-plan/`: `CODE_MAP.json` (`save_system`, `core_classes`) and the entity inventory (from `02B`/phase 1).
+From `ludeo-integration-plan/`: `CODE_MAP.json` (`save_system`, `core_classes`) and the entity inventory (from `02B`/phase 2).
 
 ### Step 2: Run the Classification
 Execute `02F-RESEARCH-SAVE-SYSTEM.md` in order:
@@ -55,7 +55,7 @@ Summarize the group, the rationale, and the per-entity matrix. Ask the user to c
 | File | Purpose |
 |------|---------|
 | `ludeo-integration-plan/GAME_ANALYSIS_SAVE_SYSTEM.md` | Group classification + per-entity reconciliation/manual matrix (§8.1) |
-| `ludeo-integration-plan/CODE_MAP.json → save_system` | Structured `group` + fields consumed by phases 8, 9 (and later 10) |
+| `ludeo-integration-plan/CODE_MAP.json → save_system` | Structured `group` + fields consumed by phase 4, phase 5 · task 1 (and later task 2) |
 
 ## Important Notes
 
@@ -65,13 +65,13 @@ Summarize the group, the rationale, and the per-entity matrix. Ask the user to c
 
 ## Related Phases
 
-- `phase 1` (run FIRST), `phase 2`
-- `phase 2b` — TDD; its reconstruction section is provisional until this classification exists
-- `phase 8` — consumes `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group` (run AFTER this)
-- `phase 9` — uses the per-entity matrix to decide reconciliation vs manual wiring
+- `phase 2` (run FIRST), `phase 3 · task 1`
+- `phase 3 · task 2` — TDD; its reconstruction section is provisional until this classification exists
+- `phase 4` — consumes `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group` (run AFTER this)
+- `phase 5 · task 1` — uses the per-entity matrix to decide reconciliation vs manual wiring
 
 ## Next Steps
 
 1. Review the classification + per-entity matrix with the user
 2. Resolve any `?` unknowns and validation gaps
-3. Proceed to `phase 3` (lifecycle) — the classification waits until `phase 8` needs it
+3. Proceed to `phase 4` (map game objects) — it consumes this classification

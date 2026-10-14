@@ -151,7 +151,7 @@ Each major phase is broken into **minute steps** (5-30+ per phase). Each step re
 > **Note:** Each step below requires user confirmation. Agent proposes → shows preview/diff → user confirms → agent executes.
 
 #### Step 0.1: Verify Prerequisites
-Analyze and report: SDK location, build system (CMake/VS/Makefile/Unity/Unreal), main config file, target name.
+Analyze and report: SDK location, build system (CMake/VS/Makefile), main config file, target name.
 
 #### Step 0.2: Create Ludeo Directory Structure
 Create `src/core/ludeo/` (or game-appropriate path). Verify SDK in `external/ludeo/LudeoCoreSDK_X_X_X/`.
