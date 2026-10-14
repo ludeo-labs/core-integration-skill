@@ -57,7 +57,9 @@ Follow the comprehensive guide in `ludeo-integration-docs/04-BUILD-INTEGRATION.m
 ## Workflow
 
 ### Step 0a: Create Integration Branch ⭐ **VERY FIRST STEP**
-Before making any changes to the game project, create a dedicated branch:
+First check this isn't a resumed integration: if `ludeo-integration-plan/integration.json` exists, or a
+`feature/ludeosdk-integration-*` branch already does, follow `SKILL.md` → **Start here** instead. Otherwise, before
+making any changes to the game project, create a dedicated branch:
 ```bash
 git checkout -b feature/ludeosdk-integration-#1
 ```
@@ -65,8 +67,8 @@ git checkout -b feature/ludeosdk-integration-#1
 - This lets the user easily discard the integration attempt by deleting the branch
 - **All subsequent steps happen on this branch**
 - **Create the state file** `ludeo-integration-plan/integration.json` ([`state-file-schema.md`](state-file-schema.md))
-  with `schemaVersion`, `gameTitle`, every step `not_started`, and step `1` `in_progress`. If it already exists, this
-  is a resumed integration — read it instead (`SKILL.md` → **Start here**).
+  with `schemaVersion`, `gameTitle`, `branch`, every step `not_started`, `current: "1"` and step `1` `in_progress`.
+  Update step `1`'s `note` as its sub-steps complete — Step 0c may restart the session.
 
 ### Step 0b: Select Operating System
 Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:

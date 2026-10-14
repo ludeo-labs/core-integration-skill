@@ -97,6 +97,7 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
    - `event_systems` - Delegate/event/observer patterns found, with pattern type
    - `save_system` - Format classification (custom binary, JSON, XML, third-party, engine-provided, none) **and** the existing per-object state-capture system (interface, registry/manager, object-type list, stable id) flagged as the tracking/restoration backbone
    - `ai` - Whether AI/bots exist, spawn mechanism, controllability
+   - `launch_model` - What the boot flow does (menu or straight into gameplay, auto-continue / debug auto-enter paths, launch arguments already parsed), each with `file:line`, and whether it matches `integration.json → intake.launchModel` (Analysis Checklist §9)
    - `threading` - Threading model and thread safety notes
    - `build_system` - Build files and dependencies
 

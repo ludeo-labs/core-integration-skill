@@ -216,8 +216,8 @@ and Studio Lab offers an action only once a run has sent it.
 1. **Triggers.** List them; for each pair the code sends and the list lacks, create it (closer first). Never on
    Production — there the user makes the change by hand.
 2. **Goals and constraints.** List them; then choose goals (objectives a creator can pick) and constraints (ways
-   to lose) from `GAME_ACTIONS_MAP.md` and the genre file in `ludeo-integration-docs/game-patterns/`, on
-   gameplay actions only — never on the four trigger actions. Never on Production.
+   to lose) from `GAME_ACTIONS_MAP.md`, the intake's `profile.keyActions` / `ludeoConcept` (what a great Ludeo of this
+   game is) and the genre file in `ludeo-integration-docs/game-patterns/`, on gameplay actions only — never on the four trigger actions. Never on Production.
 3. **Report what you made**, one line each (`environment · + PauseLudeo on pause_ludeo — "…"`,
    `environment · + goal "Kill enemies" on Kill`), so the user can ask for changes.
 

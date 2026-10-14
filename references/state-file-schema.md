@@ -1,7 +1,7 @@
 # State File — `ludeo-integration-plan/integration.json`
 
 The one machine-readable record of an integration, kept in the **game's** repo next to the other plan files.
-`SKILL.md` → **Session start** reads it to resume where the integration left off; every step updates it. The
+`SKILL.md` → **Start here** reads it to resume where the integration left off; every step updates it. The
 human-readable plan files (`CODE_MAP.json`, `OBJECT_TRACKING.md`, `RESTORATION_PLAN.md`, …) stay as they are — this
 file records **where you are, what was decided, and what the user told you**, and points at those artifacts.
 
@@ -9,7 +9,7 @@ file records **where you are, what was decided, and what the user told you**, an
 {
   "schemaVersion": 1,
   "gameTitle": "GameName",
-  "genres": ["shooter"],
+  "branch": "feature/ludeosdk-integration-#1",
   "engine": { "buildSystem": "cmake | msbuild | make | other", "targetOS": "windows | linux | macos" },
 
   "current": "3d",
@@ -17,7 +17,7 @@ file records **where you are, what was decided, and what the user told you**, an
     "1":  { "status": "completed",   "completedAt": "2026-10-14" },
     "2":  { "status": "completed",   "completedAt": "2026-10-14" },
     "3a": { "status": "completed" }, "3b": { "status": "completed" }, "3c": { "status": "completed" },
-    "3d": { "status": "in_progress", "startedAt": "2026-10-15" },
+    "3d": { "status": "in_progress", "startedAt": "2026-10-15", "note": "Question 3 answered; LudeoManager.h written" },
     "3e": { "status": "not_started" }, "3f": { "status": "not_started" },
     "4":  { "status": "not_started" },
     "5b": { "status": "not_started" }, "5c": { "status": "not_started" },
@@ -81,11 +81,15 @@ file records **where you are, what was decided, and what the user told you**, an
 ## Fields
 
 - **`schemaVersion`** — `1`. Bump only with a migration note here.
-- **`current`** — the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5b`–`5e`,
+- **`branch`** — the integration branch (phase 1 Step 0a). The state file lives on it; a session that starts on another
+  branch finds the integration through this name.
+- **`current`** — set when a step starts; the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5b`–`5e`,
   `6a`, `6b`, `7` (the prefix of the phase file in `references/`). Steps run in `SKILL.md`'s table order.
 - **`steps.<id>.status`** — `not_started` · `in_progress` (set when the step's work begins) · `completed` (set only
   after the step's exit gate passed — rebuild + run where the step edits source) · `skipped` (the user explicitly
-  skipped it; record why in `decisions`).
+  skipped it; record why in `decisions`; resume treats it like `completed`). **`steps.<id>.note`** — free text: where
+  inside the step work stopped (e.g. "Step 0c done — waiting for the session restart"), so a resumed session doesn't
+  redo or skip a sub-step.
 - **`sdk.versionLine`** — the SDK's own version line from the first SDK-enabled run (phase 1 Step 10) — the first
   thing to compare when a notification never fires (`ludeo-integration-docs/11-TROUBLESHOOTING.md` §9).
 - **`ludeoPlatform`** — everything [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) says to record. `isDefault` and
@@ -100,6 +104,47 @@ file records **where you are, what was decided, and what the user told you**, an
   rationale; a fact found in the code goes in `findings` with `file:line`.
 - **`risks`** — every `unknown` from the intake, and anything a step deferred, with the step that must resolve it.
   A step's pre-flight checks the risks aimed at it.
+
+## Migrating — an integration that started before this file existed
+
+Infer each step's status from evidence in the game's repo, show the user the result, and let them correct it before
+resuming. Code-only steps leave no plan file, so look for the code they write:
+
+| Step | Evidence it ran |
+|------|-----------------|
+| `1` | the SDK under the project, the `LUDEO_SDK_ENABLED` build option, a stub `LudeoConfig.h` |
+| `2` | `ludeo-integration-plan/CODE_MAP.json` |
+| `3a` | `SDK_INTEGRATION_POINTS.json` |
+| `3b` | `TDD_<Game>.md` |
+| `3c` | `SDK_LIFECYCLE_PLAN_<Game>.md` |
+| `3d` | `LudeoManager.h/.cpp`, `LudeoConfig.cpp`, `ludeo.ini`, the hooks in game code |
+| `3e` | a clean build with the SDK on (ask, or build it) |
+| `3f` | `GAME_ANALYSIS_SAVE_SYSTEM.md`, `CODE_MAP.json → save_system.group` |
+| `4` | `OBJECT_TRACKING.md` (approved) |
+| `5b` | `LudeoStateAdapter`, `LudeoCaptureMacros.h`, `LUDEO_CAPTURE_*` calls in game code |
+| `5c` | `RESTORATION_PLAN.md` (approved) |
+| `5d` | a `LudeoSelected` handler, `ApplyHeld`, `EndCurrentLudeo` |
+| `5e` | real (non-stub) `RestoreTwoPass` / `RestoreEnvironment` bodies |
+| `6a` | `GAME_ACTIONS_MAP.md` |
+| `6b` | `SendAction` / `LUDEO_ACTION` calls in game code |
+| `7` | nothing local — ask whether a build was uploaded, and its build id |
+
+A step whose code exists but whose gate (rebuild + run) can't be confirmed is `in_progress`, not `completed`.
+
+**Folding `LUDEO_PLATFORM.md` into `ludeoPlatform`** — map values exactly; never guess a boolean:
+
+| Old | New |
+|-----|-----|
+| `Studio MCP server:` line | `mcpServer` |
+| `Game ID:` line | `gameId` |
+| `progress reporting disclosed: yes / no` | `progressReportingDisclosed: true / false` |
+| table `Default?` `yes` / `no` / `?` | `isDefault: true / false / null` |
+| table `Dialog value` `?` | `dialogValue: null` (any other value copied as is) |
+| `Integrator is member?` `yes` / `no` / `?` | `integratorIsMember: true / false / null` |
+| `Steam branch` `(default)` / empty | `steamBranch: ""` / `null` |
+
+A `?` that becomes `false` would look like a confirmed answer and unlock Studio Lab writes that need a confirmed
+default environment — keep it `null`.
 
 ## Rules
 

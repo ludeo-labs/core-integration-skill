@@ -68,8 +68,9 @@ to call `ludeo-mcp` tools.
 ## Important rules
 
 - **One phase at a time.** Get user confirmation before advancing to the next phase.
-- **Keep the state file current.** Set a step `in_progress` in `ludeo-integration-plan/integration.json` when its
-  work begins and `completed` only once its exit gate passes; record user decisions and code findings as they happen,
+- **Keep the state file current.** When a step's work begins, set `current` to its id and the step `in_progress` in
+  `ludeo-integration-plan/integration.json`; set it `completed` only once its exit gate passes (`skipped` if the user
+  explicitly skips it — record why). Before a session ends mid-step, note where in the step you stopped (`note`); record user decisions and code findings as they happen,
   and read the intake fields a step depends on before it starts (`references/state-file-schema.md`). Preserve fields
   you don't recognise — never rewrite the file from the template.
 - 🛑 **Never upload or assign a build without explicit user confirmation.** Phase 7 publishes to Ludeo's
@@ -85,7 +86,8 @@ to call `ludeo-mcp` tools.
   (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and (2) a run of the game to confirm it
   still works. **The agent runs the build itself** — CMake / MSBuild / make work headless — and reads the
   log; "the agent can't see the game" means it can't *play* it, not that it can't build it. Only the run
-  needs the integrator, and beyond the run log the agent relies on their word. If the build can't run
+  needs the integrator — whoever the intake recorded in `runnability.runsTheGame` — and beyond the run log the agent
+  relies on their word. If the build can't run
   here (toolchain missing, IDE-only or license-gated build), say so and ask. Do not advance until the
   build passes and the integrator confirms the run (or explicitly skips). The build-and-fix loop lives in
   `phase 3 · task 5`; the gate cites it rather than repeating it.
@@ -123,15 +125,19 @@ which fallback you're using.
 ## Start here
 
 At the start of **every** session, look for `ludeo-integration-plan/integration.json` in the game's repo
-([`references/state-file-schema.md`](references/state-file-schema.md)):
+([`references/state-file-schema.md`](references/state-file-schema.md)). It lives on the integration branch, so if the
+current branch doesn't have it, check for an existing integration branch first (`git branch --list
+'feature/ludeosdk-integration-*'`) and ask the user whether to resume that one before starting anything new.
 
 - **It exists** → read it. Resume at `current`: a step `in_progress` continues where it stopped (re-read that
-  phase file and its inputs first); a `completed` step advances to the next one in the table above. Read the
+  phase file, its inputs and the step's `note` first); a `completed` or `skipped` step advances to the next one in the
+  table above. Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
   `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state
-  file existed. Create the state file, infer each step's status from the artifacts it produces, fold
-  `LUDEO_PLATFORM.md` into `ludeoPlatform` (then delete it), show the user the inferred status and confirm it
+  file existed. Create the state file, infer each step's status from its evidence (the table in
+  `references/state-file-schema.md` → **Migrating**), fold `LUDEO_PLATFORM.md` into `ludeoPlatform` with the value
+  mapping given there (then delete it), show the user the inferred status and confirm it
   before resuming. Run the intake (`references/know-your-game.md`) if `intake` is empty — its answers gate later
   steps.
 - **Neither** → a new integration: read `references/1-build-game-with-sdk.md` and follow it.

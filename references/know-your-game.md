@@ -38,8 +38,9 @@ doesn't belong here. Record every answer in `ludeo-integration-plan/integration.
              "hasBosses": false }
 ```
 
-**→ Feeds:** `phase 4` Step 3 and `phase 6 · task 1` (which `game-patterns/` files to load; `hasBosses` →
-`game-patterns/bosses.md`); `phase 6 · task 2` goals (the key actions); `phase 4`'s census (what the moment needs).
+**→ Feeds:** `phase 4` Step 3 and `phase 6 · task 1` Step 2 (which `game-patterns/` files to load, instead of a web
+search; `hasBosses` → `game-patterns/bosses.md`); `phase 6 · task 1` / `task 2` (the key actions are mapped, and goals
+are built on them); `phase 4`'s census (what the moment needs).
 
 ---
 
@@ -117,9 +118,10 @@ explicitly, or the integration lands technically and is rejected on feel.
 A Ludeo captured too early is empty — not because the integration is broken, but because nothing has happened yet.
 Without a stated threshold, early captures get debugged as bugs.
 
-> **The Creator-Flow room opens when the level loads, not when "gameplay starts".** `OpenRoom` goes on the
-> level-loading path (`05 §6.2`, CR-009); a warm-up, countdown or "interesting state" condition gates only **`Begin`**.
-> A room opened late can miss `RoomReady`, and nothing records.
+> **The Creator-Flow room opens on the run-start / level-load path, not on a gameplay-phase condition.** `OpenRoom`
+> goes where the level loads (`05 §6.2`, CR-009); a warm-up, countdown or "interesting state" condition gates only
+> **`Begin`**. The one exception is a readiness-gated launch: there `OpenRoom` waits for the start trigger
+> ([`LAUNCH-AND-READINESS.md`](ludeo-integration-docs/LAUNCH-AND-READINESS.md) §3).
 
 | ID | Question |
 |----|----------|
@@ -132,17 +134,20 @@ Without a stated threshold, early captures get debugged as bugs.
                         "minimumInterestingState": "first enemy engaged" }
 ```
 
-**→ Feeds:** `phase 3 · task 3` / `task 4` (the `Begin` gate and the teardown trigger; the room still opens at
-level load); the TDD (so an early, empty capture is matched against the documented threshold before anyone debugs it).
+**→ Feeds:** `phase 3 · task 3` / `task 4` (the `Begin` gate and the teardown trigger; the room still opens on the
+level-load path); `phase 3 · task 2` — the TDD records `minimumInterestingState`, so an early, empty capture is matched
+against it before anyone debugs it.
 
 ---
 
 ## Group 5 — Scripted systems driven by past events
 
 **Snapshot state** (positions, health, current phase) can be captured and applied directly. **Progression trails**
-(objectives passed, milestones hit, props used, the history a level script reacts to) cannot: scripted systems
-respond to a *sequence of past events*. Restore only the current values and the level re-runs its opening logic —
-early voice-over, early-phase spawns.
+(objectives passed, milestones hit, props used, the history a level script reacts to) cannot be restored by
+writing values alone: scripted systems respond to a *sequence of past events*. Restore only the current values and
+the level re-runs its opening logic — early voice-over, early-phase spawns. The fix is still a snapshot, not a
+timeline replay: capture **how far** the trail got, and restore it through the game's own "advance to this point"
+entry, with that call's side effects (spawns, voice-over) gated (`07 §11`).
 
 | ID | Question |
 |----|----------|
@@ -158,9 +163,9 @@ early voice-over, early-phase spawns.
 ```
 
 **→ Feeds:** `phase 4` (trail systems are captured — with `loadBearing` they are in the first wave, never deferred);
-`phase 5 · task 2` (each load-bearing trail has a capture **and** a replay path in the plan — the replay drives the
-game's own progression call during the apply/settle, `07 §2.1`); `phase 5 · task 4` (the smoke test confirms the level
-does not re-run its opening logic).
+`phase 5 · task 2` (each load-bearing trail has a capture **and** a restore path in the plan — the game's own
+"advance to this point" entry, called during the apply, its side effects gated per `07 §11`); `phase 5 · task 4` (the
+smoke test confirms the level does not re-run its opening logic).
 
 ---
 
@@ -176,13 +181,13 @@ Two independent axes — ask both; a game can boot straight into play for creati
 
 ```json
 "launchModel": { "creatorLaunch": "menu-gated | boot-straight | fast-menu-autostart",
-                 "playerLaunch": "mid-run | preselected | both", "autoEnterPaths": [],
-                 "readinessGateRequired": true }
+                 "playerLaunch": "mid-run | preselected | both", "autoEnterPaths": [] }
 ```
 
 **→ Feeds:** `phase 2` cross-checks the answer against the boot-flow code and flags a mismatch; `phase 3 · task 3` /
 `task 4` — when either axis is boot-straight / preselected, or the menu starts immediately, build the SDK-readiness
-gate ([`LAUNCH-AND-READINESS.md`](ludeo-integration-docs/LAUNCH-AND-READINESS.md)).
+gate ([`LAUNCH-AND-READINESS.md`](ludeo-integration-docs/LAUNCH-AND-READINESS.md) §3); a preselected launch also needs
+the game's own auto-start suppressed (§4); `autoEnterPaths` are run boundaries (`game-patterns/open-world.md`).
 
 ---
 
@@ -199,8 +204,8 @@ gate ([`LAUNCH-AND-READINESS.md`](ludeo-integration-docs/LAUNCH-AND-READINESS.md
                  "levelLoadCommand": "--level=<id>", "runsTheGame": "integrator" }
 ```
 
-**→ Feeds:** every rebuild + run gate (who to ask); `phase 5 · task 3` (reaching a captured level from a cold start
-uses `levelLoadCommand`); `switch-needed` is a **blocker** — record it in `risks` against `phase 3 · task 4`.
+**→ Feeds:** every rebuild + run gate (who to ask — `SKILL.md`'s gate rule); `phase 5 · task 2` / `task 3` (reaching a
+captured level from a cold start uses `levelLoadCommand`); `switch-needed` is a **blocker** — record it in `risks` against `phase 3 · task 4`.
 
 ---
 
