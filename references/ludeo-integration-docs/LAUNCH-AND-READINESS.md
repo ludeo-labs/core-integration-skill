@@ -180,8 +180,13 @@ individual ticks lasting seconds while the boot chain waits mean the SDK is star
 2. **Defer activation** until the game's boot chain reaches its menu or idle state: call `ActivateSession()` from that
    "boot done" hook instead of straight after `ludeo_Initialize()`. Activation is still before any gameplay and still
    after the window exists (`05 §5`), and the launch-arg dispatch still waits for the activate callback (§3.1). This
-   is the one documented exception to `05 §5`'s "activate immediately after initialization". Use it only when the
-   stall is observed.
+   is the documented exception to `05 §5`'s "activate immediately after initialization". Use it when the stall is
+   observed — or when a cloud selection can arrive before the game can load a level: one cloud session delivered
+   `LudeoSelected` ~1.6 s after activation while the game was still on its splash screen, and the restore's level
+   request from there never took effect. The alternative that leaves activation alone is to make the restore's
+   "reach active gameplay" step (`07 §2.1`) wait, bounded, for the boot to reach its menu
+   (`learnings/architecture/activate-late-or-the-cloud-selects-before-the-game-can-load.md`). Either way, arm the
+   readiness timeout when `Activate` is actually called (§3.1).
 3. **Report it to the SDK owners** with the tick timings — a tick that blocks for seconds is an SDK-side issue.
 
 **Never "fix" it by skipping or throttling `ludeo_Tick()`** — that breaks every callback (CR-005).

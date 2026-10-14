@@ -822,7 +822,7 @@ bound runs out, log it and shut down anyway — never hang the game's exit.
 |------------------|--------------|--------------|-------|
 | **SDK Initialize** | `ludeo_Initialize()` | Game launch, after core dependencies loaded | Early startup, before game systems |
 | **SDK Session Activate** | `ludeo_Session_Activate()` | After window/OpenGL context ready | Window handle must be available |
-| **SDK Tick** | `ludeo_Session_Tick()` | Every frame, main game loop | Must be called consistently on main thread |
+| **SDK Tick** | `ludeo_Tick()` | Every frame, main game loop | Must be called consistently on main thread |
 | **Gameplay Session Start** | `ludeo_Session_OpenRoom()` | When level/match loading starts | **NOT when ready** - call when loading begins |
 | **Gameplay Session End** | `ludeo_GameplaySession_End()` | When gameplay ends, before map cleanup | Match over, level complete, before cleanup |
 | **SDK Shutdown** | `ludeo_Shutdown()` | Game exit, during shutdown | Before resource cleanup |
@@ -835,7 +835,7 @@ bound runs out, log it and shut down anyway — never hang the game's exit.
 |------------|--------------|--------------|-------------|-------|
 | Game launch | Initialize SDK | `ludeo_Initialize()` | 🎮 Game code | Early in startup |
 | Game ready | Activate session | `ludeo_Session_Activate()` | 🎮 Game code | After init, before menu |
-| Every frame | Process callbacks | `ludeo_Session_Tick()` | 🎮 Game code | In main loop |
+| Every frame | Process callbacks | `ludeo_Tick()` | 🎮 Game code | In main loop |
 | **Level/match loading** | **Open room** | **`ludeo_Session_OpenRoom()`** | **🎮 Game code** | **When loading starts** |
 | Room opened | Add player(s) | `ludeo_Room_AddPlayer()` | 📞 SDK callback | Called from `OnRoomOpenedCallback` |
 | Player added | Track condition | `OnPlayerAddedCallback()` | 📞 SDK callback | Set `player_added = true` |

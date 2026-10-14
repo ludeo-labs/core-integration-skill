@@ -651,10 +651,15 @@ The two are answers to the same reconstruction-relevance question, not conflicti
 
 | Good ID Types | Bad ID Types |
 |---------------|--------------|
-| `uint64_t entity_id` (generated deterministically) | `GameObject* pointer` (memory address) |
+| `uint64_t entity_id` (unique per `objectType`, unchanging for the entity's life) | `GameObject* pointer` (memory address) |
 | `uint32_t blueprint_id` (content ID) | `LudeoObjectId` (SDK internal ID) |
 | `std::string unique_name` (if stable) | `int array_index` (changes) |
 | Steam user ID, player profile ID | `void* handle` (opaque pointer) |
+
+An id is **captured and carried inside the Ludeo**, not recomputed on replay — so a value rolled at runtime (a
+random spawn slot, a run-local counter) is a fine id as long as it is unique and never changes. The exception is a
+**level-placed instance the restore matches** rather than spawns (`07 §3.1`): the replaying process must find it by
+that key, so its id must be derivable from the level data (an authored name or start position), not rolled.
 
 ### 4.3 Bidirectional Mapping Pattern
 

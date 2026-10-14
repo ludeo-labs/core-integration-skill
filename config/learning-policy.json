@@ -1,0 +1,36 @@
+{
+  "$comment": "Policy for learnings/ privacy. Enforced by scripts/validate-skill.mjs. See references/learning-sanitization.md for the agent-facing rule.",
+  "sourceGameAllowlist": [
+    "ActionAdventureSample",
+    "ActionGame",
+    "ActionRoguelike",
+    "ARPGSample",
+    "CoopShooter",
+    "EndlessFPS",
+    "FPSGameStarterKit",
+    "FPSSample",
+    "FTPS_Online",
+    "Lyra",
+    "PlatformerSample",
+    "RoguelikeSample",
+    "RoomActionSample",
+    "StackOBot",
+    "StoryPuzzleGame",
+    "SurvivalSample",
+    "TacticsGame",
+    "TopDownSample",
+    "TPSSample",
+    "VoyagerV2",
+    "multiple"
+  ],
+  "$sourceGameAllowlist_note": "sourceGame: frontmatter MUST be one of these abstract codenames. A real studio/title name is itself a leak. The list is the union of the Unity and Unreal skills' allowlists, so lessons ported from them keep their codename. Add a new codename here at the START of each new client engagement (phase 1, before any learning is written). Use 'multiple' for a learning validated across several games. EXCEPTION: the engine vendor's own freely-published samples (Lyra, StackOBot) are listed under their real names — they belong to no client.",
+  "apiMacroAllowlist": [
+    "LUDEO_API",
+    "GAME_API",
+    "GAMENAME_API",
+    "MODULE_API"
+  ],
+  "$apiMacroNote": "Allowlisted macros are SDK exports and neutral placeholders. Any other *_API is flagged as a likely client module-export macro (e.g. STUDIONAME_API). Use GAME_API as the neutral placeholder in sanitized learnings.",
+  "denylist": [],
+  "$denylistNote": "OPTIONAL belt-and-suspenders. The PRIMARY defense is the sanitization rule applied at write time (references/learning-sanitization.md) plus the hashed client-identifier guard in validate-skill.mjs (section 7) — this list is NOT a substitute. Leave empty unless an engagement wants a hard stop on a specific known token; client-specific denylists do not generalize and must never be the main control."
+}

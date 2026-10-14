@@ -11,9 +11,11 @@ stays small. The phase entry points are `3-lifecycle-orchestrator.md`, `5-tracki
 **If your agent can start subagents** (e.g. Claude Code's Agent tool), dispatch one per task with:
 
 - the **absolute path of the task brief**, the **game repo path**, and the **input artifact paths** it needs (for
-  phase 5, also the wave number `N` and that wave's `objectType`s);
+  phase 5, also the wave number `N` and that wave's `objectType`s), and the paths of the **learnings** relevant to
+  the task (`SKILL.md` → **Learnings** → Load) so the worker reads their bodies;
 - the instruction to follow the brief exactly, produce its output, **not** run the game (the orchestrator owns the
-  gate), and return a short summary, the files it created or edited, and any questions for the user.
+  gate), and return a short summary, the files it created or edited, any questions for the user, and any candidate learning
+  (you write it — `SKILL.md` → **Learnings** → Capture).
 
 On return: **check the artifacts exist and are well-formed**, relay the questions, then run the task's gate. Pass state
 **by file** — the plan files and the state file on disk — never by re-telling a previous worker's output.

@@ -147,6 +147,10 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 
 - **Actions are discrete events**, not continuous state. `OnKill` = action. `SetHealth` = tracking (not this command's scope).
 - **PascalCase naming** for all Ludeo action names (e.g., `Kill`, `CollectCoin`, `ObjectiveComplete`)
+- **Name from the player's perspective, with no variable data in the name.** Always send the canonical action
+  (`Kill`); where a goal needs a finer cut, send an **additional** action from a curated, bounded list next to it — a
+  class bucket (`KillHeavy`) or a method (`Headshot`) — never a fused name built at runtime (`Kill_Rifle`,
+  `Capture_Team2`) and never one that replaces the canonical action. A Global Trigger or goal binds one exact string.
 - **Multiple genre files** can be loaded for hybrid games — merge and deduplicate
 - **Game-specific actions** are expected — not everything will match the genre catalog
 - **Gaps are valuable** — they tell the user what's missing, not that something is wrong

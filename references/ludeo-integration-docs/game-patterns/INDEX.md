@@ -68,7 +68,7 @@ Genre files (`shooter.md`, `rts.md`, `racing.md`, `rpg.md`, `survival-sandbox.md
 
 ## Adding a New Genre or Structural Pattern
 
-For a new **genre**, create a `.md` file following the three-section genre structure above. For a new **structural pattern** (e.g. arcade-style "1 life = 1 session", roguelike "1 run = 1 session"), follow the shape of `open-world.md`. For a new **gameplay-structure pattern** (a scripted, stateful sequence such as a puzzle set-piece or a heist), follow the shape of `bosses.md`. Add it to the table above with the correct shape tag. No other changes needed.
+For a new **genre**, create a `.md` file following the three-section genre structure above. For a new **structural pattern** (e.g. arcade-style "1 life = 1 session", roguelike "1 run = 1 session"), follow the shape of `open-world.md`. For a new **gameplay-structure pattern** (a scripted, stateful sequence such as a puzzle set-piece or an escort mission), follow the shape of `bosses.md`. Add it to the table above with the correct shape tag. No other changes needed.
 
 ## Important Notes
 

@@ -69,6 +69,10 @@ git checkout -b feature/ludeosdk-integration-#1
 - **Create the state file** `ludeo-integration-plan/integration.json` ([`state-file-schema.md`](state-file-schema.md))
   with `schemaVersion`, `gameTitle`, `branch`, every step `not_started`, `current: "1"` and step `1` `in_progress`.
   Update step `1`'s `note` as its sub-steps complete — Step 0c may restart the session.
+- **Pick this engagement's learnings codename** — an abstract name, never the studio or the title (a real name is
+  itself a leak) — and add it to `config/learning-policy.json` → `sourceGameAllowlist` in this skill's directory now,
+  so the first learning of the integration isn't stalled on it (`SKILL.md` → **Learnings**,
+  [`learning-sanitization.md`](learning-sanitization.md)).
 
 ### Step 0b: Select Operating System
 Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:

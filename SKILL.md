@@ -16,6 +16,10 @@ This skill walks the agent through integrating the Ludeo SDK into a game project
 > their own skills** — `ludeo-unity-integration` and `ludeo-unreal-integration` — which install a
 > real engine plugin and speak that engine's idioms. Do not hand-roll a plugin here.
 
+This skill has an **institutional memory** in `learnings/` — sanitized lessons from prior integrations. **Load the
+relevant learnings at the start of every phase, and capture new ones the moment you discover them** — see
+**Learnings** below; it is not optional.
+
 ## When to use
 
 Activate this skill when the user says any of:
@@ -101,14 +105,87 @@ to call `ludeo-mcp` tools.
   here (toolchain missing, IDE-only or license-gated build), say so and ask. Do not advance until the
   build passes and the integrator confirms the run (or explicitly skips). The build-and-fix loop lives in
   `phase 3 · task 5`; the gate cites it rather than repeating it.
-- **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/N-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
+- **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/<N>-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
 - **Critical requirements** live in `references/ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`. Review them before phase 1.
 - **Track objects as attributes by default, not blobs.** The SDK supports both attribute and blob state storage/reconstruction; Ludeo strongly prefers attribute integrations. When mapping and tracking objects (phase 4 and phase 5 · task 1), capture discrete typed attributes by default and do **not** ask the user which to use. Use blob/serialized storage only when the user explicitly asks or an entity is genuinely opaque/unmappable — see `references/ludeo-integration-docs/06-TRACKING-PATTERNS.md §1.4`.
-- **The agent writes outputs into the game's repo**, not into this skill. For example, `ludeo-integration-plan/CODE_MAP.json` is created at the game project root.
+- **The agent writes outputs into the game's repo**, not into this skill — the one exception is a new learning (**Learnings** below). For example, `ludeo-integration-plan/CODE_MAP.json` is created at the game project root.
 - **Fresh session recommended.** Each phase produces a lot of context. If a phase has been running long, suggest the user start a fresh agent session for the next phase.
+
+## Learnings
+
+`learnings/` is the skill's institutional memory: sanitized lessons from prior integrations — on this engine family and
+on Unity and Unreal, rewritten for the C API wherever the mechanism transfers. Categories: `architecture/`,
+`common-mistakes/`, `engine-quirks/` (engine, toolchain, OS, SDK and cloud behavior the docs don't predict) and
+`save-systems/`. Each file is one lesson with frontmatter (`category`, `tier`, `sourceGame`, `phase`, `question`,
+`sanitized`).
+
+### Load — at the start of every phase
+
+The corpus grows with every integration; reading every file each phase burns the context the phase's real work needs.
+Load it **index-first**:
+
+1. **Read `learnings/INDEX.md` in full.** One line per learning: `path | tier | phase | hook`. The hook is the
+   learning's precondition question (or its title when it has none). An index line is a **pointer, not the lesson** —
+   never cite or apply a learning from its index line alone.
+2. **Read the full body of every entry whose `phase` matches the current phase**, regardless of tier. Phase tags are
+   conservative, so this is the floor, not the whole job.
+3. **Scan every other hook against what you know about this project** (boots straight to gameplay or through menus?
+   pooled objects? no save system? streamed world? which build system?) and read the body of anything plausibly
+   relevant. **Err toward reading** — a body read is cheap; wrongly skipping a learning is how integrations break.
+4. **Re-query the index mid-phase.** When you hit a new topic (restore ordering, pooled spawns, action emission,
+   overlay pause…), grep the index for it and read the matches before improvising.
+5. **Cross-check completeness:** compare the index's `Total:` with the number of `*.md` files under `learnings/`
+   (minus `INDEX.md`). If files exist that the index misses, read them too — the index is stale; regenerate it
+   (`node scripts/generate-learnings-index.mjs`) or append the missing lines by hand.
+
+When you dispatch a worker (`references/orchestration.md`), pass it the paths of the learnings relevant to its task.
+
+**Tier semantics (strict):** `universal` = applies to **every** C++ Ludeo integration with **no** preconditions.
+`generalizable` = applies only when a stated precondition holds (the `question` field is that precondition — verify it
+in *this* project before applying). `game-specific` = tied to one game; don't reuse it across games.
+
+**Before citing any learning in a decision:** read the full body, identify its precondition, and **verify it holds
+here with concrete evidence** (files read, questions answered, runs observed). If the precondition can't be verified,
+the learning does not apply — don't cite it. An absolute conclusion ("the ONLY way", "NEVER do X") tagged `universal`
+is a red flag — check whether it should be `generalizable` first.
+
+### Capture — on discovery, not at phase end
+
+**Learnings are append-only.** Add new files under `learnings/<category>/` in this skill's directory; never delete or
+overwrite an existing one without explicit human approval. Write the learning **before continuing** whenever a fix
+took more than one attempt or the root cause wasn't what you assumed; the SDK, engine or environment behaved
+differently than the docs implied; the human corrected you; or you found a non-obvious precondition, ordering
+requirement or exact API signature. Deferring loses the specifics that make it reusable. Workers report candidate
+learnings to the orchestrator, which writes them.
+
+1. **Categorize** (`architecture` / `common-mistakes` / `engine-quirks` / `save-systems`) and **classify the tier**.
+2. **Write `learnings/<category>/<slug>.md`** with frontmatter:
+   ```yaml
+   ---
+   category: common-mistakes
+   tier: generalizable
+   sourceGame: ActionGame     # abstract codename only — see config/learning-policy.json
+   phase: 5
+   question: "..."            # the precondition to re-check on future integrations (null if universal)
+   sanitized: true            # attest you ran the sanitization checklist
+   ---
+   ```
+3. **Register it in the index:** run `node scripts/generate-learnings-index.mjs` (or append the line to
+   `learnings/INDEX.md` by hand in the same format). A learning missing from the index is invisible to future phases.
+4. **Sanitize before saving — mandatory.** Learnings are read on future integrations *for other clients*; anything
+   client-specific that survives leaks one client's code to every other client. Capture the transferable pattern,
+   never the client's payload: `sourceGame` is an allowlisted abstract codename (phase 1 Step 0a adds this
+   engagement's), client namespaces and class names become neutral role-based names, and Ludeo SDK and public C++
+   identifiers stay verbatim. **The test:** could a reader name the client, or copy-paste something that's theirs? If
+   yes, it is not sanitized. This applies to **every committed file**, not just `learnings/`. **Full rule and
+   checklist: `references/learning-sanitization.md` — read it before writing any learning.**
+   `scripts/validate-skill.mjs` enforces the structural parts (codename allowlist, index freshness, client-identifier
+   guard).
 
 ## Reference material
 
+- `references/learning-sanitization.md` — how to write a learning without leaking client IP (pattern, not payload);
+  the pre-save checklist. `config/learning-policy.json` holds the codename allowlist.
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
 - `references/state-file-schema.md` — `ludeo-integration-plan/integration.json`: where the integration is, what
   was decided, the intake answers, the Ludeo platform record. Read it at the start of every session.
