@@ -54,10 +54,10 @@ the captured state there.**
 > point at which — **without Ludeo's intervention — the player would have been able to start
 > playing**: menus, character-creation / new-game / load-save, loading, cutscenes, and intros
 > are all behind you, and the player would have control. The play flow must reach that point
-> and apply the Ludeo state there. The simulation is **frozen the instant `LudeoSelected` fires**
-> (it may already be frozen — e.g. at the menu nothing is ticking yet); reaching active gameplay
-> (the level load) then happens *inside* the apply, immediately before the snapshot, so no live frame
-> plays before the restored state is in place (see §2.1). Every restore step (spawn, match-or-spawn, per-property
+> and apply the Ludeo state there — **all of it before the viewer presses Play.** `RoomReady` is the
+> viewer's Play click, not "the room is ready", so the restored moment must already be built, settled and
+> frozen behind the overlay when the Play button appears; the first frame the viewer sees is the captured
+> moment, and Play only resumes it (see §2.1). Every restore step (spawn, match-or-spawn, per-property
 > setters, the game's own load path) writes into a **live player + world**; run them at the
 > title menu and the game's load/restore path hits its "no active game" guard and **silently
 > no-ops** — then `onComplete` fires and `Begin` runs anyway, so the overlay/recording starts
@@ -67,7 +67,7 @@ the captured state there.**
 > **The game is in player flow or creator flow from launch, decided by whether a Ludeo ID was provided** — it does **not** switch a player's own creator run into a replay mid-run. So restoration (the player-flow path) only ever starts from one of **two** states, and `LudeoSelected` handling must cover both:
 >
 > - **No Ludeo run active yet** — startup / main menu. **There is no live game: no player, no world, no in-gameplay state.** This is the *common production case*, not an edge case — the platform (and the forced-Ludeo launch path) routinely fires `LudeoSelected` at startup, before any game exists. The handler must **drive the game's normal new-game / enter-gameplay flow** so a player + world + in-gameplay state come into being. Scene-based game → level load + spawn; state-machine-entry game with no per-level scene (e.g. Daggerfall's `StartGameBehaviour`) → trigger that entry flow — there is no scene to "load," so reaching active gameplay *is* booting a run.
-> - **A Ludeo is already playing** — another `LudeoSelected` arrives during an active playback (or while it's paused awaiting Play). Tear down the current Ludeo's gameplay session and room (`GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close`; the persistent SDK `Session` stays alive) **and reset all prior-Ludeo state** — release the old `DataReader`, re-arm `IsRestoring`, and replace `m_pending_ludeo_id` with the new id — so the previous play can't leak into the new one (this is `EndCurrentLudeo()`; see `phase 5 · task 3`). Then reach active gameplay for the **new** Ludeo and restore it.
+> - **A Ludeo is already playing** — another `LudeoSelected` arrives during an active playback (or while it's paused awaiting Play). **First validate the new selection** (`GetLudeo` is read-only — §2.1 step 2); only a valid one disturbs the running play. Then tear down the current Ludeo's gameplay session and room (`GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close`; the persistent SDK `Session` stays alive) **and reset all prior-Ludeo state** — release the old `DataReader`, re-arm `IsRestoring`, and replace `m_pending_ludeo_id` with the new id — so the previous play can't leak into the new one (this is `EndCurrentLudeo()`; see `phase 5 · task 3`). Then reach active gameplay for the **new** Ludeo and restore it.
 >
 > See [`game-patterns/open-world.md`](./game-patterns/open-world.md) §6 for the streaming-world (no-per-level-scene) walkthrough of both.
 
@@ -87,71 +87,105 @@ So the entry path is two callbacks deep: `LudeoSelected(ludeoId)` → `GetLudeo(
 ```
 [Any State — game start, main menu, paused, loading, mid-gameplay]
     │
-    ▼ LudeoSelected fires
-[Set IsRestoring(true)] — gates every pre-match skip (§9.11): cutscenes, countdowns,
-    │   slow-mo intros, fly-in cameras, default-spawn teleports, respawn-on-load,
-    │   scripted level-start events. These fire LATER — during the level load inside the
-    │   apply — and hit the gate then; arm it now so it is in place when the load runs.
+    ▼ 1. LudeoSelected fires — marshal off the SDK thread, stash the ludeoId,
+    │    dispatch GetLudeo(ludeoId). TOUCH NOTHING ELSE YET: no teardown, no freeze.
     ▼
-[FREEZE the simulation tick]  — the INSTANT LudeoSelected fires (CR-010)
-    │   The game may already be frozen (e.g. at the menu nothing is ticking). Set the
-    │   restoration freeze bit regardless; it holds through the GetLudeo + room + Play wait.
+[2. VALIDATE — GetLudeo callback]   GetLudeo is read-only; it commits you to nothing
+    │  - resultCode != Success           → ignore the selection; the running session stays exactly as it was
+    │  - reader empty (early cycle)       → wait for a later cycle (§2.2.1); timeout → ignore the selection
+    │  - populated → cache the reader, read the ENTRY IDENTITY (start_mode, room_x/y, …) and check this
+    │    integration can play it (known level/slice, identity present). Not playable → ignore + log.
+    │  A bad selection is a no-op: on a cloud VM nobody can recover a session you tore down for nothing.
     ▼
-[Interrupt Current Activity]
-    │  - If a run is live: tear down its gameplay session and room + reset prior-Ludeo state
-    │    (EndCurrentLudeo: End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags)
-    │  - Cancel in-flight transitions; suppress non-restoration input
+[3. COMMIT — only a validated selection gets here]
+    │  - SetRestoring(true): arms every start-of-run skip (§9.11) BEFORE the load fires them
+    │  - If a run is live: EndCurrentLudeo — End(isAbort=true) → RemovePlayer → Close; release the old
+    │    reader, reset flags. Start the new play only once the room close has completed (async).
+    │  - Restoration HOLD on: player input off, start-of-run mechanisms skipped. The sim runs as much
+    │    as the game's own load path needs — a frozen engine often cannot load a level.
     ▼
-[Dispatch GetLudeo(ludeoId) AND OpenRoom(ludeoId)]  — both async; they RACE, no ordering guarantee
-    │   At this point the target level/map is UNKNOWN — nothing about which level loads is decided yet.
-    │  - GetLudeo(ludeoId) → its completion callback delivers the DataReader → CACHE it (apply runs later)
-    │  - OpenRoom MUST carry the selected ludeoId → AddPlayer → OnPlayerAdded (Player Flow; nullptr would
-    │    record a NEW Ludeo). player_added is set; TryBeginGameplaySession() is called but WAITS —
-    │    room_ready is still false (05 §6.2, §6.11). OpenRoom is dispatched HERE in the handler, NOT hung
-    │    off the level-load path (the level does not load until the apply, below).
-    ▼  Overlay shows the Play button (game does NOT draw one); game stays frozen.
-    ▼  Player presses Play → platform releases RoomReady (it was withheld until Play)
-[On RoomReady]   (room_ready = true)  — apply is gated on reader-cached AND room_ready; fires ONCE when the LAST arrives
-    │  1. UNPAUSE — the level load and the apply need the game running so movement/physics/AI can settle
-    │  2. Read the level/map identity FROM the cached DataReader (e.g. start_mode, room_x, room_y)
-    │  3. Reach active gameplay: load THAT level / boot the run (load the single generic level if the game
-    │     has no rooms to choose between). At the menu there was NO game — you BOOT one here. Pre-match
-    │     sequences fire during this load and silently skip (IsRestoring is still set).
-    │  4. Apply state from the same DataReader: two-pass restoration + environment
-    │  5. TryBeginGameplaySession() — both gates now true (player_added + room_ready);
-    │     Begin fires AFTER apply, so the SDK records from the restored state
+[4. REACH ACTIVE GAMEPLAY on the captured level] — the game's own new-game / load path
+    │   At the menu there is NO game — you BOOT one here (scene-based → load level + spawn;
+    │   state-machine entry → trigger that flow). Wait until the game's native spawn is done.
+    ▼
+[5. APPLY, held]   FREEZE → SetCurrent → two-pass restore (§3) → environment (§8) → release reader
+    │   Frozen so nothing (AI, default-spawn logic, physics) overwrites the snapshot while it lands.
+    ▼
+[6. SETTLE]   let time run ~0.5 s with input STILL off, then FREEZE again
+    │   Teleports, character controllers, pooled spawns and deferred properties (§6) need real frames
+    │   to land; a teleport issued into a frozen world can be swallowed. SetRestoring(false) after.
+    ▼
+[7. OPEN THE ROOM]   OpenRoom(ludeoId) → AddPlayer → OnPlayerAdded (player_added = true)
+    │   OpenRoom MUST carry the selected ludeoId (Player Flow; nullptr records a NEW Ludeo — 05 §6.2).
+    ▼  The finished, settled moment is on screen, frozen, behind the overlay's Play button.
+    ▼  The game does NOT draw its own prompt.
+[8. RoomReady = THE VIEWER PRESSED PLAY]   (room_ready = true)
+    │  TryBeginGameplaySession() — Begin needs player_added AND room_ready AND applied
+    │  Begin → UNFREEZE (clear the restoration hold). The SDK records from the restored state.
     ▼
 [Resume Gameplay]
 ```
+
+> **Why this order and not "load on Play".** `RoomReady` is withheld until the viewer presses Play — an
+> `AddPlayer → RoomReady` gap of many seconds in a log is a person reading the overlay, not SDK latency. If
+> the level load and the apply run on `RoomReady`, the viewer stares at a frozen menu (or a loading cover)
+> behind the overlay and then watches the moment assemble after Play. Building it first means Play is an
+> instant resume of exactly what the viewer chose. (The Unity and Unreal skills converged on this order from
+> production integrations.)
 
 ### 2.2 Handler Skeleton (pseudocode)
 
 ```pseudo
 on_ludeo_selected(ludeoId):              # SDK notification thread — marshal to main thread FIRST
-    if a_ludeo_is_already_playing:           # another Ludeo selected mid-play → tear down + reset prior-Ludeo state
-        end_current_ludeo()                  # End(isAbort=true) → RemovePlayer → Close; release reader, re-arm flags (phase 5 · task 3)
-    set_restoring(true)                      # arm pre-match skip gating (§9.11) — the skips fire later, during the load
-    pending_ludeo_id = ludeoId               # stash the NEW id: used for BOTH GetLudeo (state) and OpenRoom (flow select)
-    pending_reader = null; room_ready = false; applied = false; ready_deadline = now() + RESTORE_TIMEOUT   # re-arm gate + readiness retry
-    freeze_simulation()                      # FREEZE the instant LudeoSelected fires — may already be frozen at the menu (CR-010)
-    suppress_input()
-    cancel_in_flight_transitions()
-
-    # SYNCHRONOUS read-then-load: nothing about which level loads is decided until the reader is in hand.
-    # The target level/map is UNKNOWN here. GetLudeo and OpenRoom both dispatch now and RACE — neither blocks.
-    ludeo_Session_GetLudeo(session, { apiVersion, ludeoId: pending_ludeo_id }, on_get_ludeo)
-    ludeo_Session_OpenRoom(session, { ludeoId: pending_ludeo_id, ... }, on_room_opened)
-    #   ↑ ludeoId set ⇒ Player Flow (scored replay); nullptr ⇒ Creator Flow (new recording) — 05 §6.2
-    #   OpenRoom is dispatched HERE, not hung off the level-load path: the level does not load until the apply.
-    #   on_room_opened → AddPlayer → on_player_added sets player_added=true; TryBegin WAITS (room_ready false)
+    if selection_in_progress(ludeoId): return    # repeated fires for the same id (forced-launch re-injects) — dispatch once
+    candidate_ludeo_id = ludeoId                 # NOT pending_ludeo_id yet — nothing is committed until it validates
+    candidate_reader = null; candidate_deadline = now() + RESTORE_TIMEOUT
+    ludeo_Session_GetLudeo(session, { apiVersion, ludeoId: candidate_ludeo_id }, on_get_ludeo)
+    # NO teardown, NO freeze, NO OpenRoom here. GetLudeo is read-only: a bad selection must leave the
+    # running session exactly as it was.
 
 on_get_ludeo(callbackParams):            # may fire REPEATEDLY (forced-launch re-injects LudeoSelected) — marshal to main thread
     if callbackParams.resultCode != Success:
-        abort_restoration(); return                       # hard fetch failure — STOP, do not retry
-    if reader_is_populated(callbackParams.dataReader):    # Success + objectsCount > 0 (see §2.2.1)
-        pending_reader = callbackParams.dataReader        # KEEP the populated reader; never let a later empty cycle clobber it
-        maybe_apply_restore()
-    # else: empty/not-ready cycle — ignore it; a populated reader arrives a cycle or two later
+        ignore_selection("GetLudeo failed"); return       # hard fetch failure — the current session is untouched
+    if not reader_is_populated(callbackParams.dataReader): # Success + objectsCount > 0 (§2.2.1)
+        return                                            # empty early cycle — a populated reader arrives later
+    if candidate_reader != null: return                   # never let a later cycle replace an accepted reader
+    entry = read_entry_identity(callbackParams.dataReader) # level/map identity FROM the reader (start_mode, room_x, room_y)
+    if not can_play(entry):                               # identity missing (version skew) or unknown level
+        ignore_selection("cannot play this Ludeo: " + describe(entry)); return
+    candidate_reader = callbackParams.dataReader
+    commit_and_restore(entry)
+
+commit_and_restore(entry):               # only a VALIDATED selection reaches here
+    set_restoring(true)                          # arm start-of-run skips (§9.11) BEFORE the load fires them
+    pending_ludeo_id = candidate_ludeo_id; pending_reader = candidate_reader
+    room_ready = false; player_added = false; applied = false
+    if a_ludeo_is_already_playing:
+        end_current_ludeo(then = continue_restore)   # End(isAbort=true) → RemovePlayer → Close; async —
+        return                                       # start the new play only once the close has completed
+    continue_restore()
+
+continue_restore():
+    hold_restoration()                           # input off, start-of-run mechanisms skipped; sim runs as loading needs
+    reach_active_gameplay(entry, then = apply_held)  # the game's own new-game / load path; boot a run at the menu.
+    #   scene-based → load level + spawn; state-machine entry → trigger new-game/load (creates player+world)
+    #   procedural → re-drive the generator to the captured inputs (procedural-world.md §5)
+
+apply_held():                            # called once the game's native spawn is done
+    freeze_simulation()                          # nothing may overwrite the snapshot while it lands (CR-010)
+    ludeo_DataReader_SetCurrent(pending_reader)
+    state_adapter.restore_two_pass(pending_reader)       # match-or-spawn + apply (§3)
+    state_adapter.restore_environment(pending_reader)    # §8
+    pending_reader = null                                # one-shot
+    settle(0.5s, input_off = true, then = after_settle)  # time runs, input stays off: teleports/spawns/deferred props land
+
+after_settle():
+    freeze_simulation()                          # the finished moment holds still behind the overlay
+    set_restoring(false)                         # restore window closes (NOT the whole replay — §2.3)
+    applied = true
+    ludeo_Session_OpenRoom(session, { ludeoId: pending_ludeo_id, ... }, on_room_opened)
+    #   ↑ ludeoId set ⇒ Player Flow (scored replay); nullptr ⇒ Creator Flow (new recording) — 05 §6.2
+    #   on_room_opened → AddPlayer → on_player_added: player_added = true; try_begin_gameplay_session()
 
 reader_is_populated(reader):             # the readiness gate (§2.2.1)
     info = ludeo_DataReader_GetObjectsInfo(reader)
@@ -159,37 +193,26 @@ reader_is_populated(reader):             # the readiness gate (§2.2.1)
     ludeo_ObjectsInfo_Release(info)                       # pair every GetObjectsInfo with a Release
     return populated
 
-on_room_ready(callbackParams):           # platform withholds RoomReady until the player presses Play
+on_room_ready(callbackParams):           # = THE VIEWER PRESSED PLAY (RoomReady is withheld until then)
     room_ready = true
-    maybe_apply_restore()                                 # fires only if a POPULATED reader is also cached
+    try_begin_gameplay_session()
+
+try_begin_gameplay_session():            # also called from on_player_added — the gates arrive in either order (05 §6.6)
+    if not (player_added and room_ready and applied): return
+    ludeo_GameplaySession_Begin(...)             # the SDK records from the restored state
+    release_restoration_hold()                   # UNFREEZE — Play resumes exactly the moment the viewer chose
 
 update():                                # per-frame fallback — don't depend on the forced-launch re-fire
-    if is_restoring and not applied and now() > ready_deadline:
-        abort_restoration()                               # never populated in time → invalid/empty Ludeo; do NOT Begin
-
-maybe_apply_restore():                   # gate: fire ONCE, when a POPULATED reader is cached AND room_ready
-    if applied or not is_restoring or not room_ready or pending_reader == null: return
-    applied = true
-    resume_simulation()                          # UNPAUSE FIRST — the load + apply need the game running
-    entry = read_entry_identity(pending_reader)  # read level/map identity FROM the reader (e.g. start_mode, room_x, room_y)
-    reach_active_gameplay(entry)                 # load THAT level / boot the run; generic level if the game has no rooms.
-    #   scene-based → load level + spawn; state-machine entry (DFU) → trigger new-game/load (creates player+world).
-    #   At the menu there is NO game — BOOT one here; pre-match skips fire during this load and no-op. §2 intro
-    ludeo_DataReader_SetCurrent(pending_reader)
-    state_adapter.restore_two_pass(pending_reader)       # match-or-spawn + apply (§3)
-    state_adapter.restore_environment(pending_reader)    # §8
-    pending_reader = null                                # one-shot — prevents re-entry
-    set_restoring(false)                                 # restore window closes here (NOT the whole replay — §2.3)
-    try_begin_gameplay_session()                 # begins ONLY if player_added (set in handler) AND room_ready;
-                                                 # Begin AFTER apply — SDK records from restored state (05 §6.6, §6.11)
+    if candidate_ludeo_id and candidate_reader == null and now() > candidate_deadline:
+        ignore_selection("Ludeo never populated")   # still pre-commit: nothing was torn down, nothing to undo
 ```
 
-> **On `read_entry_identity` — why the order is read-then-load:** which level/scene to load (or which save / new-game flow to drive) is **read from the cached `DataReader`, inside the apply** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `phase 5 · task 1` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. This is exactly why the flow is **synchronous read-then-load**: you must hold the reader before you can decide which level to boot, so `GetLudeo` is dispatched *first* and the load waits for the apply. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `phase 4`/`phase 5 · task 1`, not a missing SDK function.
+> **On `read_entry_identity` — read-then-load, all before Play:** which level/scene to load (or which save / new-game flow to drive) is **read from the `DataReader`** — it is **not** known at `LudeoSelected`, and it is **not** a dedicated SDK call to hunt for. It's data *your own tracking captured* — e.g. a world/session attribute `phase 5 · task 1` wrote (`start_mode`, `room_x`, `room_y`) or the ludeo info from `ludeo_DataReader_GetInfo` if you stored it there. So the reader comes first and the load second — and reading the identity is also what **validates** the selection before anything is torn down. The whole sequence still completes **before** the viewer presses Play. If the game has **no rooms/levels to choose between**, there is nothing to read for routing — load the single generic level here, after the reader is in hand. If the plan didn't capture a way to identify the entry point, that's a gap to fix in `phase 4`/`phase 5 · task 1`, not a missing SDK function.
 >
 > **Procedural / non-deterministic-assembly games** (roguelike / procedural dungeon / wave-survival — `game-patterns/procedural-world.md`): the entry identity is the captured **generation inputs** (room/chunk id, encounter id, wave index, combat level), and "reach active gameplay" means **re-drive the level builder/pool to those inputs with the random re-roll suppressed** (gate the generator's selection on `IsRestoring()`), restoring the scaling counter before any spawn — *not* just loading a level, which here yields an empty container that re-rolls its content. See `procedural-world.md §5`.
 >
 > **Fail loud on the entry identity, and distinguish two failures.** The reader can be **populated** (§2.2.1 passed — `objectsCount > 0`) yet the **entry-identity attribute** specifically reads back **empty/absent**. That is almost always **version skew**: the Ludeo was captured by a build *before* the identity attribute existed (`phase 5 · task 1` added it later), so there is nothing to route on. This is **different** from reading a valid id that then **resolves to no level** ("room 'X' not found") — a genuine routing/content bug. Branch them with distinct messages so a stale-Ludeo re-capture isn't chased as a code bug:
-> - entry identity **absent/empty** → log "entry identity missing — Ludeo predates the identity capture; **RE-CAPTURE** on the current build", then `abort_restoration` (do **not** `Begin` a scored replay on a guessed level).
+> - entry identity **absent/empty** → log "entry identity missing — Ludeo predates the identity capture; **RE-CAPTURE** on the current build", then **ignore the selection** — it is still pre-commit, so nothing has been torn down (do **not** `Begin` a scored replay on a guessed level).
 > - entry identity **present but unresolvable** → log "level/room '<id>' not found — routing/content bug, not version skew".
 >
 > **Corollary (engine-agnostic):** you can only restore what capture wrote, so **adding or renaming any captured attribute invalidates every previously captured Ludeo** for that attribute — there is no migration. After any capture-schema change, **re-capture** before testing restore.
@@ -211,8 +234,8 @@ reader_is_populated(reader):
 What the handler must do as a result:
 - **Validate before accepting the reader.** Only cache + apply a reader that `reader_is_populated`. **Ignore empty cycles** — don't apply on them, and **never let a later empty cycle clobber an already-cached populated reader.**
 - **Retry until ready, bounded — not one-shot.** The populated reader may arrive on a *later* cycle, so re-check on each `GetLudeo` callback **and** drive a per-frame poll from `Update` (the forced-launch re-fire is a workaround, not a contract — don't depend on it re-firing). Cap with a **timeout** (e.g. 15 s).
-- **Three stop conditions.** (1) **populated** reader → apply once, then `Begin`. (2) `GetLudeo` `resultCode != Success` → **hard fetch failure: stop immediately, do not retry.** (3) **timeout still empty** → treat as an invalid/empty Ludeo: **abort — do NOT `Begin` a scored replay on nothing**; run `EndCurrentLudeo` and surface the failure (in forced-launch production, fall back to the normal menu).
-- **Dispatch once.** Repeated `LudeoSelected` must not re-open the room / re-add the player on every fire — guard `OpenRoom` and the handler so they run once per selected Ludeo.
+- **Three stop conditions — all of them before the commit (§2.1 step 2).** (1) **populated** reader whose entry identity this integration can play → commit and restore. (2) `GetLudeo` `resultCode != Success` → **hard fetch failure: ignore the selection, do not retry.** (3) **timeout still empty** → treat as an invalid/empty Ludeo and **ignore the selection — do NOT `Begin` a scored replay on nothing.** Because validation happens before anything is torn down, an ignored selection leaves the running session (or the menu) exactly as it was; surface the failure in the log (in forced-launch production, the normal menu simply stays up).
+- **Dispatch once.** Repeated `LudeoSelected` for the same id must not restart validation, re-open the room or re-add the player — guard the handler and `OpenRoom` so they run once per selected Ludeo.
 
 > ⚠️ **`objectsCount == 0` fails silently.** The two-pass loop iterates the reader's objects (§3) — an empty reader makes it a clean **zero-spawn no-op**, so the apply "succeeds," `Begin` runs, and the player is left at the game's **default new-game spawn** with none of the captured state. This has the *same* "0 objects restored" symptom as "restored into a menu" (§2.3, mistake #12) but a *different* root cause — distinguish them via `11-TROUBLESHOOTING`. The `resultCode == Success` check alone will not catch it.
 
@@ -238,10 +261,10 @@ This is the most-missed part of restoration, and skipping it produces a game tha
 
 Three consequences that decide whether restoration actually works:
 
-- **The post-restore resume goes through the gameplay-session-start chain — not `ResumeGameRequest`.** After restoration the game sits paused with the **room already open and the player already added** (both happened in the `LudeoSelected` handler, §2.2). The **overlay shows the Play button**, and pressing it makes the platform release **`RoomReady`** — the *only* part of the `OpenRoom → AddPlayer → RoomReady → Begin` chain (documented in `05-LIFECYCLE-MANAGEMENT.md` §6.11) that is Play-gated; the rest already ran. On `RoomReady`, **unpause → apply → `TryBeginGameplaySession()`**; `Begin` fires only because **both** gates are now true (`player_added` from the handler + `room_ready` from Play — `05 §6.6`). Do **not** invent a game-side "press to begin" prompt, do **not** wait on `PlayerReady` (it does not exist in this SDK — GameplaySession exposes only `Begin`/`End`), and do **not** wait on `ResumeGameRequest` (that's the mid-play overlay-closed resume, not the post-restore one).
-- **"Pause" must freeze the simulation (CR-010).** This applies right after a Ludeo loads — the game sits **paused, simulation frozen, while the overlay waits for the player to press Play** — and any time `PauseGameRequest` arrives during playback (the player reopens the overlay). If your pause only blocks input, physics/AI/scripts keep mutating the world — and that is one of the ways a freshly restored snapshot gets overwritten (see §9). Pause = freeze the tick, not just input.
+- **The post-restore resume goes through the gameplay-session-start chain — not `ResumeGameRequest`.** After restoration the game sits **frozen on the finished, settled moment** with the **room open and the player added** (§2.1 steps 5–7). The **overlay shows the Play button**, and pressing it makes the platform release **`RoomReady`** — the *only* part of the `OpenRoom → AddPlayer → RoomReady → Begin` chain (documented in `05-LIFECYCLE-MANAGEMENT.md` §6.11) that is Play-gated. On `RoomReady`, **`TryBeginGameplaySession()` → `Begin` → unfreeze** — the apply already ran; nothing is loaded or written after Play. `Begin` fires only when `player_added`, `room_ready` and `applied` are all true (`05 §6.6`). Do **not** invent a game-side "press to begin" prompt, do **not** wait on `PlayerReady` (it does not exist in this SDK — GameplaySession exposes only `Begin`/`End`), and do **not** wait on `ResumeGameRequest` (that's the mid-play overlay-closed resume, not the post-restore one).
+- **"Pause" must freeze the simulation (CR-010).** This applies while the restored moment waits behind the overlay for Play — the game sits **frozen on the finished moment** — and any time `PauseGameRequest` arrives during playback (the player reopens the overlay). If your pause only blocks input, physics/AI/scripts keep mutating the world — and that is one of the ways a freshly restored snapshot gets overwritten (see §9). Pause = freeze the tick, not just input.
 - **Ending a playback session is split by *who* ends it (`05 §6.11`).** When the **backend** ends the Ludeo — timer hits 0, objective met/failed, or any backend-decided reason — it sends **`PauseGameRequest`** and the game just **pauses (freezes the sim) and waits**. The game does **not** detect end-of-moment, does **not** call `End`, and does **not** submit — the backend owns submission, and `PauseGameRequest` is the universal end-of-moment cue (there is no game-facing "moment ended" callback). The game calls `ludeo_GameplaySession_End` itself **only on a game-initiated interrupt** — another `LudeoSelected` mid-play, `BackToMenuRequest`, or the player quitting — and then with **`isAbort = true`**, followed by `RemovePlayer → CloseRoom`.
-  - **Because the backend-ends path sets `m_freeze_overlay` (via `PauseGameRequest`) and may never send a matching `ResumeGameRequest`,** that bit can be left dirty when the *next* `LudeoSelected` arrives — and a stale `m_freeze_overlay` keeps the next restored Ludeo frozen even after `RoomReady` clears the restore bit, presenting as **dead input**. Reset the pause bits in `EndCurrentLudeo()` *and* at the start of the next `LudeoSelected` handler. See [CR-011](00-CRITICAL-REQUIREMENTS.md) "bits must start clean" and [11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §8.
+  - **Because the backend-ends path sets `m_freeze_overlay` (via `PauseGameRequest`) and may never send a matching `ResumeGameRequest`,** that bit can be left dirty when the *next* `LudeoSelected` arrives — and a stale `m_freeze_overlay` keeps the next restored Ludeo frozen even after `RoomReady` clears the restore bit, presenting as **dead input**. Reset the pause bits in `EndCurrentLudeo()` *and* at the commit of the next validated selection (§2.1 step 3). See [CR-011](00-CRITICAL-REQUIREMENTS.md) "bits must start clean" and [11-TROUBLESHOOTING.md](11-TROUBLESHOOTING.md) §8.
 
 These notifications are **session-lifetime** (register once at session creation, not per-Ludeo), and they apply to the whole Ludeo experience, not just the moment of restoration.
 
@@ -445,17 +468,18 @@ runtime.
 
 ## 7. Wait-For-Player Flow
 
-> 🔴 **CR-010 — non-negotiable:** `LudeoSelected` fires → **`SetRestoring(true)` FIRST** (arms §9.11 pre-match skips) → **FREEZE the sim now** (sim tick frozen, not just input; may already be frozen at the menu) → tear down if a run is live → **dispatch `GetLudeo(ludeoId)` + `OpenRoom(ludeoId)`** (the level is NOT loaded yet — read-then-load). On `RoomReady` (Play), the apply fires once: **unpause → read entry identity → load level → apply state → `Begin`**, in that order — the apply needs the game ticking so movement/physics/AI can settle before `Begin` starts recording. There is no `PlayerReady`. `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one (§2.4).
+> 🔴 **CR-010 — non-negotiable:** `LudeoSelected` → **validate with `GetLudeo`** (read-only; a bad selection is ignored) → **commit:** `SetRestoring(true)`, tear down if a run is live, restoration hold on → **reach active gameplay** on the captured level → **freeze → apply → settle (~0.5 s, input off) → freeze** → **`OpenRoom(ludeoId)` → `AddPlayer`** → wait. On `RoomReady` — the viewer pressing Play — **`Begin` → unfreeze**. Nothing is loaded or written after Play. There is no `PlayerReady`. `ResumeGameRequest` is the **mid-play** overlay-closed resume, not this one (§2.4).
 
-The freeze set at `LudeoSelected` (§2.1 / §2.2) is what makes the wait safe. Two roles:
+The hold and the freezes (§2.1 / §2.2) are what make the wait safe. Two roles:
 
-1. **Holds the game still through the whole wait** — from `LudeoSelected` through the `GetLudeo`/room/Play window nothing ticks; and inside the apply the level load + snapshot run back-to-back while unpaused, so default-init never gets a free frame to outlive the snapshot. Without the freeze the menu/attract (or an interrupted run) keeps ticking, and the "Ludeo loaded but state is wrong" failures originate in that drift.
-2. **UX** — the player picked a Ludeo from the overlay and doesn't expect gameplay to start until they press Play; the overlay's Play button is the explicit handoff. Before Play the screen is the frozen menu / hold screen; the restored world appears *on* Play, when the level loads.
+1. **Protect the snapshot** — the apply runs frozen so default-init, AI, physics and start-of-run logic can't overwrite values as they land; the settle gives teleports and spawns the real frames they need with input still off; the second freeze then holds the finished moment exactly as built until `Begin`. Without them, the "Ludeo loaded but state is wrong" failures originate in that drift.
+2. **UX** — the viewer picked a Ludeo and sees **that moment**, frozen, behind the overlay; the Play button is the explicit handoff, and pressing it resumes the moment instantly — no load, no assembly on screen.
 
 ### 7.1 Implementation notes
 
 - **Freeze the simulation tick, not just input.** Otherwise physics/AI/scripts drift during the wait and over the apply that follows. Reuse the game's pause system; build a minimal tick-freeze if none (common in Group 3).
-- **Unpause BEFORE the apply (in the `RoomReady` callback), not after.** A teleport / setHealth / spawn issued against a paused world doesn't propagate — components need a tick to react. Order: `unpause → apply → TryBeginGameplaySession`. See §2.1 / §2.2.
+- **Apply frozen, then settle, then freeze again — all before `OpenRoom`.** Some writes (a teleport, a character controller, a pooled spawn, a deferred property — §6) need real frames to take; the settle gives them ~0.5 s of time with input still suppressed. If a write still doesn't take, it belongs in the deferred queue (§6), not in an unpause before the apply. See §2.1 / §2.2.
+- **Unfreeze only after `Begin`, on `RoomReady`.** Unfreezing earlier gives the sim live frames before recording starts; unfreezing later leaves the viewer pressing Play on a still image.
 - **The overlay shows Play — don't build your own prompt.** Resume is `RoomReady → Begin`; do not wait on `PlayerReady` (it doesn't exist in this SDK) or on `ResumeGameRequest` (mid-play only, §2.4).
 
 ---
@@ -541,16 +565,15 @@ Document the exclusion list in `RESTORATION_PLAN.md` so the rationale isn't lost
     countdown, slow-mo, fly-in camera, default-spawn teleport, respawn-on-load
     logic, level-start scripted events. Any of these that touch position, state,
     or camera **after** the apply overwrites the restored snapshot. The signature
-    failure: "first frame after Play is the level-start cinematic / default spawn,
+    failure: "the moment behind the overlay is the level-start cinematic / default spawn,
     not the captured mid-level moment." For playback: **identify every such
     mechanism during planning (`phase 5 · task 2` Step 3) and gate it on `IsRestoring()` (or
     equivalent) in `phase 5 · task 3`** — skip the cutscene, suppress the default-spawn teleport,
-    short-circuit the countdown. **Set `IsRestoring(true)` FIRST (at `LudeoSelected`)
-    and freeze the sim then too**; the level loads later, *inside* the apply (after Play),
-    and the start-of-match skips fire during that load while `IsRestoring` is still set —
-    so they silently no-op. `IsRestoring` is cleared only at the end of the apply, after the
-    snapshot lands. The Ludeo must start *exactly* at the captured state on the first visible
-    frame — which is the first frame *after Play*, once the level has loaded and the snapshot applied.
+    short-circuit the countdown. **Set `IsRestoring(true)` at the commit (§2.1 step 3), before
+    the level load**; the start-of-match skips fire during that load while `IsRestoring` is set —
+    so they silently no-op. `IsRestoring` is cleared only after the apply and the settle. The
+    Ludeo must show *exactly* the captured state on the first visible frame — the frozen moment
+    behind the overlay, before Play — and Play must resume it without anything firing in between.
     This is the **state-clobbering** category: mechanisms that overwrite restored values, so the Ludeo
     loads at the *wrong* state. A second, distinct category is **flow-blocking** UI: gates that stall
     progression to the playable frame **without** touching state — "press start"/"press any key"/"click

@@ -60,7 +60,7 @@ to call `ludeo-mcp` tools.
 | 4 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
 | 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
 | 5 · task 2 | `references/5c-plan-state-restoration.md` | Plan the two-pass restoration flow (inverse of tracking) → `RESTORATION_PLAN.md` |
-| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler, freeze (CR-010), `GetLudeo`+`OpenRoom` race, single-fire apply gate, `RoomReady → Begin` resume, overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
+| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler that validates via `GetLudeo` before disturbing anything, then builds the moment before Play (CR-010): reach active gameplay → apply held → settle → `OpenRoom(ludeoId)`; `RoomReady` (the Play click) → `Begin` → unfreeze; overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the data half (inverse of `phase 5 · task 1`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |

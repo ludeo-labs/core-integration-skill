@@ -283,7 +283,7 @@ Unpause function:
 
 **If yes, where is it implemented?**  
 
-**Where would we hook `OnRoomReadyCallback`?** (It serves dual duty: gameplay-session-start for tracking, and the **post-Ludeo-load resume** — the overlay's Play button arrives as `RoomReady` → `Begin`. There is no `PlayerReady`; `ResumeGameRequest` is the mid-play overlay-closed resume only.)  
+**Where would we hook `OnRoomReadyCallback`?** (It serves dual duty: gameplay-session-start for tracking, and the **resume on Play** — the overlay's Play button arrives as `RoomReady` → `Begin` → unfreeze; the restored moment is already built by then. There is no `PlayerReady`; `ResumeGameRequest` is the mid-play overlay-closed resume only.)  
 
 ---
 

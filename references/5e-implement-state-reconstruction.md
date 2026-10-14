@@ -102,21 +102,21 @@ Inverse of `phase 5 · task 1` Step 6 (batch registration). For each pre-existin
 
 ### Step 7: Reconstruction smoke test — re-run `--ludeo=<id>` and verify state (REQUIRED gate)
 
-This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 already proved the flow boots the correct level, freezes before Play, resumes via `RoomReady → Begin`, and pauses under the overlay — with the apply stubbed. Now the stub is filled, so **re-run the same launch-arg flow** (reuse `phase 5 · task 3`'s trigger — `--ludeo=<id>` / `ludeo.ini`) and verify **state is correctly reconstructed**. Do not declare phase 5 · task 4 done by inspection — actually run it.
+This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 already proved the flow validates the selection, boots the correct level, holds it frozen behind the overlay before Play, and resumes via `RoomReady → Begin` — with the apply stubbed. Now the stub is filled, so **re-run the same launch-arg flow** (reuse `phase 5 · task 3`'s trigger — `--ludeo=<id>` / `ludeo.ini`) and verify **state is correctly reconstructed**. Do not declare phase 5 · task 4 done by inspection — actually run it.
 
-1. **Launch with the arg from a cold start, press Play** — same as `phase 5 · task 3` Step 6, steps 1–3. The level boots; now the real `RestoreTwoPass`/`RestoreEnvironment` run inside the apply.
-2. **Verify two-pass restoration completes with non-zero counts.** In the post-Play log, Pass 1 spawn count + Pass 2 apply count + deferred-queue-drained count match the plan (**non-zero**). A **zero** count is the bug, not a pass — two distinct causes with the same symptom:
+1. **Launch with the arg from a cold start** — same as `phase 5 · task 3` Step 6, steps 1–3. The level boots and the real `RestoreTwoPass`/`RestoreEnvironment` now run in the held apply, **before** the room opens and before Play.
+2. **Verify two-pass restoration completes with non-zero counts.** In the pre-Play log (the apply runs before `OpenRoom`), Pass 1 spawn count + Pass 2 apply count + deferred-queue-drained count match the plan (**non-zero**). A **zero** count is the bug, not a pass — two distinct causes with the same symptom:
    - (a) the apply ran against a **menu / empty game** (level load skipped or routed to the menu — `07 §2`, mistake #12) — this is a **flow** bug, go back to `phase 5 · task 3` Step 4;
-   - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — also **flow**, go back to `phase 5 · task 3` Step 2.
+   - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — validation should have ignored that selection, so this is a **flow** bug: go back to `phase 5 · task 3` Step 2.
    Log `GetObjectsInfo`'s `objectsCount` to tell them apart. If counts are non-zero but *wrong*, that's a reconstruction bug — stay here.
 3. **No `Expected type` lines** (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`). A mismatch means the getter type doesn't match the `phase 5 · task 1` setter type for that attribute — fix the getter, not the capture (unless `phase 5 · task 1` is genuinely wrong).
 4. **Confirm a cross-entity reference restored correctly** (two-pass exercised) — the resolved target is the right live instance, no fail-loud `id_map` miss.
 5. **Restore a second Ludeo back-to-back without quitting** — trigger restore again (another `--ludeo=<id>` / re-inject) in the same process and confirm the **second** Ludeo's state reconstructs fully. Freshly-spawned entities appearing at their spawn defaults (frozen, un-applied) on the **second** replay but not the first is the dropped-init-callback signature (`07 §3.1`, §9.14): the apply was hung on the entity's own init callback, which the engine skipped for entities created during the second level boot. The fix is to apply from the Pass-2 driver loop (Step 4), not to re-add an entity-side apply channel. *(Re-entry teardown itself is `phase 5 · task 3`'s; here you're verifying the **apply** survives a second restore.)*
-6. **Hand off to the player to confirm the post-Play first frame.** Tell the user:
-   > "After pressing **Play**, confirm:
-   > - The **first visible frame** is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a fade-in (07 §9.11). (The level loads *on* Play, so a brief load is expected before this frame.)
+6. **Hand off to the player to confirm the moment before and after Play.** Tell the user:
+   > "**Before** pressing **Play**, confirm the frozen frame behind the overlay is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a loading cover (07 §9.11). Then press **Play** and confirm:
+   > - The game resumes **instantly** from that frame — no load, no snap.
    > - The restored state survives a few seconds of play (no respawn / teleport / scripted reset clobbers it).
-   > - Gameplay proceeds normally without snap-back or drift."
+   > - Gameplay proceeds normally without drift."
 
 Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
 

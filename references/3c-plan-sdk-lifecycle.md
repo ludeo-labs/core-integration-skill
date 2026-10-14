@@ -94,7 +94,7 @@ All files are read from and written to the `ludeo-integration-plan/` folder in t
 
 **🔔 Session-lifetime notifications the plan MUST cover** (registered once at session creation; see `05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications"):
 - `LudeoSelected` — register + stub handler (full restoration logic lands in `phase 5 · task 3`–`phase 5 · task 4`)
-- `RoomReady` — full handler (gameplay-session-start gate; also post-Ludeo-load resume per CR-010)
+- `RoomReady` — full handler (gameplay-session-start gate; during playback, the viewer's Play click — Begin then unfreezes, CR-010)
 - `PauseGameRequest` — full handler: **freeze the simulation tick** (CR-011 — game must pause while the overlay is up)
 - `ResumeGameRequest` — full handler: unfreeze the sim (CR-011)
 - `BackToMenuRequest` — full handler: tear down current Ludeo gameplay session + room, navigate to main menu

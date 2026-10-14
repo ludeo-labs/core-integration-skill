@@ -147,7 +147,7 @@ After session creation and **before** session activation, the LudeoManager **mus
 | Notification | Required? | If missing, the symptom is… |
 |---|---|---|
 | `ludeo_Session_AddNotifyLudeoSelected` | ✅ | Player picks a Ludeo and nothing happens — no restoration entry. |
-| `ludeo_Session_AddNotifyRoomReady` | ✅ | `GameplaySession_Begin` never fires; tracking never starts; post-Ludeo-load playback never resumes (CR-010). |
+| `ludeo_Session_AddNotifyRoomReady` | ✅ | `GameplaySession_Begin` never fires; tracking never starts; a restored Ludeo never resumes on Play (CR-010). |
 | `ludeo_Session_AddNotifyPauseGameRequest` | ✅ | **Game keeps running while the Ludeo overlay covers it — the #1 mid-play failure (CR-011).** |
 | `ludeo_Session_AddNotifyResumeGameRequest` | ✅ | Overlay closes mid-play but the game stays paused (or never paused — see above). |
 | `ludeo_Session_AddNotifyBackToMenuRequest` | ✅ | Player chooses "back to menu" from the overlay and the game stays in the Ludeo. |

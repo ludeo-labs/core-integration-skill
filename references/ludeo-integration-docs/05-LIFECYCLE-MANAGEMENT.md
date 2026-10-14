@@ -129,7 +129,7 @@ Register for notifications **after session creation, before** activating the ses
 | Notification | Required? | Triggers / Purpose |
 |---|---|---|
 | `ludeo_Session_AddNotifyLudeoSelected` | ✅ | Player picked a Ludeo from the overlay — entry into the restoration flow (`07-RESTORATION-PATTERNS.md` §2). |
-| `ludeo_Session_AddNotifyRoomReady` | ✅ | Gameplay-session-start gate (§6.5) — and the post-Ludeo-load resume signal during playback (CR-010). |
+| `ludeo_Session_AddNotifyRoomReady` | ✅ | Gameplay-session-start gate (§6.5) — and, during playback, the viewer's Play click (CR-010). |
 | `ludeo_Session_AddNotifyPauseGameRequest` | ✅ | Ludeo overlay opened during playback — **game MUST pause (freeze the sim, not just input)** (CR-011). |
 | `ludeo_Session_AddNotifyResumeGameRequest` | ✅ | Ludeo overlay closed during playback — game resumes (CR-011). |
 | `ludeo_Session_AddNotifyBackToMenuRequest` | ✅ | Player chose "back to menu" from the overlay — tear down the current Ludeo gameplay session + room and navigate to menu. |
@@ -145,7 +145,7 @@ void RegisterNotifications()
     ludeo_Session_AddNotifyLudeoSelected(
         session_handle, &selectedParams, callback_data, OnLudeoSelectedCallback);
 
-    // RoomReady — gameplay-session-start gate (§6.5); also the post-Ludeo-load resume (CR-010)
+    // RoomReady — gameplay-session-start gate (§6.5); during playback, the viewer's Play click (CR-010)
     auto roomReadyParams = Ludeo::create<LudeoSessionAddNotifyRoomReadyParams>();
     ludeo_Session_AddNotifyRoomReady(
         session_handle, &roomReadyParams, nullptr, OnRoomReadyCallback);
@@ -173,12 +173,12 @@ void RegisterNotifications()
 
 **Handler responsibilities** (the contract — engine-specific implementations vary):
 - `OnLudeoSelectedCallback` — marshal off the SDK thread; continue per `07-RESTORATION-PATTERNS.md` §2.
-- `OnRoomReadyCallback` — `TryBeginGameplaySession()` + unpause. Dual role: gameplay-session-start gate (tracking) AND post-Ludeo-load resume (playback, §6.5).
+- `OnRoomReadyCallback` — `TryBeginGameplaySession()`. Dual role: gameplay-session-start gate (tracking) AND, during playback, the viewer's Play click — `Begin` then unfreezes the already-restored moment (§6.11, CR-010).
 - `OnPauseGameRequestCallback` — **freeze the simulation tick** (not just input). Reuse the game's pause; build a minimal tick-freeze if none. Freezing does not stop the objective timer: in phase 6 this path also reports `PauseLudeo` via the pause primitive (CR-011, `06 §7.3`).
 - `OnResumeGameRequestCallback` — unfreeze the sim (and, from phase 6, report `ResumeLudeo`).
 - `OnBackToMenuRequestCallback` — tear down the current Ludeo gameplay session + room (SDK Session stays alive); navigate to main menu.
 
-→ See `07-RESTORATION-PATTERNS.md` §2.4 for the overlay-control flow in the restoration context, **CR-010** (post-Ludeo-load pause), and **CR-011** (mid-play overlay pause).
+→ See `07-RESTORATION-PATTERNS.md` §2.4 for the overlay-control flow in the restoration context, **CR-010** (the restored moment held frozen until Play), and **CR-011** (mid-play overlay pause).
 
 ### Integration Point: Game Startup
 
@@ -493,7 +493,7 @@ void OnPlayerAddedCallback(const LudeoRoomAddPlayerCallbackParams* data)
 
 **CRITICAL:** Must wait for **Room Ready** notification before beginning gameplay. Confirms all players added successfully. **Must register upon session creation** (Section 4), before any room is opened.
 
-> **Dual role — also the post-Ludeo-load resume:** This same `OnRoomReadyCallback` is what unpauses the game during **Ludeo playback**. On the playback path the room is opened (with the Ludeo's `ludeoId`, §6.2) and the player added **during the `LudeoSelected` handler**, before the game pauses — so by the time the overlay shows Play, `player_added` is already true and only `room_ready` is pending. The platform **withholds `RoomReady` until the player presses Play**; when it fires, **`OnRoomReadyCallback` unpauses, applies state, then calls `TryBeginGameplaySession()`** — which begins only because **both** gates (`player_added` from the handler + `room_ready` from Play) are now satisfied. The SDK does **not** open the room or add the player on the Play press — that already happened (§6.11). The restoration phases (`phase 5 · task 2`, `phase 5 · task 3`, [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §7, [CR-010](./00-CRITICAL-REQUIREMENTS.md)) **reuse** this callback as the post-restore resume — they do not introduce a separate one. (`ResumeGameRequest` is a *different* notification, used only for mid-play overlay open/close.)
+> **Dual role — also the Play click during playback:** This same `OnRoomReadyCallback` is what resumes the game during **Ludeo playback**. On the playback path the room is opened (with the Ludeo's `ludeoId`, §6.2) and the player added **after** the restored moment has been built, applied and settled — so by the time the overlay shows Play, the captured moment is on screen, frozen, and only `room_ready` is pending. The platform **withholds `RoomReady` until the viewer presses Play**; when it fires, **`OnRoomReadyCallback` calls `TryBeginGameplaySession()`**, which issues `Begin` and then unfreezes — nothing is loaded or applied after Play. The SDK does **not** open the room or add the player on the Play press — that already happened (§6.11). The restoration phases (`phase 5 · task 2`, `phase 5 · task 3`, [07-RESTORATION-PATTERNS.md](./07-RESTORATION-PATTERNS.md) §7, [CR-010](./00-CRITICAL-REQUIREMENTS.md)) **reuse** this callback as the post-restore resume — they do not introduce a separate one. (`ResumeGameRequest` is a *different* notification, used only for mid-play overlay open/close.)
 
 ```cpp
 // 🎮 GAME CODE: Register during session creation (Section 4)
@@ -677,11 +677,11 @@ void OnLevelEnd(bool playerQuit)
 
 Everything in §6.1–§6.10 describes a gameplay session that **records** (Creator Flow). A session that **replays a selected Ludeo** (Player Flow) uses the **same** `OpenRoom → AddPlayer → RoomReady → Begin` chain and the **same** `TryBeginGameplaySession()` two-gate (§6.6) — `Begin` fires only when **both** `player_added` **and** `room_ready` are true. Only two things differ, and getting either wrong yields a Ludeo that **restores correctly but whose rerun fails** — the most common shape of "reconstructs fine, rerun broken."
 
-**1. The room is opened with the Ludeo's `ludeoId` — dispatched directly in the `LudeoSelected` handler, not on Play and not off a level-load hook.**
-By the time the overlay shows **Play**, the room is **already open and the player already added**. The flow is synchronous **read-then-load** ([07 §2](./07-RESTORATION-PATTERNS.md)): the handler freezes the sim and dispatches `GetLudeo(ludeoId)` (caches the reader) and `OpenRoom(ludeoId)` together — **the level does not load until the apply**, so `OpenRoom` is called **directly here**, *not* hung off the "OpenRoom when level-load starts" path (§6.2) that Creator Flow uses. It **must carry the selected `ludeoId`**. That drives `OnRoomOpened → AddPlayer → OnPlayerAdded`, so `player_added` becomes true and `TryBeginGameplaySession()` runs — but it **waits**, because `room_ready` is still false (see below). `ludeoId = nullptr` on this call turns the entire rerun into a Creator-flow recording instead of a scored replay (§6.2).
+**1. The room is opened with the Ludeo's `ludeoId` — after the restored moment is built, not at `LudeoSelected` and not on Play.**
+The flow ([07 §2.1](./07-RESTORATION-PATTERNS.md)) is: `LudeoSelected` → `GetLudeo` validates the selection (read-only) → commit → reach active gameplay on the captured level → freeze → apply → settle → freeze → **`OpenRoom(ludeoId)`**. So `OpenRoom` is called **directly by the restore flow** once the moment is settled, *not* hung off the "OpenRoom when level-load starts" path (§6.2) that Creator Flow uses. It **must carry the selected `ludeoId`**. That drives `OnRoomOpened → AddPlayer → OnPlayerAdded`, so `player_added` becomes true and `TryBeginGameplaySession()` runs — but it **waits**, because `room_ready` is still false (see below). `ludeoId = nullptr` on this call turns the entire rerun into a Creator-flow recording instead of a scored replay (§6.2).
 
-**2. `RoomReady` is the Play-gated resume; `Begin` still needs both gates.**
-On the playback path the platform **withholds `RoomReady` until the player presses Play**. When it fires, `room_ready` becomes true; the apply (gated on reader-cached **and** `room_ready`, fired once on the last to arrive) does **unpause → read the entry identity from the reader → load that level / boot the run → apply state (two-pass + environment) → `TryBeginGameplaySession()`**, which issues `ludeo_GameplaySession_Begin` once **both** `player_added` **and** `room_ready` are satisfied. In the typical playback timeline `player_added` is already set (the handler ran `AddPlayer` well before Play) — but **do not hard-code that order** (§6.6): the gate is order-independent by design, and `TryBeginGameplaySession()` is also called from `OnPlayerAddedCallback`, so `Begin` still fires correctly if the flags are set in the other order. Anchor the **unpause + apply** to the `RoomReady` edge regardless. Apply runs unpaused-but-before-`Begin` so movement/physics/AI settle on the restored values and the SDK records playback from the restored state (CR-010). This is the *same* `RoomReady` callback and the *same* two-gate as tracking-start (§6.5–§6.6) — playback **reuses** it; it does **not** introduce a new resume signal. Not `PlayerReady` (doesn't exist), not `ResumeGameRequest` (mid-play overlay open/close only — [07 §2.4](./07-RESTORATION-PATTERNS.md)).
+**2. `RoomReady` is the viewer's Play click; `Begin` still needs both gates.**
+On the playback path the platform **withholds `RoomReady` until the viewer presses Play** — a long `AddPlayer → RoomReady` gap in a log is a person reading the overlay, not SDK latency. When it fires, `room_ready` becomes true and `TryBeginGameplaySession()` issues `ludeo_GameplaySession_Begin` once `player_added` **and** `room_ready` are set (and the restore has applied), **then unfreezes**. The apply already ran before the room opened, so nothing loads or is written after Play, and the SDK records playback from the restored state (CR-010). In the typical playback timeline `player_added` is already set — but **do not hard-code that order** (§6.6): the gate is order-independent by design, and `TryBeginGameplaySession()` is also called from `OnPlayerAddedCallback`. This is the *same* `RoomReady` callback and the *same* two-gate as tracking-start (§6.5–§6.6) — playback **reuses** it; it does **not** introduce a new resume signal. Not `PlayerReady` (doesn't exist), not `ResumeGameRequest` (mid-play overlay open/close only — [07 §2.4](./07-RESTORATION-PATTERNS.md)).
 
 **3. Ending a playback session (end) — two distinct paths:**
 
