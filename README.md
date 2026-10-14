@@ -85,6 +85,7 @@ Reference material lives alongside the workflow files:
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, genre playbooks).
 - `references/ludeo-studio-mcp.md` — how the agent uses the Ludeo Studio MCP to configure Studio Lab.
 - `references/vcs/` — the version-control contract: git, Subversion and Perforce.
+- `references/migration.md` — resuming an integration started under an older version of this skill (v1.x 15-phase layout, pre-state-file v2).
 - `references/state-file-schema.md` — the integration's state file (`ludeo-integration-plan/integration.json` in your repo): it lets the agent resume an integration across sessions.
 - `references/know-your-game.md` — the kickoff questions the agent asks your team in phase 1.
 - `config/mcp_config.template.json` — the optional MCP servers (`sdk-docs`, `ludeo-mcp`).

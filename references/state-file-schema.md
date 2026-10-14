@@ -129,46 +129,9 @@ file records **where you are, what was decided, and what the user told you**, an
 
 ## Migrating — an integration that started before this file existed
 
-Infer each step's status from evidence in the game's repo, show the user the result, and let them correct it before
-resuming. Code-only steps leave no plan file, so look for the code they write:
-
-| Step | Evidence it ran |
-|------|-----------------|
-| `1` | the SDK under the project, the `LUDEO_SDK_ENABLED` build option, a stub `LudeoConfig.h` |
-| `2` | `ludeo-integration-plan/CODE_MAP.json` |
-| `3a` | `SDK_INTEGRATION_POINTS.json` |
-| `3b` | `TDD_<Game>.md` |
-| `3c` | `SDK_LIFECYCLE_PLAN_<Game>.md` |
-| `3d` | `LudeoManager.h/.cpp`, `LudeoConfig.cpp`, `ludeo.ini`, the hooks in game code |
-| `3e` | a clean build with the SDK on (ask, or build it) |
-| `3f` | `GAME_ANALYSIS_SAVE_SYSTEM.md`, `CODE_MAP.json → save_system.group` |
-| `4` | `OBJECT_TRACKING.md` with `## Object Type Census` + `## Wave Rollout` (approved) — an older plan without them predates waves: treat it as one wave and offer to run phase 4 Part A |
-| `5a` | `## Entity: … (wave: N)` blocks for the current wave |
-| `5b` | `LudeoStateAdapter`, `LudeoCaptureMacros.h`, `LUDEO_CAPTURE_*` calls in game code |
-| `5c` | `RESTORATION_PLAN.md` (approved) |
-| `5d` | a `LudeoSelected` handler, `ApplyHeld`, `EndCurrentLudeo` |
-| `5e` | real (non-stub) `RestoreTwoPass` / `RestoreEnvironment` bodies |
-| `6a` | `GAME_ACTIONS_MAP.md` |
-| `6b` | `SendAction` / `LUDEO_ACTION` calls in game code |
-| `7` | nothing local — ask whether a build was uploaded, and its build id |
-| `8` | a `## Phase 8: Polish & Expansion` section in `TDD_<Game>.md` (completed); waves past the original plan in `## Wave Rollout` (in progress) |
-
-A step whose code exists but whose gate (rebuild + run) can't be confirmed is `in_progress`, not `completed`.
-
-**Folding `LUDEO_PLATFORM.md` into `ludeoPlatform`** — map values exactly; never guess a boolean:
-
-| Old | New |
-|-----|-----|
-| `Studio MCP server:` line | `mcpServer` |
-| `Game ID:` line | `gameId` |
-| `progress reporting disclosed: yes / no` | `progressReportingDisclosed: true / false` |
-| table `Default?` `yes` / `no` / `?` | `isDefault: true / false / null` |
-| table `Dialog value` `?` | `dialogValue: null` (any other value copied as is) |
-| `Integrator is member?` `yes` / `no` / `?` | `integratorIsMember: true / false / null` |
-| `Steam branch` `(default)` / empty | `steamBranch: ""` / `null` |
-
-A `?` that becomes `false` would look like a confirmed answer and unlock Studio Lab writes that need a confirmed
-default environment — keep it `null`.
+Follow [`migration.md`](migration.md): detect the layout (v1.x 15-phase, or v2 before the state file), map it to the
+current steps, infer each step's status from evidence, re-check the work older versions built to rules that have since
+changed, fold `LUDEO_PLATFORM.md` into `ludeoPlatform`, and add any field a state file is missing.
 
 ## Rules
 

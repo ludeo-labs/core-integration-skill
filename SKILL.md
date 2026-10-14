@@ -196,6 +196,7 @@ learnings to the orchestrator, which writes them.
 - `references/learning-sanitization.md` — how to write a learning without leaking client IP (pattern, not payload);
   the pre-save checklist. `config/learning-policy.json` holds the codename allowlist.
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
+- `references/migration.md` — resuming an integration started under an older version of this skill.
 - `references/vcs/` — the VCS contract (`README.md`) and its git / SVN / Perforce implementations.
 - `references/state-file-schema.md` — `ludeo-integration-plan/integration.json`: where the integration is, what
   was decided, the intake answers, the Ludeo platform record. Read it at the start of every session.
@@ -238,12 +239,12 @@ load `references/vcs/<vcs.type>.md` before writing anything.
   so, and offer another phase-8 pass (set `steps.8` back to `in_progress`) only if the user wants to widen further. Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
-  `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state
-  file existed. Create the state file, infer each step's status from its evidence (the table in
-  `references/state-file-schema.md` → **Migrating**), fold `LUDEO_PLATFORM.md` into `ludeoPlatform` with the value
-  mapping given there (then delete it), show the user the inferred status and confirm it
-  before resuming. Run the intake (`references/know-your-game.md`) if `intake` is empty — its answers gate later
-  steps.
+  `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started under an older
+  version of this skill (the v1.x 15-phase layout, or v2 before the state file). Follow `references/migration.md`:
+  map it to the current steps, infer each step's status from evidence, re-open the work older versions built
+  differently (the pre-CR-010 restore flow, per-area non-ludeoable actions, …), create the state file, and show the
+  user the inferred status and the re-check list before resuming. A state file missing newer fields (`vcs`, `wave`,
+  `steps.8`) is completed the same way.
 - **Neither** → a new integration: read `references/1-build-game-with-sdk.md` and follow it.
 
 Never re-run a `completed` step unless the user asks; if they do, set it back to `in_progress` first. The exception is
