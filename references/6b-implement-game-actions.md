@@ -180,3 +180,6 @@ The agent reads build/run logs where they exist but **cannot truly verify** a cl
 on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
 that's their call. **Do not offer to advance until the user confirms both** (or explicitly skips). Also
 review any skipped low-confidence actions manually before moving on.
+
+Once they confirm, the integration work is done. Run `phase 7` (`7-upload-build.md`) to verify the
+Release build and publish it to the Ludeo platform.

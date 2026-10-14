@@ -31,14 +31,15 @@ Activate this skill when the user says any of:
 
 ## Workflow
 
-The integration runs as six sequential phases, numbered the same way as the Unity and Unreal skills
+The integration runs as seven sequential phases, numbered the same way as the Unity and Unreal skills
 so that a phase number means the same thing in every engine. Phases 3, 5 and 6 are each made of
 numbered tasks, run in order.
 
 The order is **1** build with the SDK → **2** map the code → **3** SDK lifecycle → **4** map objects
-→ **5** tracking & restore → **6** actions. Phases 1–5 build the **capture** side and then turn a
-capture into a playable Ludeo; **actions come last**, once the player flow is proven, because an
-action that fires into a flow you cannot yet replay cannot be verified.
+→ **5** tracking & restore → **6** actions → **7** verify & upload. Phases 1–5 build the **capture**
+side and then turn a capture into a playable Ludeo; **actions come last** of the integration work,
+once the player flow is proven, because an action that fires into a flow you cannot yet replay cannot
+be verified. Phase 7 then gets the build onto the Ludeo platform.
 
 Always start at phase 1 unless the user explicitly says they have already completed earlier phases.
 Complete one phase at a time and confirm with the user before advancing.
@@ -60,10 +61,15 @@ Complete one phase at a time and confirm with the user before advancing.
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the data half (inverse of `phase 5 · task 1`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
+| 7 | `references/7-upload-build.md` | Verify the Release build (release guard, shipped `ludeo.ini`, self-contained launch), upload it with the `ludeo` CLI, poll to `success`, then assign it to the target environment — **upload and assign only on explicit user confirmation** |
 
 ## Important rules
 
 - **One phase at a time.** Get user confirmation before advancing to the next phase.
+- 🛑 **Never upload or assign a build without explicit user confirmation.** Phase 7 publishes to Ludeo's
+  cloud and changes what an environment serves — outward-facing and not trivially reversible. Present the
+  fully-resolved command after a clean `--dry-run` and stop; a clean dry-run is not approval, and approving
+  the upload is not approving the assignment.
 - **Every code-writing task ends with a rebuild + run gate (hard requirement).** Phase 3 · task 4,
   phase 5 · tasks 1, 3 and 4, and phase 6 · task 2 edit source, so each ends by requiring the
   integrator to (1) rebuild clean (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and
