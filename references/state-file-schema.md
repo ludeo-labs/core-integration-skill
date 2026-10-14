@@ -24,7 +24,8 @@ file records **where you are, what was decided, and what the user told you**, an
     "5b": { "status": "not_started" }, "5c": { "status": "not_started" },
     "5d": { "status": "not_started" }, "5e": { "status": "not_started" },
     "6a": { "status": "not_started" }, "6b": { "status": "not_started" },
-    "7":  { "status": "not_started" }
+    "7":  { "status": "not_started" },
+    "8":  { "status": "not_started" }
   },
 
   "wave": { "current": 1, "plan": [1, 2, 3], "green": [], "deferred": [], "reopened": null },
@@ -87,7 +88,7 @@ file records **where you are, what was decided, and what the user told you**, an
 - **`branch`** — the integration branch (phase 1 Step 0a). The state file lives on it; a session that starts on another
   branch finds the integration through this name.
 - **`current`** — set when a step starts; the file id of the step in progress or last completed: `1`, `2`, `3a`–`3f`, `4`, `5a`–`5e`,
-  `6a`, `6b`, `7` (the prefix of the phase file in `references/`). Steps run in `SKILL.md`'s table order.
+  `6a`, `6b`, `7`, `8` (the prefix of the phase file in `references/`). Steps run in `SKILL.md`'s table order.
 - **`steps.<id>.status`** — `not_started` · `in_progress` (set when the step's work begins) · `completed` (set only
   after the step's exit gate passed — rebuild + run where the step edits source) · `skipped` (the user explicitly
   skipped it; record why in `decisions`; resume treats it like `completed`). **`steps.<id>.note`** — free text: where
@@ -100,7 +101,10 @@ file records **where you are, what was decided, and what the user told you**, an
   `not_started` (`5d` runs once, in wave 1). After the last wave, leave the statuses `completed`. **Phase 5 is done
   only when every `plan` entry is in `green` or `deferred`** — phase 6 may start after wave 1, but phase 7 may not
   start while a wave is outstanding. A guardrail re-open of an earlier wave M: set `reopened: M`, remove M from
-  `green`, record why in `decisions`, re-run its tasks, then clear `reopened` and resume `current`.
+  `green`, record why in `decisions`, re-run its tasks, then clear `reopened` and resume `current`. **Phase 8 appends waves** to `plan` and runs them the
+  same way (`5d` stays `completed`) while `current` stays `8`; `wave.current` moves to an appended wave, and
+  `5a`/`5b`/`5c`/`5e` reset, in the same write that appends it. Phase 8's re-runs of `6a`, `6b` and `7` leave those steps
+  `completed`; `steps.8.note` records which one is in progress and where.
 - **`sdk.versionLine`** — the SDK's own version line from the first SDK-enabled run (phase 1 Step 10) — the first
   thing to compare when a notification never fires (`ludeo-integration-docs/11-TROUBLESHOOTING.md` §9).
 - **`ludeoPlatform`** — everything [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) says to record. `isDefault` and
@@ -140,6 +144,7 @@ resuming. Code-only steps leave no plan file, so look for the code they write:
 | `6a` | `GAME_ACTIONS_MAP.md` |
 | `6b` | `SendAction` / `LUDEO_ACTION` calls in game code |
 | `7` | nothing local — ask whether a build was uploaded, and its build id |
+| `8` | a `## Phase 8: Polish & Expansion` section in `TDD_<Game>.md` (completed); waves past the original plan in `## Wave Rollout` (in progress) |
 
 A step whose code exists but whose gate (rebuild + run) can't be confirmed is `in_progress`, not `completed`.
 

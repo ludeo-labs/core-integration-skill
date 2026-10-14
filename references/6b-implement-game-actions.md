@@ -293,6 +293,6 @@ that's their call. **Do not offer to advance until the build passes and the user
 review any skipped low-confidence actions manually before moving on.
 
 Once they confirm, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
-actions it needs. Then hand back to `6-actions-orchestrator.md`: if phase 5 still has waves outstanding it
+actions it needs. Then hand back to `6-actions-orchestrator.md` (when `current` is `8`, back to `8-polish.md` instead): if phase 5 still has waves outstanding it
 returns there; once every wave is green or deferred, phase 7 (`7-upload-build.md`) verifies the Release build and
 publishes it.

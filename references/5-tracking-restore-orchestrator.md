@@ -155,4 +155,6 @@ Accumulated across the waves (each brief owns its own contract):
 - Briefs: `5a` (task 0), `5b` (task 1), `5c` (task 2), `5d` (task 3, once), `5e` (task 4).
 - `4-map-game-objects.md` — Part A produces the census and wave plan; Part B is the per-wave deep-scope procedure
   task 0 runs.
+- **Re-entered from phase 8** (`8-polish.md` Step 3) for appended waves — run as waves ≥ 2 (task 3 skipped); when they
+  are green, return to `8-polish.md`.
 - **Next:** `6-actions-orchestrator.md`, once wave 1 is green.
