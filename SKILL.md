@@ -60,7 +60,7 @@ to call `ludeo-mcp` tools.
 | 4 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
 | 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
 | 5 · task 2 | `references/5c-plan-state-restoration.md` | Plan the two-pass restoration flow (inverse of tracking) → `RESTORATION_PLAN.md` |
-| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler, freeze (CR-010), `GetLudeo`+`OpenRoom` race, single-fire apply gate, `RoomReady → Begin` resume, overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
+| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler that validates via `GetLudeo` before disturbing anything, then builds the moment before Play (CR-010): reach active gameplay → apply held → settle → `OpenRoom(ludeoId)`; `RoomReady` (the Play click) → `Begin` → unfreeze; overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the data half (inverse of `phase 5 · task 1`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
@@ -78,12 +78,14 @@ to call `ludeo-mcp` tools.
   but **never on Production**, and reported line by line. Gate every step on the exact tool being in your tool
   list, and fall back to asking the user when it isn't.
 - **Every code-writing task ends with a rebuild + run gate (hard requirement).** Phase 3 · task 4,
-  phase 5 · tasks 1, 3 and 4, and phase 6 · task 2 edit source, so each ends by requiring the
-  integrator to (1) rebuild clean (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and
-  (2) run the game to confirm it still works. The agent reads build/run logs where it can but cannot
-  truly verify either step — beyond the logs it relies on the integrator's word. Do not advance
-  until they confirm both (or explicitly skip). The build-and-fix loop lives in `phase 3 · task 5`;
-  the gate cites it rather than repeating it.
+  phase 5 · tasks 1, 3 and 4, and phase 6 · task 2 edit source, so each ends with (1) a clean rebuild
+  (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and (2) a run of the game to confirm it
+  still works. **The agent runs the build itself** — CMake / MSBuild / make work headless — and reads the
+  log; "the agent can't see the game" means it can't *play* it, not that it can't build it. Only the run
+  needs the integrator, and beyond the run log the agent relies on their word. If the build can't run
+  here (toolchain missing, IDE-only or license-gated build), say so and ask. Do not advance until the
+  build passes and the integrator confirms the run (or explicitly skips). The build-and-fix loop lives in
+  `phase 3 · task 5`; the gate cites it rather than repeating it.
 - **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/N-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
 - **Critical requirements** live in `references/ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`. Review them before phase 1.
 - **Track objects as attributes by default, not blobs.** The SDK supports both attribute and blob state storage/reconstruction; Ludeo strongly prefers attribute integrations. When mapping and tracking objects (phase 4 and phase 5 · task 1), capture discrete typed attributes by default and do **not** ask the user which to use. Use blob/serialized storage only when the user explicitly asks or an entity is genuinely opaque/unmappable — see `references/ludeo-integration-docs/06-TRACKING-PATTERNS.md §1.4`.

@@ -5,11 +5,11 @@
 > **Inputs:** `RESTORATION_PLAN.md`, `OBJECT_TRACKING.md`, `CODE_MAP.json`
 > **Output:** Real `LudeoStateAdapter::RestoreTwoPass` / `RestoreEnvironment`, reader-side object scope + `LUDEO_READ_*` helpers, the per-Ludeo `id_map`, the deferred-property queue, two-pass spawn + property apply + reference resolution, pre-existing reconciliation, environment restore.
 
-This phase fills the **data** half of restoration — the inverse of `phase 5 · task 1`. Where `phase 5 · task 1` created objects with `ludeo_DataWriter_CreateObject` and wrote attributes with `ludeo_DataWriter_Set*`, this command spawns them in Pass 1 and reads attributes back with `ludeo_DataReader_Get*` in Pass 2. **`phase 5 · task 3` already built when/where this runs** — the `LudeoSelected` handler, the freeze, the single-fire apply gate, and the `RestoreTwoPass`/`RestoreEnvironment` stub call site. Your job is to **fill those stub bodies** — do **not** re-wire the apply gate, the call order, or the freeze (those are `phase 5 · task 3`'s contract). Follow the propose-confirm-execute cycle.
+This phase fills the **data** half of restoration — the inverse of `phase 5 · task 1`. Where `phase 5 · task 1` created objects with `ludeo_DataWriter_CreateObject` and wrote attributes with `ludeo_DataWriter_Set*`, this command spawns them in Pass 1 and reads attributes back with `ludeo_DataReader_Get*` in Pass 2. **`phase 5 · task 3` already built when/where this runs** — the `LudeoSelected` handler and its validation, the commit, `ApplyHeld()` (frozen apply + settle), and the `RestoreTwoPass`/`RestoreEnvironment`/`ApplyDeferred` stub call sites. Your job is to **fill those stub bodies** — do **not** re-wire `ApplyHeld()`, the call order, the freezes or the settle (those are `phase 5 · task 3`'s contract). Follow the propose-confirm-execute cycle.
 
 ## The Seam from `phase 5 · task 3`
 
-`phase 5 · task 3` declared `RestoreTwoPass(reader)` and `RestoreEnvironment(reader)` as stubs and already calls them from `MaybeApplyRestore()` in the correct order — **`SetCurrent → RestoreTwoPass → RestoreEnvironment`, unpaused, after the level boot, before `Begin`**. This phase replaces the stub bodies with the real two-pass implementation. **Leave the call site, the apply gate (`m_applied`/`m_room_ready`/`m_pending_reader`), the freeze, and the entry-identity-read/level-boot exactly as `phase 5 · task 3` wrote them.** If you find yourself touching the `LudeoSelected` handler, the overlay registrations, or the wait-for-player logic, you're in `phase 5 · task 3`'s territory — stop.
+`phase 5 · task 3` declared `RestoreTwoPass(reader)`, `RestoreEnvironment(reader)` and `ApplyDeferred()` as stubs and already calls them from `ApplyHeld()` in the correct order — **`SetCurrent → RestoreTwoPass → RestoreEnvironment` while frozen, after the game's native spawn is done; then the ~0.5 s settle, whose first tick calls `ApplyDeferred()`; then a second freeze, `m_applied = true` and `OpenRoom` — all before Play**. This phase replaces the stub bodies with the real implementation. **Leave `ApplyHeld()`, the settle, the freezes, `m_applied` / the `OpenRoom` sequencing, and the validation / entry-identity read / level boot exactly as `phase 5 · task 3` wrote them.** If you find yourself touching the `LudeoSelected` handler, the commit, the overlay registrations, or the wait-for-Play logic, you're in `phase 5 · task 3`'s territory — stop.
 
 `IsRestoring()` is owned by `phase 5 · task 3` (set `true` in the handler, cleared at the end of the apply). This phase only **reads** it — to gate the pre-existing reconciliation path (Step 5) so `phase 5 · task 1`'s batch registration doesn't double-create during a restore.
 
@@ -26,10 +26,10 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
 > 2. `5b-implement-object-tracking.md` complete — `LudeoStateAdapter` and `LudeoCaptureMacros.h` exist, `objectType` strings and stable-ID fields are in code
-> 3. `5d-implement-restoration-flow.md` complete — the apply lifecycle, the `MaybeApplyRestore()` gate, and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are called; `IsRestoring()` is live
+> 3. `5d-implement-restoration-flow.md` complete — the restore flow, `ApplyHeld()` with its settle, and the `RestoreTwoPass`/`RestoreEnvironment`/`ApplyDeferred` stubs exist and are called; `IsRestoring()` is live
 > 4. `5c-plan-state-restoration.md` complete — `ludeo-integration-plan/RESTORATION_PLAN.md` exists and the user approved it
 
-`phase 5 · task 1` is a hard prerequisite, not just a recommendation: restoration reuses the **same** `LudeoStateAdapter` and the same `objectType` strings that tracking wrote. You cannot restore what `phase 5 · task 1` didn't capture. `phase 5 · task 3` is a hard prerequisite: without the apply gate and the populated reader it hands you, there is nothing to read back into.
+`phase 5 · task 1` is a hard prerequisite, not just a recommendation: restoration reuses the **same** `LudeoStateAdapter` and the same `objectType` strings that tracking wrote. You cannot restore what `phase 5 · task 1` didn't capture. `phase 5 · task 3` is a hard prerequisite: without `ApplyHeld()` and the validated, populated reader it hands you, there is nothing to read back into.
 
 ## Context Files
 
@@ -97,26 +97,26 @@ Inverse of `phase 5 · task 1` Step 6 (batch registration). For each pre-existin
 ### Step 6: Reconciliation Wiring + Deferred Queue + Environment
 
 - **Reconciliation entities** (inverse of `phase 5 · task 1` Step 7) — for entities the matrix marks **reconciliation**, route Pass 1 through the game's existing load/recreate path (07 §5.1) instead of a manual spawn; Pass 2 then only resolves references the load path didn't. **Manual** entities use the explicit getters from Steps 3–4.
-- **Deferred queue** — after Pass 2 completes, drain the queue in the plan's recorded order (07 §6), before handing control to the player.
+- **Deferred queue** — Pass 2 **queues** the deferred properties; implement `ApplyDeferred()` to drain them in the plan's recorded order (07 §6). `phase 5 · task 3` calls it on the settle's first tick, when frames are running but input is still held — don't drain inside `RestoreTwoPass`, where the world is frozen.
 - **Environment restore** — `RestoreEnvironment(reader)` is called by `phase 5 · task 3`'s apply **after** `RestoreTwoPass` (07 §8.2); implement it to apply the world-singleton properties and honor the plan's exclusion list.
 
 ### Step 7: Reconstruction smoke test — re-run `--ludeo=<id>` and verify state (REQUIRED gate)
 
-This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 already proved the flow boots the correct level, freezes before Play, resumes via `RoomReady → Begin`, and pauses under the overlay — with the apply stubbed. Now the stub is filled, so **re-run the same launch-arg flow** (reuse `phase 5 · task 3`'s trigger — `--ludeo=<id>` / `ludeo.ini`) and verify **state is correctly reconstructed**. Do not declare phase 5 · task 4 done by inspection — actually run it.
+This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 already proved the flow validates the selection, boots the correct level, holds it frozen behind the overlay before Play, and resumes via `RoomReady → Begin` — with the apply stubbed. Now the stub is filled, so **re-run the same launch-arg flow** (reuse `phase 5 · task 3`'s trigger — `--ludeo=<id>` / `ludeo.ini`) and verify **state is correctly reconstructed**. Do not declare phase 5 · task 4 done by inspection — actually run it.
 
-1. **Launch with the arg from a cold start, press Play** — same as `phase 5 · task 3` Step 6, steps 1–3. The level boots; now the real `RestoreTwoPass`/`RestoreEnvironment` run inside the apply.
-2. **Verify two-pass restoration completes with non-zero counts.** In the post-Play log, Pass 1 spawn count + Pass 2 apply count + deferred-queue-drained count match the plan (**non-zero**). A **zero** count is the bug, not a pass — two distinct causes with the same symptom:
+1. **Launch with the arg from a cold start** — same as `phase 5 · task 3` Step 6, steps 1–3. The level boots and the real `RestoreTwoPass`/`RestoreEnvironment` now run in the held apply, **before** the room opens and before Play.
+2. **Verify two-pass restoration completes with non-zero counts.** In the pre-Play log (the apply runs before `OpenRoom`), Pass 1 spawn count + Pass 2 apply count + deferred-queue-drained count match the plan (**non-zero**). A **zero** count is the bug, not a pass — two distinct causes with the same symptom:
    - (a) the apply ran against a **menu / empty game** (level load skipped or routed to the menu — `07 §2`, mistake #12) — this is a **flow** bug, go back to `phase 5 · task 3` Step 4;
-   - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — also **flow**, go back to `phase 5 · task 3` Step 2.
+   - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — validation should have ignored that selection, so this is a **flow** bug: go back to `phase 5 · task 3` Step 2.
    Log `GetObjectsInfo`'s `objectsCount` to tell them apart. If counts are non-zero but *wrong*, that's a reconstruction bug — stay here.
 3. **No `Expected type` lines** (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`). A mismatch means the getter type doesn't match the `phase 5 · task 1` setter type for that attribute — fix the getter, not the capture (unless `phase 5 · task 1` is genuinely wrong).
 4. **Confirm a cross-entity reference restored correctly** (two-pass exercised) — the resolved target is the right live instance, no fail-loud `id_map` miss.
 5. **Restore a second Ludeo back-to-back without quitting** — trigger restore again (another `--ludeo=<id>` / re-inject) in the same process and confirm the **second** Ludeo's state reconstructs fully. Freshly-spawned entities appearing at their spawn defaults (frozen, un-applied) on the **second** replay but not the first is the dropped-init-callback signature (`07 §3.1`, §9.14): the apply was hung on the entity's own init callback, which the engine skipped for entities created during the second level boot. The fix is to apply from the Pass-2 driver loop (Step 4), not to re-add an entity-side apply channel. *(Re-entry teardown itself is `phase 5 · task 3`'s; here you're verifying the **apply** survives a second restore.)*
-6. **Hand off to the player to confirm the post-Play first frame.** Tell the user:
-   > "After pressing **Play**, confirm:
-   > - The **first visible frame** is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a fade-in (07 §9.11). (The level loads *on* Play, so a brief load is expected before this frame.)
+6. **Hand off to the player to confirm the moment before and after Play.** Tell the user:
+   > "**Before** pressing **Play**, confirm the frozen frame behind the overlay is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a loading cover (07 §9.11). Then press **Play** and confirm:
+   > - The game resumes **instantly** from that frame — no load, no snap.
    > - The restored state survives a few seconds of play (no respawn / teleport / scripted reset clobbers it).
-   > - Gameplay proceeds normally without snap-back or drift."
+   > - Gameplay proceeds normally without drift."
 
 Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
 
@@ -161,13 +161,13 @@ Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 
 ## Important Notes
 
 - **Restoration is the inverse of tracking.** Every spawn/getter here mirrors a `phase 5 · task 1` create/setter. Same `LudeoStateAdapter`, same `objectType` strings, same stable-ID anchor — if a mapping is missing, the fix belongs in `phase 4`/`phase 5 · task 1`, not a workaround here.
-- **Don't touch the flow.** The apply gate, freeze, `LudeoSelected` handler, overlay registrations, and entry-identity/level-boot are `phase 5 · task 3`'s. This phase only fills `RestoreTwoPass`/`RestoreEnvironment` and the infra they use.
+- **Don't touch the flow.** `ApplyHeld()`, the settle, the freezes, the `LudeoSelected` handler and commit, overlay registrations, and entry-identity/level-boot are `phase 5 · task 3`'s. This phase only fills `RestoreTwoPass`/`RestoreEnvironment`/`ApplyDeferred` and the infra they use.
 - **Two-pass is mandatory (CR-006).** Pass 1 spawns all objects; Pass 2 applies properties and resolves references. Never single-pass.
 - **Fail loud on missing IDs.** A Pass 2 `id_map` miss is a Pass 1 bug — never substitute null (07 §3.3, §9.6).
 - **Snapshot, not replay.** Apply each captured value once; do not replay per-tick history.
 - **Release `ObjectsInfo`.** `ludeo_DataReader_GetObjectsInfo` must be paired with `ludeo_ObjectsInfo_Release` — hold it across both passes, release exactly once (CR-008).
 - **Bracket reads with `IsRestoring()` (read-only here).** It's the switch (`phase 5 · task 3` owns it) that stops `phase 5 · task 1`'s **state-write** paths (batch registration, per-tick capture, `Set*`) from double-creating / overwriting during a restore. **Action sends (`SendAction` / `LUDEO_ACTION`) are NOT gated** — they fire in both Creator and Player Flow so the SDK can score the Ludeo's win/fail conditions during playback (`06 §7`, `07 §2.3`).
-- **Restoration is the authority over a repopulated level (07 §9.10).** Loading the level (in `phase 5 · task 3`'s apply) spawns its **default** content and runs the game's own init — the world is **not** empty. Reconcile captured objects to placed instances (Step 5, don't blind-spawn duplicates) and apply restored values **after** level init settles. The freeze (`phase 5 · task 3`) holds until the apply, so the live sim can't run over your apply — the "right map, wrong state" failure.
+- **Restoration is the authority over a repopulated level (07 §9.10).** Loading the level (in `phase 5 · task 3`'s restore flow) spawns its **default** content and runs the game's own init — the world is **not** empty. Reconcile captured objects to placed instances (Step 5, don't blind-spawn duplicates). `phase 5 · task 3` calls your apply only after the game's native spawn is done, and **frozen**, so the live sim can't run over it — the "right map, wrong state" failure.
 - Every SDK call wrapped in `#if LUDEO_SDK_ENABLED` (CR-001). `EnterObject`/`LeaveObject` paired only via the scope (CR-002).
 - Do not modify game logic — only add SDK-driven restoration. If a hook site doesn't exist, propose adding it as a separate, named change first.
 
@@ -180,10 +180,10 @@ Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 
 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not finish without it)
 
-This phase edited source files, so it is **not done** until the game still builds and runs. The agent
-cannot see a running game, so this gate falls to the integrator — make the ask explicit and wait:
+This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
+log; only running the game needs the integrator:
 
-1. **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
+1. **Rebuild — the agent, not the integrator.** **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
    loop in `3e-compile-and-fix.md` and read the build log.
 2. **Run the game and confirm state restores correctly** — re-run the launch-arg smoke test (Step 7):
    verify non-zero two-pass counts, no type-lock mismatch, the correct first frame, and that a
@@ -191,9 +191,10 @@ cannot see a running game, so this gate falls to the integrator — make the ask
    `07-RESTORATION-PATTERNS.md §10`. This is the payoff check: a playable Ludeo that reconstructs the
    captured moment.
 
-The agent reads build/run logs where they exist but **cannot truly verify** a clean build or a live run
-on its own — beyond the logs it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not move on until the user confirms both** (or explicitly skips).
+The agent verifies the build itself — show the build command and its result. If it cannot build here
+(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
+**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
+that's their call. **Do not move on until the build passes and the user confirms the run** (or explicitly skips).
 
 Once they confirm, the player flow is proven: a captured moment replays. Run `phase 6 · task 1` to
 map the game's actions — actions come last precisely because they can only be verified against a

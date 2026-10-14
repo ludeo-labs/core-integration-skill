@@ -18,6 +18,9 @@ Jump to the symptom:
 - Replay references resolve to the wrong object / null → §4 Reference resolution
 - Capture is empty entirely → §5 Nothing is being captured
 - Hard crash during restoration / playback → §6 Restoration crashes
+- Restore ran but the player is at the default spawn, nothing applied → §7 Empty / early reader
+- Restored Ludeo plays but input is dead → §8 Dead input
+- A notification never fires (often `RoomReady`), `unknown event_name` in the log → §9 SDK build too old for the backend
 
 ---
 
@@ -162,19 +165,46 @@ A Ludeo restores correctly — the right level loads, objects spawn with their c
 ### Why it happens
 "Dead input on playback" has **three independent gates**, and any one of them left engaged produces the same symptom. Check all three — not just the obvious one:
 
-1. **Input still suppressed.** `SetRestoring(true)` / `suppress_input()` was armed at `LudeoSelected` (CR-010) and the matching lift never ran on this path. The sim ticks, but input is filtered out.
+1. **Input still suppressed.** The input hold was armed at the commit (CR-010) and the matching release at `Begin` never ran on this path. The sim ticks, but input is filtered out.
 2. **Engine still paused** — `m_freeze_restore || m_freeze_overlay` is still true (the two-bit pause model, [CR-011](00-CRITICAL-REQUIREMENTS.md)). The most common case is a **stale `m_freeze_overlay`**: a prior playback was ended **by the backend via `PauseGameRequest`** (the game froze and waited, `05 §6.11`) with **no matching `ResumeGameRequest`**, and `EndCurrentLudeo()` didn't clear that bit (or wasn't called) before the next `LudeoSelected`. The new restore clears `m_freeze_restore` on `RoomReady`, but `m_freeze_overlay` keeps the tick frozen — so the freshly restored Ludeo never resumes.
 3. **Per-entity control locks.** If the game disables the player controller while restoring/spawning (so it can't drive off the snapshot before `Begin`) and re-enables it at gameplay-start, a missed re-enable leaves the entity inert even with input flowing and the sim ticking.
 
 `LudeoManager` is a **long-lived singleton** for the whole app run, so any mutable lifecycle bit it holds carries between Ludeos within that run — gate (2) is exactly that hazard.
 
 ### How to catch it
-At the apply's unpause point, log the **resolved pause state** — `m_freeze_restore`, `m_freeze_overlay`, and the engine's effective `paused` bool — plus whether input suppression and control locks are still active. The tell for an inherited stale bit: the engine is paused with `m_freeze_overlay == true` but **no `PauseGameRequest` fired this play** — i.e. nothing this run set it, so it was carried in from a prior (backend-ended) play.
+At `Begin` (where the restore unfreezes), log the **resolved pause state** — `m_freeze_restore`, `m_freeze_overlay`, and the engine's effective `paused` bool — plus whether input suppression and control locks are still active. The tell for an inherited stale bit: the engine is paused with `m_freeze_overlay == true` but **no `PauseGameRequest` fired this play** — i.e. nothing this run set it, so it was carried in from a prior (backend-ended) play.
 
 ### How to fix it
-- **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`phase 5 · task 3` Step 5), but a backend-ended play may not have routed through it; re-arm the bits at the **start of the `LudeoSelected` handler** too (alongside `m_room_ready`/`m_applied`), clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
+- **Reset every pause/suppression/lifecycle bit at a deterministic point — don't assume the prior path's cleanup ran.** Core resets in `EndCurrentLudeo()` on each exit path (`phase 5 · task 3` Step 5), but a backend-ended play may not have routed through it; re-arm the bits when the next selection **commits** (`07 §2.1` step 3, alongside `m_room_ready`/`m_applied`) — not earlier: the handler must not disturb anything before `GetLudeo` validates, clearing `m_freeze_overlay` when arming a new restore (guarded: only if no overlay is genuinely open).
 - **Lift input suppression and control locks at `Begin`**, not earlier — but make sure they *are* lifted on every restore path.
 - The two-bit model itself is correct ([CR-011](00-CRITICAL-REQUIREMENTS.md)); the failure here is a bit left dirty across plays, not a collapsed shared flag.
+
+---
+
+## 9. An SDK notification never fires — check the SDK build against the backend
+
+### Symptom
+
+A notification that should arrive simply doesn't — most often `RoomReady`, so `Begin` never runs and nothing records
+— while everything before it succeeds (activation, `OpenRoom`, `AddPlayer`). The log often shows the event arriving
+under a name the SDK doesn't know, right where the expected one should be: `unknown event_name "…"`.
+
+### Why it happens
+
+The C SDK build is too old for the **current** Ludeo backend. The backend moves its event protocol forward; an
+older SDK build receives the new event, doesn't recognise it, and never turns it into the notification your
+integration waits for. Nothing in your code is wrong — the same code works with a current SDK build.
+
+### How to catch it
+
+- Grep the run log for the SDK's version line (`LudeoSDK v…` — version, git hash, build date) and for
+  `unknown event_name`.
+- Compare the version and build date against a currently working integration, or against the latest SDK release.
+- Do this **before** debugging a "notification never fires" problem in your own lifecycle code.
+
+### How to fix it
+
+Update to the current SDK release (phase 1 Step 2) — all of it: headers, libraries and the whole runtime folder — then do a **clean** rebuild and redeploy (an incremental build can keep the old SDK DLL in the output) and confirm the new `LudeoSDK v…` line in the run log. Don't work around a missing notification by calling `Begin` yourself.
 
 ---
 

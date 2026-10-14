@@ -299,6 +299,11 @@ ludeo builds get  --game-id <GAME_ID> --build-id <NEW_BUILD_ID>               # 
 Confirm status **`success`** and that `game-version`, `sdk-version`, build type and `exec-path` (the
 `run.bat`) are what you intended.
 
+> **The cloud run is also the first place the overlay pause runs.** `PauseGameRequest` / `ResumeGameRequest` only
+> fire in a cloud Player-Flow session (CR-011), so when the user plays the build in the cloud, ask them to open and
+> close the overlay mid-play once and confirm the game freezes and resumes — and that the objective timer stops while
+> it is open (that needs the Pause/Resume trigger).
+
 > **⚠️ Known gap — "Ludeo runs in cloud" is not verified here.** This phase treats status
 > **`success`** (the platform processed the build and can run Ludeos from it) as the bar. There is **no
 > discrete step that actually runs or plays a Ludeo in the cloud** to confirm it end to end. Leave this as
