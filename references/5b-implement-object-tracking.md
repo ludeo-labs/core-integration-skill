@@ -1,6 +1,11 @@
 # Phase 5 · Task 1 — Implement Object Tracking
 
-Read the Object Tracking Plan produced by `phase 4` and emit registration + property-capture code at the hook sites identified in the plan. Follow the propose-confirm-execute cycle.
+> **Run per wave, additively, by [`5-tracking-restore-orchestrator.md`](5-tracking-restore-orchestrator.md).** Capture
+> only wave N's types (the blocks `task 0` appended for this wave); never edit an earlier, green wave's capture code.
+> The gate ends with the integrator **capturing a Ludeo that contains wave N's attributes**, mid-run — every wave
+> adds attributes, which invalidates earlier captures.
+
+Read the Object Tracking Plan produced by `phase 4` and `phase 5 · task 0` and emit registration + property-capture code at the hook sites identified in the plan. Follow the propose-confirm-execute cycle.
 
 ## 🚦 Fresh Context Check
 
@@ -17,7 +22,7 @@ tick** on the world/session object, not once at room open.
 
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
-> 2. `phase 4` complete — `ludeo-integration-plan/OBJECT_TRACKING.md` exists
+> 2. `phase 4` census approved and this wave's entity blocks appended by `phase 5 · task 0` — `ludeo-integration-plan/OBJECT_TRACKING.md`
 > 3. User has reviewed and approved the plan
 > 4. **A goal on the debug environment** — a Ludeo can't be created without at least one, and this task ends by
 >    capturing a real session. Gameplay-action goals only exist after phase 6, so use a timer goal on the

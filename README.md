@@ -60,17 +60,21 @@ Sequential seven-phase workflow under [`references/`](references):
 | --- | --- | --- |
 | 1 | `references/1-build-game-with-sdk.md` | Build environment, conditional compilation, baseline + SDK builds |
 | 2 | `references/2-map-game-code.md` | Produce `CODE_MAP.json` of the game's architecture |
+| 3 | `references/3-lifecycle-orchestrator.md` | Phase 3 entry point — runs tasks 1–6 |
 | 3 · task 1 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
 | 3 · task 2 | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
 | 3 · task 3 | `references/3c-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
 | 3 · task 4 | `references/3d-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
 | 3 · task 5 | `references/3e-compile-and-fix.md` | Compile, fix, verify |
 | 3 · task 6 | `references/3f-classify-save-system.md` | Classify the save system (group + per-entity matrix) |
-| 4 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
-| 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
+| 4 | `references/4-map-game-objects.md` | Census of trackable objects, load-bearing flags, wave plan |
+| 5 | `references/5-tracking-restore-orchestrator.md` | Phase 5 entry point — the wave loop |
+| 5 · task 0 | `references/5a-deep-scope-wave.md` | Deep-scope one wave's objects |
+| 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture (per wave) |
 | 5 · task 2 | `references/5c-plan-state-restoration.md` | Plan the two-pass restoration flow |
-| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow half (freeze, apply gate, resume) |
+| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow half — validate, build the moment before Play, resume (once) |
 | 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the two-pass `DataReader` read-back |
+| 6 | `references/6-actions-orchestrator.md` | Phase 6 entry point |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
 | 7 | `references/7-upload-build.md` | Verify the Release build, upload it, and assign it to an environment |

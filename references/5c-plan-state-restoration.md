@@ -1,7 +1,9 @@
 # Phase 5 · Task 2 — Plan State Restoration
 
 > **Stage:** State Restoration — Planning (analysis only, no code yet)
-> **Prerequisite:** `4-map-game-objects.md` approved (entity model is fixed)
+> **Prerequisite:** this wave's entity blocks approved (`phase 5 · task 0`)
+> **Run per wave** by [`5-tracking-restore-orchestrator.md`](5-tracking-restore-orchestrator.md): plan wave N's types
+> and **append** their rows to `RESTORATION_PLAN.md`; the flow sections (Step 3, Step 10) are planned once, in wave 1.
 > **Inputs:** `OBJECT_TRACKING.md`, `GAME_ANALYSIS_SAVE_SYSTEM.md` (+ `GAME_ANALYSIS_ENVIRONMENT.md`, produced in Step 9 if absent)
 > **Output:** `ludeo-integration-plan/RESTORATION_PLAN.md` — two-pass algorithm, deferred-property list, wait-for-player flow, environment restoration
 > **Gate:** Human approval required before `5d-implement-restoration-flow.md` (and the `phase 5 · task 4` reconstruction that follows it)
@@ -29,7 +31,7 @@ with; `playbackUXBar.instantAnimations` are applied in their end pose, not playe
 how the restore reaches a captured level from a cold start.
 
 > ⚠️ **REQUIRED:** These must complete first:
-> 1. `4-map-game-objects.md` → `ludeo-integration-plan/OBJECT_TRACKING.md`, **approved**
+> 1. `4-map-game-objects.md` → `ludeo-integration-plan/OBJECT_TRACKING.md` — the census **approved**, and this wave's entity blocks (`phase 5 · task 0`) approved
 > 2. `phase 3 · task 6` (Classify Save System) → `GAME_ANALYSIS_SAVE_SYSTEM.md` + `CODE_MAP.save_system.group`
 >
 > **Produced by this phase if absent:** the **environment inventory** (`GAME_ANALYSIS_ENVIRONMENT.md`). No earlier phase produces it, so Step 9 builds it from `02D-RESEARCH-ENVIRONMENT.md` before planning environment restoration — you do **not** need it in hand to start.

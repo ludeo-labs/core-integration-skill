@@ -1,6 +1,9 @@
 # Phase 5 · Task 4 — Implement State Reconstruction
 
 > **Stage:** State Restoration — Data Reconstruction (the inverse of `phase 5 · task 1`'s capture)
+> **Run per wave, additively,** by [`5-tracking-restore-orchestrator.md`](5-tracking-restore-orchestrator.md): read back
+> wave N's types; never rewrite an earlier, green wave's read-back. The orchestrator's gate 4 adds placement sanity,
+> replay-twice and play-to-completion checks to this brief's smoke test.
 > **Prerequisite:** `5d-implement-restoration-flow.md` completed (the apply lifecycle and the `RestoreTwoPass`/`RestoreEnvironment` stubs exist and are already called) and `RESTORATION_PLAN.md` approved
 > **Inputs:** `RESTORATION_PLAN.md`, `OBJECT_TRACKING.md`, `CODE_MAP.json`
 > **Output:** Real `LudeoStateAdapter::RestoreTwoPass` / `RestoreEnvironment`, reader-side object scope + `LUDEO_READ_*` helpers, the per-Ludeo `id_map`, the deferred-property queue, two-pass spawn + property apply + reference resolution, pre-existing reconciliation, environment restore.
@@ -201,6 +204,7 @@ The agent verifies the build itself — show the build command and its result. I
 **cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
 that's their call. **Do not move on until the build passes and the user confirms the run** (or explicitly skips).
 
-Once they confirm, the player flow is proven: a captured moment replays. Run `phase 6 · task 1` to
-map the game's actions — actions come last precisely because they can only be verified against a
-flow that already replays.
+Once they confirm, hand back to the phase-5 orchestrator for gate 4's remaining checks and the
+"widen to the next wave?" question. After **wave 1** is green the player flow is proven — phase 6
+(`6-actions-orchestrator.md`) may start: actions come last precisely because they can only be verified
+against a flow that already replays.

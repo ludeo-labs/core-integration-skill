@@ -32,8 +32,12 @@ Activate this skill when the user says any of:
 ## Workflow
 
 The integration runs as seven sequential phases, numbered the same way as the Unity and Unreal skills
-so that a phase number means the same thing in every engine. Phases 3, 5 and 6 are each made of
-numbered tasks, run in order.
+so that a phase number means the same thing in every engine. **Phases 3, 5 and 6 are orchestrated**: each is one
+logical phase made of single-task briefs, entered through its orchestrator file, which hands out one task at a time,
+passes state by file and runs every gate itself ([`references/orchestration.md`](references/orchestration.md)).
+**Phase 5 runs as a wave loop**: phase 4's census assigns every tracked type to a wave; wave 1 proves the full
+capture → replay round trip on the restorable spine, and each later wave widens the tracked set, each ending in its
+own restore gate.
 
 The order is **1** build with the SDK → **2** map the code → **3** SDK lifecycle → **4** map objects
 → **5** tracking & restore → **6** actions → **7** verify & upload. Phases 1–5 build the **capture**
@@ -50,17 +54,21 @@ to call `ludeo-mcp` tools.
 | --- | --- | --- |
 | 1 | `references/1-build-game-with-sdk.md` | State file, MCP servers, Ludeo environments, build environment, conditional compilation, baseline + SDK builds, then the kickoff intake (`references/know-your-game.md`) |
 | 2 | `references/2-map-game-code.md` | Produce CODE_MAP of game architecture |
+| 3 | `references/3-lifecycle-orchestrator.md` | **Phase 3 entry point** — runs tasks 1–6 and their gates |
 | 3 · task 1 | `references/3a-find-sdk-integration-points.md` | Identify where SDK calls go |
 | 3 · task 2 | `references/3b-create-tdd.md` | Produce Technical Design Document (architecture, strategy, risks) |
 | 3 · task 3 | `references/3c-plan-sdk-lifecycle.md` | Plan lifecycle wiring |
 | 3 · task 4 | `references/3d-implement-sdk-lifecycle.md` | Implement lifecycle wiring |
 | 3 · task 5 | `references/3e-compile-and-fix.md` | Compile, fix, verify |
 | 3 · task 6 | `references/3f-classify-save-system.md` | Classify save system (group + per-entity reconciliation/manual matrix); required by phase 4 and phase 5 · task 1 |
-| 4 | `references/4-map-game-objects.md` | Discover trackable objects & properties |
-| 5 · task 1 | `references/5b-implement-object-tracking.md` | Wire object registration & capture |
-| 5 · task 2 | `references/5c-plan-state-restoration.md` | Plan the two-pass restoration flow (inverse of tracking) → `RESTORATION_PLAN.md` |
-| 5 · task 3 | `references/5d-implement-restoration-flow.md` | Implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler that validates via `GetLudeo` before disturbing anything, then builds the moment before Play (CR-010): reach active gameplay → apply held → settle → `OpenRoom(ludeoId)`; `RoomReady` (the Play click) → `Begin` → unfreeze; overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
-| 5 · task 4 | `references/5e-implement-state-reconstruction.md` | Fill the data half (inverse of `phase 5 · task 1`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
+| 4 | `references/4-map-game-objects.md` | **Part A** (here): census of every trackable type, load-bearing flags, wave plan → approved. **Part B**: the per-wave deep scope, run by phase 5 · task 0 |
+| 5 | `references/5-tracking-restore-orchestrator.md` | **Phase 5 entry point** — the wave loop: tasks 0–4 per wave (task 3 once, in wave 1), each with its gate; confirm before widening |
+| 5 · task 0 | `references/5a-deep-scope-wave.md` | **Per wave:** run phase 4 Part B for this wave's types → append their entity blocks |
+| 5 · task 1 | `references/5b-implement-object-tracking.md` | **Per wave (additive):** wire object registration & capture for this wave's types |
+| 5 · task 2 | `references/5c-plan-state-restoration.md` | **Per wave (append):** plan the two-pass restoration (inverse of tracking) → `RESTORATION_PLAN.md` |
+| 5 · task 3 | `references/5d-implement-restoration-flow.md` | **Once, in wave 1:** implement the player-flow/lifecycle half (inverse of `phase 3 · task 4`): `LudeoSelected` handler that validates via `GetLudeo` before disturbing anything, then builds the moment before Play (CR-010): reach active gameplay → apply held → settle → `OpenRoom(ludeoId)`; `RoomReady` (the Play click) → `Begin` → unfreeze; overlay pause/resume (CR-011). Calls the read-back as a **stub**. |
+| 5 · task 4 | `references/5e-implement-state-reconstruction.md` | **Per wave (additive):** fill the data half (inverse of `phase 5 · task 1`): real `RestoreTwoPass`/`RestoreEnvironment`, reader-side scope, two-pass `DataReader` reads, references, deferred queue, environment. |
+| 6 | `references/6-actions-orchestrator.md` | **Phase 6 entry point** — map → approve → implement → run both flows → Global Triggers and goals. Starts once phase 5's wave 1 is green |
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
 | 7 | `references/7-upload-build.md` | Verify the Release build (release guard, shipped `ludeo.ini`, self-contained launch), upload it with the `ludeo` CLI, poll to `success`, then assign it to the target environment — **upload and assign only on explicit user confirmation** |
@@ -131,7 +139,7 @@ current branch doesn't have it, check for an existing integration branch first (
 
 - **It exists** → read it. Resume at `current`: a step `in_progress` continues where it stopped (re-read that
   phase file, its inputs and the step's `note` first); a `completed` or `skipped` step advances to the next one in the
-  table above. Read the
+  table above. In phase 5, resume at `wave.current` and that wave's first unfinished task (`5a`–`5e`). Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
   `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state

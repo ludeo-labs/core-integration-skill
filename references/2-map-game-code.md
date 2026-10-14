@@ -105,4 +105,4 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
 
 ## Next Step
 
-After creating `ludeo-integration-plan/CODE_MAP.json`, run `phase 3 · task 1` to map the structure to Ludeo SDK functions.
+After creating `ludeo-integration-plan/CODE_MAP.json`, start phase 3 — `3-lifecycle-orchestrator.md` runs its tasks, beginning with `phase 3 · task 1`.
