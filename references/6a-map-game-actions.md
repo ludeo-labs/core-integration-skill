@@ -83,7 +83,12 @@ For each found gameplay event function:
 Also check for **gaps**: review the genre action catalog for expected actions that were NOT found in the code. Flag these as:
 > "Expected `<ActionName>` for this genre but no matching code found. This may be named differently or handled in a non-obvious way. Manual review recommended."
 
-**Also map non-ludeoable area boundaries.** Search for places the player enters/leaves a segment that should not become a Ludeo — shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus. Map each as an **enter/exit action pair** (e.g. `ShopEntered`/`ShopExited`, `DialogueStarted`/`DialogueEnded`, `MenuOpened`/`MenuClosed`) under a dedicated **Non-Ludeoable Boundaries** category. These are emitted like any other action in `phase 6 · task 2`, then connected once to the global triggers on Ludeo's platform so the backend excludes those windows from Ludeo creation. They do **not** pause tracking — capture keeps running through them. See `06-TRACKING-PATTERNS.md §7.3`.
+**Also map the non-gameplay standard actions** under a dedicated **Non-Gameplay Actions** category. Two pairs, both with **fixed standard names** — they only work once a matching Global Trigger exists on Ludeo's platform, and a trigger event can be bound to one action per environment, so per-area names (`ShopEntered`, `DialogueStarted`, …) cannot all be connected:
+
+- **Non-ludeoable areas** (shops/stalls, NPC dialogue, tutorials, safe zones/hubs, in-game menus) — every enter site → `StartNoneLudeable`, every exit site → `StopNoneLudeable`. Tracking keeps running; the backend excludes the window. Flag any area **without a clear exit** — a dangling `StartNoneLudeable` never re-enables Ludeo creation. See `06-TRACKING-PATTERNS.md §7.3`.
+- **Pause / resume** — `PauseLudeo` / `ResumeLudeo`, for **every** pause. Find the game's **pause primitive** — the one freeze function every pause path funnels through (`Game::SetPaused(bool)`, `Simulation::Freeze()`, …) — and map *that*, not the ESC key handler and not the function that shows the pause menu: the SDK's `PauseGameRequest` handler will be routed through this primitive, and a primitive that also opens the game's menu would stack that menu under the Ludeo overlay. If freeze and menu-show are the same function, note it — `phase 6 · task 2` then needs a freeze-only path for the SDK handler. Enumerate its callers so nothing is missed: the pause menu, cutscenes, dialogue boxes, loading screens, focus loss, **and the SDK's `PauseGameRequest` handler** (CR-011) — that handler freezes the simulation but freezing does **not** stop the Ludeo objective timer; only the `PauseLudeo` action reaching its trigger does. Record every **unpause** path too — a `PauseLudeo` with no reachable `ResumeLudeo` leaves the timer stopped for the rest of the run. Note whether the SDK handler and the primitive would *both* emit: the pause must be reported once per transition. If the game has no pause at all, say so — do not invent one.
+
+Pick the pair by **what should happen to the clock**: non-ludeoable keeps the objective timer running and the backend keeps the span's data; pause/resume stops the timer and the backend saves nothing. Both pairs belong in every integration. They are session/area events, so they are **not** player-guarded, and they fire in both the Creator and Player flows.
 
 ### Step 5: Produce Output
 
@@ -108,12 +113,14 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 
 ### [Other Categories...]
 
-### Non-Ludeoable Boundaries
+### Non-Gameplay Actions
 
-| Action Name | Description | Source Function | File:Line | Confidence | Boundary |
-|-------------|-------------|----------------|-----------|------------|----------|
-| ShopEntered | Player opens the shop | ShopUI::Open | src/ui/ShopUI.cpp:88 | high | enter |
-| ShopExited | Player closes the shop | ShopUI::Close | src/ui/ShopUI.cpp:140 | high | exit |
+| Action Name | Site | Source Function | File:Line | Confidence | Notes |
+|-------------|------|----------------|-----------|------------|-------|
+| StartNoneLudeable | Enter shop | ShopUI::Open | src/ui/ShopUI.cpp:88 | high | needs a matching StopNoneLudeable on every exit path |
+| StopNoneLudeable | Exit shop | ShopUI::Close | src/ui/ShopUI.cpp:140 | high | closes the window |
+| PauseLudeo | Any pause | Game::SetPaused(true) | src/core/Game.cpp:310 | high | the pause primitive. Callers: PauseMenu::Show, Cutscene::Play, LoadingScreen::Show, OnFocusLost, **LudeoManager::OnPauseGameRequest** |
+| ResumeLudeo | Any unpause | Game::SetPaused(false) | src/core/Game.cpp:318 | high | every unpause path — a dangling PauseLudeo leaves the timer stopped |
 
 ## Gaps
 
@@ -140,7 +147,8 @@ Write `ludeo-integration-plan/GAME_ACTIONS_MAP.md`:
 - **Multiple genre files** can be loaded for hybrid games — merge and deduplicate
 - **Game-specific actions** are expected — not everything will match the genre catalog
 - **Gaps are valuable** — they tell the user what's missing, not that something is wrong
-- **Non-ludeoable areas are an action category, not a tracking pause.** Shops, NPC dialogue, tutorials, safe zones, and in-game menus are marked by enter/exit boundary actions wired to global triggers on the platform — capture keeps running through them. See `06 §7.3`.
+- **Non-ludeoable areas are an action category, not a tracking pause.** Shops, NPC dialogue, tutorials, safe zones, and in-game menus are marked by `StartNoneLudeable`/`StopNoneLudeable` wired to a global trigger on the platform — capture keeps running through them. See `06 §7.3`.
+- **Every pause emits `PauseLudeo`/`ResumeLudeo`**, the SDK's overlay pause included — freezing the game does not stop the objective timer. Use the standard names exactly; they are what the Global Triggers are created on.
 - The output of this command feeds into future implementation commands
 
 ## Related Phases

@@ -71,6 +71,39 @@ Follow **Section 2.0** of `04-BUILD-INTEGRATION.md`:
 - Store selected OS for all subsequent steps
 - **CRITICAL:** Build only for the selected OS, not multiple platforms
 
+### Step 0c: Connect the MCP servers
+`sdk-docs` (SDK documentation search) and **`ludeo-mcp`** (Studio Lab automation) are used from Step 0d
+onward, and a newly added server only connects in a fresh session — so wire up anything missing **before**
+the steps below. Copy the entries from `<skill-base-dir>/config/mcp_config.template.json` into the project's
+`.mcp.json` (or `claude mcp add`); `sdk-docs` needs `X-User-Name` set to the user's Ludeo username.
+- `ludeo-mcp` signs in with OAuth — the user logs in with their Studio Lab account when the client prompts;
+  no token goes in the file. Match the `ludeo-mcp` prefix, or look for `list_game_environments` in your tool
+  list; a server listed without that tool isn't signed in yet — ask the user to sign in (Claude Code: `/mcp` →
+  Authenticate) before any fallback. Only `ludeo-mcp-staging` connected doesn't count — see
+  [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) → Setup.
+- **If you added a server, stop and ask the user to restart the session**; phase 1 re-runs from here.
+- Both servers are optional. If one can't be connected, say which fallback you're on and carry on.
+
+### Step 0d: Ludeo environments, and who is in them
+Policy and touchpoints: [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — **reads free, writes confirmed**.
+Create `ludeo-integration-plan/LUDEO_PLATFORM.md` (schema in that file) if it doesn't exist; if it does, read
+it and update it. Once (a) records the Game ID, start **Reporting progress** there (`sdk_set_up` · `started`).
+- **(a) Environments.** Ask the user for the Studio Lab **Game ID** (Studio Lab → **Game Options → Info**;
+  the game **version** uuid, not the backend `gameId`) — phase 7 needs it either way. If
+  `list_game_environments` is in your tool list, list the environments with it; otherwise ask which exist and
+  what Beta Version Name each carries. Record the Game ID and **all** environments. A game normally has several
+  and an integration may target more than one, so which one a write is for is asked at the point of writing,
+  not here.
+- **(b) The integrator's membership — always a question.** No tool reports it. For each recorded environment,
+  ask: *"Has your Steam account been added to <environment>? Ludeo creation silently fails without it —
+  highlights record but can't convert to Ludeos."* If they don't know, or the answer is no, point them at
+  Studio Lab → Environments → Users management. Record the answer, never off the back of a tool call, and ask
+  again whenever the target environment changes.
+- **(c) Anyone else.** Ask: *"anyone else on your team who needs to capture — teammates, QA?"* — and in which
+  environment. If `invite_users_to_environment` is in your tool list, invite them (a **write** — show
+  `environment · every invitee's email` and wait for a go-ahead); otherwise ask the user to invite them in
+  Studio Lab. Default: just them.
+
 ### Step 1: Detect Build System
 Follow **Section 2.1** of `04-BUILD-INTEGRATION.md`:
 - Check for CMakeLists.txt, .sln, or Makefile
@@ -161,6 +194,8 @@ Follow **Section 8.2** of `04-BUILD-INTEGRATION.md`:
 ## Success Criteria
 
 - [ ] Integration branch created (`feature/ludeosdk-integration-#N`)
+- [ ] MCP servers connected (`sdk-docs`, `ludeo-mcp`) — or the fallback in use named to the user
+- [ ] `ludeo-integration-plan/LUDEO_PLATFORM.md` records the Game ID, every environment, and the integrator's membership in each
 - [ ] Build system detected correctly
 - [ ] SDK cloned from public releases repo and verified (or user-provided on clone failure)
 - [ ] Directory structure created

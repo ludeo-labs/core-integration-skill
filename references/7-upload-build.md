@@ -36,15 +36,21 @@ it passes, the build is live in that environment. An uploaded build that is not 
 - [ ] **The environment this build ships to.** Games commonly have several (production, QA, demo) — ask
       which one this build is for; never pick for the user. You need its **`envId`** for Step 11: if
       `list_game_environments` is in your tool list, read it there; otherwise ask the user for it (Studio
-      Lab → the environment).
-- [ ] **Global Triggers created** in Studio Lab → **that environment** (triggers are per environment): each
-      non-ludeoable boundary action pair `phase 6 · task 2` wired (its Step 5 lists them, e.g.
-      `ShopEntered`/`ShopExited`) connected to the Non-Ludeoable Area trigger. **Ask the user to confirm.**
-      The failure is silent — unconnected boundaries are simply not excluded.
-      > **Known gap — pause triggers.** The Unity skill also emits standard `PauseLudeo`/`ResumeLudeo`
-      > actions on every pause and connects them to the Pause/Resume trigger, which is what stops the
-      > objective timer during an overlay pause in the cloud. This skill does not emit those actions yet,
-      > so there is no pause trigger to connect. Tell the user; do not invent the actions here.
+      Lab → the environment). The ship environment is often not the one you debugged against, so for **it**:
+      - **The integrator is in it.** If `LUDEO_PLATFORM.md` doesn't record membership as yes, ask; if they don't
+        know or it's no, have them check or add themselves in Studio Lab → Environments → Users management
+        (`phase 1` Step 0d (b)). That doesn't block the upload, but say plainly that their captures there fail
+        silently until it's done.
+      - **Anyone else who needs to capture there** is invited (`phase 1` Step 0d (c)).
+- [ ] **Global Triggers created** in Studio Lab → **that environment** (triggers are per environment):
+      Pause/Resume on `PauseLudeo`/`ResumeLudeo`, Non-Ludeoable Area on `StartNoneLudeable`/`StopNoneLudeable`
+      (`phase 6 · task 2` Step 6). If `list_global_triggers` is in your tool list, check it on that environment
+      (an event of `null` counts as missing) and create what is missing per
+      [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md); otherwise **ask the user to confirm**. **On Production you
+      never create them** — the user makes the change by hand in Studio Lab, and Production is the likeliest
+      ship target. The cloud run is the first place the overlay
+      pause actually happens, and without the Pause/Resume trigger it will not stop the objective timer. The
+      failure is silent.
 
 **Inputs to gather (ask if missing):**
 
@@ -328,7 +334,7 @@ Studio Lab) that the environment now shows this build.
 - **Developer features** — what cheats / debug consoles / dev menus exist, and how each is gated.
 - **Auth mode** — which mode the platform expects for this game's cloud build.
 - **Target environment** — which one this build is for, and its `envId` if `list_game_environments` isn't available.
-- **Global Triggers** — confirm the boundary-action triggers exist in that environment before the cloud run.
+- **Global Triggers** — confirm both (Pause/Resume, Non-Ludeoable Area) exist in that environment before the cloud run.
 - **Assignment** — explicit go-ahead to assign the build (Step 11), separate from the upload approval.
 
 ## 5. Patterns to apply
@@ -380,7 +386,7 @@ Studio Lab) that the environment now shows this build.
 - [ ] **`--dry-run` reviewed** (file list + resolved flags) and confirmed with the user.
 - [ ] **Final upload ran ONLY after explicit user confirmation** (or the user ran it themselves).
 - [ ] **Status polled to `success`** — `failed` or a timeout surfaced rather than reported as success.
-- [ ] **Global Triggers confirmed** in Studio Lab → the target environment, for every boundary action pair.
+- [ ] **Global Triggers confirmed** in Studio Lab → the target environment: Pause/Resume and Non-Ludeoable Area.
 - [ ] **Build assigned** to the target environment (`builds assign … --env-id`, after an explicit
       go-ahead), or by the user in Studio Lab → Game Builds.
 - [ ] **Ludeo run in cloud** — ⚠️ **GAP** (Step 10): treated as satisfied by status `success`; no discrete

@@ -34,7 +34,7 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 
 ### 1.1 Choose Authentication Mode & Gather Configuration
 
-**IMPORTANT: Before creating any files, ask the user THREE questions in this order:**
+**IMPORTANT: Before creating any files, ask the user these questions in this order:**
 
 **Question 1: Choose Authentication Mode (ASK THIS FIRST)**
 
@@ -46,24 +46,31 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 > _(Both modes will be implemented in the code. Your choice sets the default configuration.)_
 
 **Based on the user's answer:**
-- If **Explicit** chosen: Configure `LudeoAuthMode::Explicit` as default, then ask Questions 2 & 3
-- If **Implicit** chosen or skipped: Configure `LudeoAuthMode::Implicit` as default, then ask Question 2 only
+- If **Explicit** chosen: Configure `LudeoAuthMode::Explicit` as default, then ask Questions 2 & 3 (with the Steam user ID)
+- If **Implicit** chosen or skipped: Configure `LudeoAuthMode::Implicit` as default, then ask Questions 2 & 3 (with the Steam beta branch)
 
 **Question 2: API Key (ALWAYS ASK)**
 
-> **"What Ludeo API key should I configure?"**
+> **"What Ludeo API key should I configure?"** (Studio Lab → Developer Tools → Keys)
 > 
 > _(If you don't have one yet, I'll use `YOUR_API_KEY_HERE` as a placeholder.)_
 
-**Question 3: Explicit Auth Credentials (ONLY IF Explicit mode chosen in Question 1)**
+**Question 3: Which environment do you debug against? (ALWAYS ASK)**
 
-> **"What Steam user ID should I use for explicit authentication?"**
-> 
-> _(If you don't have one yet, I'll use `STEAM_USER_ID_HERE` as a placeholder.)_
+A local run reaches the environment whose **Beta Version Name** matches the branch it reports, so the branch is
+**never invented here** — it follows from the target environment. List the environments from
+`ludeo-integration-plan/LUDEO_PLATFORM.md` (re-read them with `list_game_environments` if it is in your tool
+list) and ask which one this build should reach. Then follow **Matching a branch to an environment** in
+[`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — it decides whether anything is written, including the one case
+where `set_beta_version_name` names the environment (a confirmed write).
+- **Explicit mode:** also ask **"What Steam user ID should I use for explicit authentication?"** (placeholder
+  `STEAM_USER_ID_HERE`). `betaBranch` = the target environment's beta name, **copied** from the record — not
+  asked for. Empty only when the target is the default environment (empty sends no name, which reaches it).
+- **Implicit mode:** ask *"Which Steam beta branch do you run the game on?"* — never *"what name do you want?"* —
+  and record it as that environment's Steam branch. `betaBranch` stays empty; the Steam client reports the branch.
 
-> **"What Steam branch name should I configure?"**
-> 
-> _(If you don't have one yet, I'll use `STEAM_BRANCH_HERE` as a placeholder.)_
+Record the target and the Steam branch in `LUDEO_PLATFORM.md`. A placeholder branch name would route the run
+to no environment at all, so never write one.
 
 ---
 
@@ -71,7 +78,7 @@ If not found, check game root for `SDK_LIFECYCLE_PLAN*.md` or ask user.
 
 1. **Authentication Mode** (Question 1) → Determines which `LudeoAuthMode` is configured as default
 2. **API Key** (Question 2) → Always needed, used in both modes
-3. **Steam Credentials** (Question 3) → Only if Explicit mode chosen
+3. **Target environment** (Question 3) → Always; sets `betaBranch` (explicit) or records the Steam branch (implicit), plus the Steam user ID in explicit mode
 
 **Implementation Notes:**
 - **Write the collected values into `ludeo.ini` (next to the game executable), NOT into the `LudeoConfig.h` constructor.** The header holds only placeholder fallbacks; the runtime values come from the file. This is so QA / ops / end users can change `apiKey`, `betaBranch`, etc. without rebuilding. See `04-BUILD-INTEGRATION.md §4` for the canonical layout and the key=value parser.

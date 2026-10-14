@@ -489,13 +489,21 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 // ❌ Notifications not registered at all — the SDK has no way to tell the game to pause.
 // ❌ Handler suppresses input only — physics/AI keep mutating the world.
 // ❌ Conflated with CR-010 — that is a separate, one-time freeze gated on RoomReady, not the per-overlay-toggle pause.
+// ❌ Handler freezes but never reports PauseLudeo — the game stops, the player's objective timer does not.
 ```
+
+> **Freezing the game does not stop the Ludeo objective timer.** The backend stops the clock only when the
+> game sends `PauseLudeo` and a Pause/Resume Global Trigger exists for it (`06 §7.3`). So once actions are
+> wired, these handlers must reach the same pause report as every other pause: route them through the game's
+> pause primitive, which emits `PauseLudeo`/`ResumeLudeo` once per transition (`phase 6 · task 2` Step 5).
+> In `phase 3 · task 4` the handlers only freeze; the report is added in phase 6.
 
 **Validation:**
 - [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation (`phase 3 · task 4` §3.5).
 - [ ] Opening the Ludeo overlay during an active playback session **freezes the simulation tick** (not just input).
 - [ ] Closing the overlay **resumes** the game.
 - [ ] Repeated open/close cycles behave the same — handlers are idempotent across multiple toggles.
+- [ ] After phase 6: the overlay pause sends `PauseLudeo` and its close sends `ResumeLudeo`, once each.
 
 #### CR-010 and CR-011 are INDEPENDENT — do not collapse them into one `m_paused` boolean
 
