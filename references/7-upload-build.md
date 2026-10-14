@@ -16,8 +16,8 @@
 Take the **Release build** of the game, **verify** it is upload-ready (Release configuration and Release
 SDK binary, no reachable cheats or debug menus, production values in `ludeo.ini`, self-contained runtime
 deps, `validate-build` passing), then **publish** it to the Ludeo platform with the `ludeo` CLI, **poll**
-the build status to `success`, and **assign** it to the target environment. This is the final phase — when
-it passes, the build is live in that environment. An uploaded build that is not assigned is served nowhere.
+the build status to `success`, and **assign** it to the target environment. When it passes, the build is
+live in that environment; phase 8 may send you back here to publish a widened build as a minor. An uploaded build that is not assigned is served nowhere.
 
 ## 2. Inputs (Input Contract)
 
@@ -442,4 +442,5 @@ Studio Lab) that the environment now shows this build.
   the `ludeo.ini` runtime config; §5 — the ThirdParty copy step.
 - `3e-compile-and-fix.md` — the build-and-fix loop, if the release build doesn't compile clean.
 - `6b-implement-game-actions.md` — the last integration content before verification.
-- **Next:** done — the build is live in the target environment.
+- **Next:** `8-polish.md` — the gap check, opt-in expansion, polish and completion. Re-run from phase 8: back to
+  `8-polish.md` Step 5.

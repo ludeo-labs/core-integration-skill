@@ -31,7 +31,7 @@ Activate this skill when the user says any of:
 
 ## Workflow
 
-The integration runs as seven sequential phases, numbered the same way as the Unity and Unreal skills
+The integration runs as eight sequential phases, numbered the same way as the Unity and Unreal skills
 so that a phase number means the same thing in every engine. **Phases 3, 5 and 6 are orchestrated**: each is one
 logical phase made of single-task briefs, entered through its orchestrator file, which hands out one task at a time,
 passes state by file and runs every gate itself ([`references/orchestration.md`](references/orchestration.md)).
@@ -40,10 +40,11 @@ capture → replay round trip on the restorable spine, and each later wave widen
 own restore gate.
 
 The order is **1** build with the SDK → **2** map the code → **3** SDK lifecycle → **4** map objects
-→ **5** tracking & restore → **6** actions → **7** verify & upload. Phases 1–5 build the **capture**
+→ **5** tracking & restore → **6** actions → **7** verify & upload → **8** polish & expansion. Phases 1–5 build the **capture**
 side and then turn a capture into a playable Ludeo; **actions come last** of the integration work,
 once the player flow is proven, because an action that fires into a flow you cannot yet replay cannot
-be verified. Phase 7 then gets the build onto the Ludeo platform.
+be verified. Phase 7 then gets the build onto the Ludeo platform, and phase 8 checks what Ludeo could still
+capture, widens coverage as new waves through phases 4–6 if the user wants it, polishes, re-uploads and finalizes.
 
 Where to start is decided by the state file, not assumed — see **Start here**. Complete one phase at a time and confirm with the user before advancing. Report each phase's start and
 finish from this top level, per **Reporting progress** in
@@ -72,6 +73,7 @@ to call `ludeo-mcp` tools.
 | 6 · task 1 | `references/6a-map-game-actions.md` | Find action points in game code |
 | 6 · task 2 | `references/6b-implement-game-actions.md` | Insert action calls |
 | 7 | `references/7-upload-build.md` | Verify the Release build (release guard, shipped `ludeo.ini`, self-contained launch), upload it with the `ludeo` CLI, poll to `success`, then assign it to the target environment — **upload and assign only on explicit user confirmation** |
+| 8 | `references/8-polish.md` | Gap check → recommend → (opt-in) append new waves and re-enter phase 5 as data-only waves (task 3 skipped), new actions through phase 6 → cosmetic/timing polish and earlier bugs → re-upload through phase 7 → record completion in the TDD |
 
 ## Important rules
 
@@ -141,7 +143,10 @@ current branch doesn't have it, check for an existing integration branch first (
   phase file, its inputs and the step's `note` first); a `completed` or `skipped` step advances to the next one in the
   table above. In phase 5, resume at `wave.reopened` if set, else `wave.current`, at that wave's first unfinished task
   (`5a`–`5e`). **If any `wave.plan` entry is neither `green` nor `deferred`, phase 5 isn't done** — after phase 6 (which
-  may start once wave 1 is green), return to phase 5's next wave before phase 7. Read the
+  may start once wave 1 is green), return to phase 5's next wave before phase 7. With `current` at `8`: if `wave.reopened` is set, or any `wave.plan`
+  entry is neither `green` nor `deferred`, resume phase 5 at `wave.reopened`, else at that entry (task 3 is skipped),
+  then return to phase 8 where `steps.8.note` says. `8` `completed` → the integration is done at the agreed scope; say
+  so, and offer another phase-8 pass (set `steps.8` back to `in_progress`) only if the user wants to widen further. Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
   `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state
@@ -152,4 +157,7 @@ current branch doesn't have it, check for an existing integration branch first (
   steps.
 - **Neither** → a new integration: read `references/1-build-game-with-sdk.md` and follow it.
 
-Never re-run a `completed` step unless the user asks; if they do, set it back to `in_progress` first.
+Never re-run a `completed` step unless the user asks; if they do, set it back to `in_progress` first. The exception is
+phase 8, which routes back through `6a`, `6b` and `7`: those keep `current` at `8` and stay `completed`, and
+`steps.8.note` records which one is in progress and where, so a resumed session re-enters it from there (`5a`–`5e`
+follow the `wave` rules).

@@ -139,7 +139,8 @@ invariant depends on local state is re-called whenever that state changes.
 | 3 | `wiring_lifecycle` |
 | 5 | `tracking_objects` for task 1, then `restoring_objects` for tasks 2–4 |
 | 6 | `wiring_actions` |
-| 7 | `uploading_build`; once phase 7 is finished, `completed` — `started` then `finished`, back to back |
+| 7 | `uploading_build` |
+| 8 | a wave it adds reports like phase 5's, new actions like phase 6's, a re-upload like phase 7's; once nothing is left, after any re-upload, `completed` — `started` then `finished`, back to back |
 
 ## Rules
 

@@ -60,6 +60,6 @@ that they exist) — and steps `6a`, `6b` `completed` in the state file.
 
 ## Related / Next
 
-- **Next:** if phase 5 has waves left (`integration.json → wave.plan` entries neither `green` nor `deferred`), go back to
+- **Next:** entered from phase 8 (`current` is `8`) → back to `8-polish.md` Step 3. Otherwise: if phase 5 has waves left (`integration.json → wave.plan` entries neither `green` nor `deferred`), go back to
   `5-tracking-restore-orchestrator.md` for the next wave — new actions those waves expose come back through `6a`.
   Only when every wave is green or deferred: phase 7 (`7-upload-build.md`).
