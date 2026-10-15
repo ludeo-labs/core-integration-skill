@@ -33,6 +33,7 @@ Ludeo Session  ── activated at game launch, released at game shutdown ──
 | New game started | ✅ Start | First live frame of a fresh run |
 | Load save (from menu) | ✅ Start | First live frame of a resumed run |
 | **Debug / editor auto-enter or session override** | ✅ Start | Drops straight into a run, **skipping the menu** — it still needs its `OpenRoom`. Easy to miss: it bypasses the obvious new-game path |
+| Resume / continue, or a scripted / NPC bypass into a run | ✅ Start | Another live-run entry that may skip the menu handler — still needs its `OpenRoom` (§3) |
 | Player death (permadeath) | ✅ End | Run is over |
 | Return to main menu | ✅ End | Player exited the run |
 | Quit to desktop | ✅ End | Process is leaving |
@@ -80,8 +81,9 @@ So: keep `TryBegin`'s two-gate `if (player_added && room_ready)`. Do **not** add
 Per [CR-011](../00-CRITICAL-REQUIREMENTS.md), the Ludeo overlay opening mid-play must **freeze the simulation** — not just input. In a streaming world this means:
 
 - **Use the game's existing pause primitive** if it freezes the sim (e.g. Daggerfall's `GameManager.PauseGame()` / `StateManager.Paused`). If it only pauses input, build a sim-tick freeze.
+  - **That same primitive is where `PauseLudeo` / `ResumeLudeo` are emitted** (CR-011's other half — `phase 6 · task 2` Step 5, `06 §7.3`), so routing the SDK's `PauseGameRequest` handler through it is the *desired* wiring: the overlay pause then both freezes the world and stops the objective timer. Keep the emit idempotent so a pause that reaches the primitive by two paths reports once.
 - **Streaming jobs / coroutines** (terrain Jobs, asset loading, AI tick) must be paused too if they advance world state. Background asset *I/O* that doesn't mutate gameplay state can keep running.
-- The pause needs **two independent flags** for `PauseGameRequest` and the restored-moment hold until Play ([CR-010](../00-CRITICAL-REQUIREMENTS.md)) — not one shared boolean.
+- The pause needs **two independent flags** for `PauseGameRequest` and the restored-moment hold until Play ([CR-010](../00-CRITICAL-REQUIREMENTS.md)) — the simulation is frozen while *either* is set. One shared boolean lets `ResumeGameRequest` unfreeze a moment that is still being restored, or `RoomReady` cancel an overlay pause the player opened.
 
 ## 6. Restoration: Read the Ludeo, Then Reach Active Gameplay and Overwrite
 
@@ -124,8 +126,8 @@ Long sessions are fine. The Ludeo platform is designed for runs of any length; w
 | Player dies (permadeath) | `PlayerDeath` → `StartMethod = TitleMenuFromDeath` | `GameplaySession_End(isAbort=false)` |
 | Return to menu | `StartMethods.TitleMenu` | `GameplaySession_End(isAbort=true)` |
 | Load different save while in-game | `StartMethods.LoadDaggerfallUnitySave` while in `Game` state | `GameplaySession_End(isAbort=true)` then `Session_OpenRoom` for new run |
-| Pause menu / inventory open | `StateManager.Paused` / `UI` | *(local pause only — not a boundary)* |
-| Ludeo overlay opened | SDK `PauseGameRequest` | `GameManager.PauseGame()` (sim freeze, [CR-011](../00-CRITICAL-REQUIREMENTS.md)) |
+| Pause menu / inventory open | `StateManager.Paused` / `UI` | *(not a boundary)* — but emit `PauseLudeo` / `ResumeLudeo`: only the game can stop the objective timer |
+| Ludeo overlay opened | SDK `PauseGameRequest` | `GameManager.PauseGame()` — sim freeze **and** `PauseLudeo` ([CR-011](../00-CRITICAL-REQUIREMENTS.md)); the freeze alone leaves the timer running |
 | Application quit | `Application.Quit` | `GameplaySession_End` (if mid-run) → `Session_Release` → `Shutdown` |
 
 The CODE_MAP `session_boundaries` block produced in `phase 2` is the input for this mapping. See [`../../2-map-game-code.md`](../../2-map-game-code.md) §5.

@@ -14,49 +14,56 @@
 
 ## 1. Actions Catalog
 
+> **Candidates, not a capture list** — read the **Tier** column and apply the keep test ([INDEX.md](./INDEX.md),
+> "Action Tiers and the Keep Test"). **Genre T3 traps:** the whole Turn Flow group (turn and round transitions are
+> the turn system's tracked **state**, §3, and fire constantly), `UnitMoved` (per-tile noise; position is tracked)
+> and `Miss`/`ApplyBuff`. **Scope:** the player's side is the actor — `Kill`, `Attack`/`Hit`, `AbilityUse`,
+> `UnitExtracted` count for the player's units (guard sites the AI's units also run); **global** (fire once, no
+> guard) — `BattleWon`, `BattleLost`, `ObjectiveComplete`.
+
 ### Combat
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `Attack` / `Hit` | Unit performs an attack and connects | "Land 10 attacks" | 50 pts |
-| `Kill` | Unit is destroyed. For per-class goals, also send an action from a curated class list (e.g. `KillHeavyInfantry`) next to `Kill`, never instead of it (`6a`) | "Destroy 5 enemy units" | 200 pts |
-| `AbilityUse` | Unit activates a special ability | "Use abilities 8 times" | 25 pts |
-| `CriticalHit` | Attack deals critical/bonus damage | "Land 3 critical hits" | +75 bonus |
-| `Miss` | Attack fails to connect | — | — |
-| `Heal` | Unit restores HP to itself or an ally | "Heal 200 total HP" | 30 pts |
-| `ApplyBuff` | Positive status effect applied to a unit | — | 10 pts |
-| `ApplyDebuff` | Negative status effect applied to an enemy | "Debuff 4 enemies" | 15 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `Attack` / `Hit` | T2 | Unit performs an attack and connects | "Land 10 attacks" | 50 pts |
+| `Kill` | T1 | Unit is destroyed. For per-class goals, also send an action from a curated class list (e.g. `KillHeavyInfantry`) next to `Kill`, never instead of it (`6a`) | "Destroy 5 enemy units" | 200 pts |
+| `AbilityUse` | T2 | Unit activates a special ability | "Use abilities 8 times" | 25 pts |
+| `CriticalHit` | T2 | Attack deals critical/bonus damage | "Land 3 critical hits" | +75 bonus |
+| `Miss` | T3 | Attack fails to connect | — | — |
+| `Heal` | T2 | Unit restores HP to itself or an ally | "Heal 200 total HP" | 30 pts |
+| `ApplyBuff` | T3 | Positive status effect applied to a unit | — | 10 pts |
+| `ApplyDebuff` | T2 | Negative status effect applied to an enemy | "Debuff 4 enemies" | 15 pts |
 
 ### Turn Flow
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `TurnStarted` | A unit's individual turn begins | — | — |
-| `TurnEnded` | A unit's individual turn ends | — | — |
-| `RoundStarted` | A full initiative cycle begins | — | — |
-| `UnitActivated` | The active unit changes (initiative order advances) | — | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `TurnStarted` | T3 | A unit's individual turn begins | — | — |
+| `TurnEnded` | T3 | A unit's individual turn ends | — | — |
+| `RoundStarted` | T3 | A full initiative cycle begins | — | — |
+| `UnitActivated` | T3 | The active unit changes (initiative order advances) | — | — |
 
 ### Movement / Positioning
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `UnitMoved` | Unit moves to a new grid cell | "Move 20 total tiles" | 5 pts per tile |
-| `Overwatch` / `ReactionSet` | Unit enters overwatch / reaction stance | "Set overwatch 3 times" | 20 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `UnitMoved` | T3 | Unit moves to a new grid cell | "Move 20 total tiles" | 5 pts per tile |
+| `Overwatch` / `ReactionSet` | T2 | Unit enters overwatch / reaction stance (T3 if unscored) | "Set overwatch 3 times" | 20 pts |
 
 ### Objectives
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `ObjectiveComplete` | A battle objective is fulfilled | "Complete all objectives" | 500 pts |
-| `PointCaptured` | Unit captures a control point or zone | "Capture 2 points" | 300 pts |
-| `UnitExtracted` | Unit reaches an extraction zone | "Extract 3 units" | 250 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `ObjectiveComplete` | T1 | A battle objective is fulfilled | "Complete all objectives" | 500 pts |
+| `PointCaptured` | T1 | Unit captures a control point or zone | "Capture 2 points" | 300 pts |
+| `UnitExtracted` | T1 | Unit reaches an extraction zone | "Extract 3 units" | 250 pts |
 
 ### Outcome
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `BattleWon` | The player's side wins the battle | — | 2000 pts |
-| `BattleLost` | The player's side is defeated | — | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `BattleWon` | T1 | The player's side wins the battle | — | 2000 pts |
+| `BattleLost` | T1 | The player's side is defeated | — | — |
 
 ---
 
@@ -109,7 +116,10 @@ score, points, reward, rank
 Also look for the game's **turn/phase state machine** (a battle-phase enum on the game-state or battle
 manager — Setup / PlayerTurn / EnemyTurn / GameOver): it is the natural capture gate. Units placed in the
 level (rather than spawned) make restore matching trivial — match by stable ID and drive the game's own
-removal path for units that were already dead at capture.
+removal path for units that were already dead at capture
+(`learnings/architecture/level-placed-entities-make-restore-matching-trivial.md`). The evidence behind §4 and §5:
+`learnings/architecture/turn-based-capture-at-turn-boundaries.md`, `turn-boundary-quantized-write-cadence.md` and
+`restore-timing-can-be-core-not-polish.md` (same folder).
 
 ---
 

@@ -87,6 +87,15 @@ to call `ludeo-mcp` tools.
   explicitly skips it — record why). Before a session ends mid-step, note where in the step you stopped (`note`); record user decisions and code findings as they happen,
   and read the intake fields a step depends on before it starts (`references/state-file-schema.md`). Preserve fields
   you don't recognise — never rewrite the file from the template.
+- **Version control goes through the VCS contract** (`references/vcs/README.md`): git, SVN or Perforce, detected in
+  phase 1 and recorded in `integration.json → vcs.type`. Load `references/vcs/<type>.md` before any file write; call
+  its operations by name — never hardcode `git`. **Under Perforce, open a file before writing it** (`ensure_editable`:
+  the Perforce MCP `edit` / `add` tool, or `p4 edit` / `p4 add`) — a p4 workspace is read-only, so every write fails
+  otherwise, the plan files and the state file included. After each phase's gate, `checkpoint` per
+  `vcs.commitPolicy`, staging only the files that phase touched.
+- **Never run a destructive VCS command speculatively** — confirm state with two independent checks first
+  (`guard_destructive` in the loaded `references/vcs/<type>.md`): `git reset --hard` / `git clean` / `git checkout --`,
+  `svn revert -R` / `svn cleanup --remove-unversioned`, `p4 revert` / `p4 sync -f`.
 - 🛑 **Never upload or assign a build without explicit user confirmation.** Phase 7 publishes to Ludeo's
   cloud and changes what an environment serves — outward-facing and not trivially reversible. Present the
   fully-resolved command after a clean `--dry-run` and stop; a clean dry-run is not approval, and approving
@@ -187,6 +196,8 @@ learnings to the orchestrator, which writes them.
 - `references/learning-sanitization.md` — how to write a learning without leaking client IP (pattern, not payload);
   the pre-save checklist. `config/learning-policy.json` holds the codename allowlist.
 - `references/ludeo-integration-docs/` — primary integration guides (build, lifecycle, tracking, API reference, research templates, game-pattern playbooks).
+- `references/migration.md` — resuming an integration started under an older version of this skill.
+- `references/vcs/` — the VCS contract (`README.md`) and its git / SVN / Perforce implementations.
 - `references/state-file-schema.md` — `ludeo-integration-plan/integration.json`: where the integration is, what
   was decided, the intake answers, the Ludeo platform record. Read it at the start of every session.
 - `references/know-your-game.md` — the kickoff intake (phase 1 Step 11): design, UX and launch decisions that can't
@@ -213,8 +224,10 @@ which fallback you're using.
 
 At the start of **every** session, look for `ludeo-integration-plan/integration.json` in the game's repo
 ([`references/state-file-schema.md`](references/state-file-schema.md)). It lives on the integration branch, so if the
-current branch doesn't have it, check for an existing integration branch first (`git branch --list
-'feature/ludeosdk-integration-*'`) and ask the user whether to resume that one before starting anything new.
+current branch doesn't have it, look for an existing integration first — `git branch --list
+'feature/ludeosdk-integration-*'`, `svn ls ^/branches`, or the Perforce streams / pending changelists named for the
+integration — and ask the user whether to resume that one before starting anything new. Once the state file is read,
+load `references/vcs/<vcs.type>.md` before writing anything.
 
 - **It exists** → read it. Resume at `current`: a step `in_progress` continues where it stopped (re-read that
   phase file, its inputs and the step's `note` first); a `completed` or `skipped` step advances to the next one in the
@@ -226,12 +239,12 @@ current branch doesn't have it, check for an existing integration branch first (
   so, and offer another phase-8 pass (set `steps.8` back to `in_progress`) only if the user wants to widen further. Read the
   `risks` aimed at the step you're about to run. Tell the user in one line where you're resuming and why.
 - **It doesn't exist, but plan files do** (`ludeo-integration-plan/CODE_MAP.json`, `OBJECT_TRACKING.md`,
-  `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started before the state
-  file existed. Create the state file, infer each step's status from its evidence (the table in
-  `references/state-file-schema.md` → **Migrating**), fold `LUDEO_PLATFORM.md` into `ludeoPlatform` with the value
-  mapping given there (then delete it), show the user the inferred status and confirm it
-  before resuming. Run the intake (`references/know-your-game.md`) if `intake` is empty — its answers gate later
-  steps.
+  `RESTORATION_PLAN.md`, `GAME_ACTIONS_MAP.md`, `LUDEO_PLATFORM.md`, …) — an integration started under an older
+  version of this skill (the v1.x 15-phase layout, or v2 before the state file). Follow `references/migration.md`:
+  map it to the current steps, infer each step's status from evidence, re-open the work older versions built
+  differently (the pre-CR-010 restore flow, per-area non-ludeoable actions, …), create the state file, and show the
+  user the inferred status and the re-check list before resuming. A state file missing newer fields (`vcs`, `wave`,
+  `steps.8`) is completed the same way.
 - **Neither** → a new integration: read `references/1-build-game-with-sdk.md` and follow it.
 
 Never re-run a `completed` step unless the user asks; if they do, set it back to `in_progress` first. The exception is

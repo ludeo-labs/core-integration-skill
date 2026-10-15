@@ -102,11 +102,13 @@ Inverse of `phase 5 · task 1` Step 5 (per-property captures). Iterate the objec
 
 Inverse of `phase 5 · task 1` Step 6 (batch registration). For each pre-existing entity type in the plan, implement the match-or-spawn decision: match the captured object to the level-placed instance by stable ID and apply properties to it, rather than spawning a duplicate. Run this against the same level-load hook `phase 5 · task 1` used for batch registration, gated by `LudeoManager::Get().IsRestoring()` so the normal batch-registration path (which `phase 5 · task 1` gated with `!IsRestoring()`) does not also fire. *(`IsRestoring()` is set/cleared by `phase 5 · task 3`; here you only read it.)*
 
+> **Streaming worlds:** match by the **persistent world ID** (cell/region + content ID) — never a handle or address, which change every stream cycle — and reconstruct only the loaded neighborhood the Ludeo captured (`ludeo-integration-docs/game-patterns/open-world-tracking.md` §4–§5).
+
 ### Step 6: Reconciliation Wiring + Deferred Queue + Environment
 
 - **Reconciliation entities** (inverse of `phase 5 · task 1` Step 7) — for entities the matrix marks **reconciliation**, route Pass 1 through the game's existing load/recreate path (07 §5.1) instead of a manual spawn; Pass 2 then only resolves references the load path didn't. **Manual** entities use the explicit getters from Steps 3–4.
 - **Deferred queue** — Pass 2 **queues** the deferred properties; implement `ApplyDeferred()` to drain them in the plan's recorded order (07 §6). `phase 5 · task 3` calls it on the settle's first tick, when frames are running but input is still held — don't drain inside `RestoreTwoPass`, where the world is frozen.
-- **Environment restore** — `RestoreEnvironment(reader)` is called by `phase 5 · task 3`'s apply **after** `RestoreTwoPass` (07 §8.2); implement it to apply the world-singleton properties and honor the plan's exclusion list.
+- **Environment restore** — `RestoreEnvironment(reader)` is called by `phase 5 · task 3`'s apply **after** `RestoreTwoPass` (07 §8.2); implement it to apply the world-singleton properties and honor the plan's exclusion list. **Procedural games** (`CODE_MAP.session_boundaries.assembly == "procedural"`): the `RunMetadata` generation inputs are *not* environment — they are the entry identity `phase 5 · task 3` uses to re-drive the generator **before** entities, with its scaling counter set before any Pass 1 spawn; don't re-apply them here after entities (`ludeo-integration-docs/game-patterns/procedural-world.md` §5).
 
 ### Step 7: Reconstruction smoke test — re-run `--ludeo=<id>` and verify state (REQUIRED gate)
 

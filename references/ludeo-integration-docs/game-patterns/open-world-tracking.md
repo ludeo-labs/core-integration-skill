@@ -34,8 +34,8 @@ same, and conflating them corrupts the replay:
 
 | Event | What it means | `06` action |
 |---|---|---|
-| Object **streamed out** / culled / LOD-dropped / cell unloaded | Still exists in the world; just not resident near the player | **Stop sampling it, but do not treat it as destroyed.** Never key off this as "dead" or fold its game ID out of the world model. |
-| Object **destroyed in gameplay** (killed, consumed, mined, looted) | Gone from the world | `UnregisterFromLudeo` (`06 §3.4`), *or* keep it registered and capture a `is_destroyed`/`is_consumed` **state flag** (`06 §9.4`) |
+| Object **streamed out** / culled / LOD-dropped / cell unloaded | Still exists in the world; just not resident near the player | **Stop sampling it, but do not treat it as destroyed** — keep its registration if it can stream back into the captured neighborhood. Never key off this as "dead" or fold its game ID out of the world model. |
+| Object **destroyed in gameplay** (killed, consumed, mined, looted) | Gone from the world | `UnregisterFromLudeo` (`06 §3.4`), *or* keep it registered and capture a `is_destroyed`/`is_consumed` **state flag** (`06 §9.4`) — written while the object is still loaded |
 
 > **The destruction hook fires for both.** When a cell/chunk unloads, the engine destroys (or
 > pool-releases) the objects in it — that runs the same `OnDestroy`/destructor/`pool.release()` hook

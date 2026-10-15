@@ -103,6 +103,8 @@ Hook sites depend on the codebase pattern from the plan. Use the pattern-specifi
 
 Show each insertion as propose-confirm-execute. Check for fast-path bypasses (pool acquires, bulk loaders) that skip the manager — instrument those too.
 
+> **Streaming worlds (`ludeo-integration-docs/game-patterns/open-world-tracking.md` §2, §6): do not unregister on stream-out.** The destroy/release hook also runs when a cell unloads — gate the unregister on a real removal signal (death / consume / destroy, or the streamer's "removed" vs "unloaded" flag), never on the raw destructor or pool release alone, and register newcomers at their stream-in hook like a spawn.
+
 ### Step 5: Wire Per-Property Captures
 
 For each property in the plan, insert the capture macro at the location dictated by its **strategy**:

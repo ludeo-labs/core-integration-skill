@@ -14,50 +14,57 @@
 
 ## 1. Actions Catalog
 
+> **Candidates, not a capture list** — read the **Tier** column and apply the keep test ([INDEX.md](./INDEX.md),
+> "Action Tiers and the Keep Test"). **Genre T3 traps:** `GainXP` (the XP total is tracked **state** and it fires on
+> every kill), `Equip` (equipped gear is tracked state), and `DialogueChoice`/`UseConsumable`/`Purchase`/`Sell`
+> unless scored. **Scope:** RPG beats are **almost all player-scoped** (`Kill`, `Death`, `LevelUp`, `QuestComplete`,
+> `BossKill`) — guard any combat site that can fire for a non-player actor (companions, NPC-vs-NPC fights);
+> genuinely global events are rare here. Boss fights → also load [bosses.md](./bosses.md).
+
 ### Combat Actions
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `Kill` | Player kills enemy/creature | "Defeat 10 enemies" | 100 pts |
-| `Death` | Player dies | "Survive without dying" (inverse) | -50 pts |
-| `CriticalHit` | Landed a critical hit | "Land 5 crits" | +50 bonus |
-| `SpellCast` | Cast a spell | "Cast 10 spells" | — |
-| `AbilityUsed` | Used a class ability / shout | "Use ability 5 times" | — |
-| `Block` / `Parry` | Blocked or parried an attack | "Parry 3 attacks" | +25 bonus |
-| `BossKill` | Defeated a boss/named enemy | "Defeat the boss" | 1000 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `Kill` | T1 | Player kills enemy/creature | "Defeat 10 enemies" | 100 pts |
+| `Death` | T1 | Player dies | "Survive without dying" (inverse) | -50 pts |
+| `CriticalHit` | T2 | Landed a critical hit | "Land 5 crits" | +50 bonus |
+| `SpellCast` | T2 | Cast a spell (T3 if high-frequency and unscored) | "Cast 10 spells" | — |
+| `AbilityUsed` | T2 | Used a class ability / shout | "Use ability 5 times" | — |
+| `Block` / `Parry` | T2 | Blocked or parried an attack | "Parry 3 attacks" | +25 bonus |
+| `BossKill` | T1 | Defeated a boss/named enemy | "Defeat the boss" | 1000 pts |
 
 ### Quest / Progression Actions
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `QuestAccepted` | Accepted a quest | — | — |
-| `QuestObjective` | Completed a quest step | "Advance the quest" | 100 pts |
-| `QuestComplete` | Completed a quest | "Complete the quest" | 500 pts |
-| `LevelUp` | Character gained a level | "Reach level N" | 200 pts |
-| `SkillUp` | A skill increased | "Raise a skill" | 50 pts |
-| `GainXP` | Gained experience | — | — |
-| `LocationDiscovered` | Discovered a new location | "Discover 3 locations" | 100 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `QuestAccepted` | T3 | Accepted a quest | — | — |
+| `QuestObjective` | T2 | Completed a quest step | "Advance the quest" | 100 pts |
+| `QuestComplete` | T1 | Completed a quest | "Complete the quest" | 500 pts |
+| `LevelUp` | T1 | Character gained a level | "Reach level N" | 200 pts |
+| `SkillUp` | T2 | A skill increased | "Raise a skill" | 50 pts |
+| `GainXP` | T3 | Gained experience | — | — |
+| `LocationDiscovered` | T1 | Discovered a new location | "Discover 3 locations" | 100 pts |
 
 ### Loot / Economy / Crafting Actions
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `LootItem` | Picked up / looted an item | "Loot 5 items" | 10 pts |
-| `Equip` | Equipped gear | — | — |
-| `ItemCrafted` | Crafted / forged an item | "Craft an item" | 50 pts |
-| `Purchase` / `Sell` | Bought/sold at a vendor | — | — |
-| `UseConsumable` | Drank a potion / ate food | — | — |
-| `ChestOpened` | Opened a container/chest | "Open 3 chests" | 25 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `LootItem` | T2 | Picked up / looted an item | "Loot 5 items" | 10 pts |
+| `Equip` | T3 | Equipped gear | — | — |
+| `ItemCrafted` | T2 | Crafted / forged an item | "Craft an item" | 50 pts |
+| `Purchase` / `Sell` | T3 | Bought/sold at a vendor | — | — |
+| `UseConsumable` | T3 | Drank a potion / ate food | — | — |
+| `ChestOpened` | T2 | Opened a container/chest | "Open 3 chests" | 25 pts |
 
 ### Interaction / Social Actions
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `DialogueChoice` | Made a dialogue choice | — | — |
-| `PersuadeSuccess` | Passed a persuasion/speech check | "Persuade an NPC" | 50 pts |
-| `Lockpick` | Picked a lock | "Pick 3 locks" | 25 pts |
-| `Steal` | Stole an item (caught/uncaught) | — | — |
-| `FastTravel` | Fast-traveled (same run; not a session boundary — see open-world.md) | — | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `DialogueChoice` | T3 | Made a dialogue choice | — | — |
+| `PersuadeSuccess` | T2 | Passed a persuasion/speech check | "Persuade an NPC" | 50 pts |
+| `Lockpick` | T2 | Picked a lock | "Pick 3 locks" | 25 pts |
+| `Steal` | T3 | Stole an item (caught/uncaught) | — | — |
+| `FastTravel` | T3 | Fast-traveled (same run; not a session boundary — see open-world.md) | — | — |
 
 ---
 
@@ -69,7 +76,7 @@ results by category.
 ### Combat / Magic / Damage
 ```
 attack, kill, killed, death, die, died, dead, defeat, slay
-damage, hurt, hit, takeDamage, applyDamage, onDamage, doDamage, critical, crit
+damage, hurt, hit, takeDamage, applyDamage, onDamage, doDamage, damageable, critical, crit
 spell, cast, magic, mana, ability, shout, power, cooldown
 block, parry, dodge, stagger, stun
 health, hp, hitpoints, stamina, fatigue
@@ -79,7 +86,7 @@ health, hp, hitpoints, stamina, fatigue
 ```
 level, levelUp, xp, experience, exp, skill, skillUp, attribute, perk, talent
 stat, strength, agility, intelligence, endurance, charisma
-quest, mission, objective, journal, questStage, onQuestUpdated
+quest, mission, objective, journal, questStage, questComplete, onQuestUpdated
 faction, reputation, disposition, standing, relationship
 discover, location, mapMarker, fastTravel
 ```
@@ -97,7 +104,7 @@ consumable, potion, food, eat, drink, useItem, heal
 ```
 dialogue, conversation, talk, speak, NPC, choice, response
 persuade, intimidate, bribe, speech, lockpick, pickpocket, steal, crime, bounty
-interact, activate, use, open, onInteract
+interact, activate, use, open, onInteract, interactable
 time, weather, day, night, schedule, AI
 ```
 
@@ -133,6 +140,9 @@ not the whole save). Sections are tiered by restoration priority:
 - [ ] Target entity (by stable game ID — `06 §4`)
 - [ ] Dialogue/quest state if it gates behavior
 - [ ] Is alive/dead (a killed-not-respawned NPC is a **state flag**, not just an unregister — `06 §9.4`)
+- [ ] Mid-cast / in-flight spell state (casting phase, cast progress, spell ID, target, live projectile) — a
+      **later-wave** fidelity add, not wave 1 (`06 §9.7`). `SpellCast` is also an action (§1), but the mid-cast
+      is **state**: reconstruct it and let the action re-fire during playback — don't represent it twice
 
 ### Quests / World State — IMPORTANT (world flags that gate the visible moment are CRITICAL)
 - [ ] Active quest IDs + current stage/objective (as their own object type)

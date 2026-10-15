@@ -7,59 +7,70 @@
 
 ## 1. Actions Catalog
 
+> **Candidates, not a capture list** — read the **Tier** column and apply the keep test ([INDEX.md](./INDEX.md),
+> "Action Tiers and the Keep Test"). **Genre T3 traps:** the whole Player Commands group except `UseAbility`
+> (`AttackOrder`/`MoveOrder`/`GroupSelect` fire on every click — the classic RTS bloat source) and
+> `ResourceCollect`/`ResourceSpend`/`WorkerCreated` (resource totals are tracked **state**, and collection ticks
+> constantly). **Scope:** player(side)-scoped — `BuildStructure`, `UnitKill`, `HeroKill`, `CapturePoint`, `Research`
+> count for *your* units and orders (an enemy's kill of yours is `UnitLost`); **global** (fire once, no guard) —
+> `MatchWin`, `WaveComplete`, `ObjectiveComplete`.
+
 ### Unit/Building Production
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `BuildUnit` | Produced a unit | "Build 20 units" | 10 pts |
-| `BuildStructure` | Built a structure | "Build 5 structures" | 50 pts |
-| `BuildDefense` | Built defensive structure | "Build 3 towers" | 30 pts |
-| `UpgradeUnit` | Upgraded a unit | "Upgrade 5 units" | 25 pts |
-| `UpgradeStructure` | Upgraded a structure | — | 25 pts |
-| `Research` | Completed research/tech | "Research 3 upgrades" | 100 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `BuildUnit` | T2 | Produced a unit | "Build 20 units" | 10 pts |
+| `BuildStructure` | T1 | Built a structure | "Build 5 structures" | 50 pts |
+| `BuildDefense` | T2 | Built defensive structure | "Build 3 towers" | 30 pts |
+| `UpgradeUnit` | T2 | Upgraded a unit | "Upgrade 5 units" | 25 pts |
+| `UpgradeStructure` | T2 | Upgraded a structure | — | 25 pts |
+| `Research` | T1 | Completed research/tech | "Research 3 upgrades" | 100 pts |
 
 ### Combat
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `UnitKill` | Destroyed an enemy unit | "Destroy 50 units" | varies by unit |
-| `StructureDestroy` | Destroyed enemy structure | "Destroy 3 buildings" | 200 pts |
-| `UnitLost` | Lost a unit | "Lose fewer than 10 units" (inverse) | — |
-| `StructureLost` | Lost a structure | — | — |
-| `HeroKill` | Killed a hero unit | "Kill the enemy hero" | 500 pts |
-| `HeroDeath` | Hero unit died | — | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `UnitKill` | T1 | Destroyed an enemy unit | "Destroy 50 units" | varies by unit |
+| `StructureDestroy` | T1 | Destroyed enemy structure | "Destroy 3 buildings" | 200 pts |
+| `UnitLost` | T2 | Lost a unit | "Lose fewer than 10 units" (inverse) | — |
+| `StructureLost` | T2 | Lost a structure | — | — |
+| `HeroKill` | T1 | Killed a hero unit | "Kill the enemy hero" | 500 pts |
+| `HeroDeath` | T2 | Hero unit died | — | — |
 
 ### Economy / Resources
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `ResourceCollect` | Gathered resources | "Collect 1000 gold" | per unit |
-| `ResourceSpend` | Spent resources | — | — |
-| `TradeComplete` | Completed a trade | — | — |
-| `WorkerCreated` | Created a worker/harvester | — | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `ResourceCollect` | T3 | Gathered resources | "Collect 1000 gold" | per unit |
+| `ResourceSpend` | T3 | Spent resources | — | — |
+| `TradeComplete` | T3 | Completed a trade | — | — |
+| `WorkerCreated` | T3 | Created a worker/harvester | — | — |
 
 ### Territory / Objectives
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `CapturePoint` | Captured a strategic point | "Capture 3 points" | 200 pts |
-| `LosePoint` | Lost a strategic point | — | — |
-| `ObjectiveComplete` | Completed map objective | "Complete all objectives" | 500 pts |
-| `WaveComplete` | Survived a wave (tower defense) | "Survive 10 waves" | 100 pts |
-| `MatchWin` | Won the match | — | 2000 pts |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `CapturePoint` | T1 | Captured a strategic point | "Capture 3 points" | 200 pts |
+| `LosePoint` | T2 | Lost a strategic point | — | — |
+| `ObjectiveComplete` | T1 | Completed map objective | "Complete all objectives" | 500 pts |
+| `WaveComplete` | T1 | Survived a wave (tower defense) | "Survive 10 waves" | 100 pts |
+| `MatchWin` | T1 | Won the match | — | 2000 pts |
 
 ### Player Commands
 
-| Action Name | Description | Objective Potential | Scoring Potential |
-|-------------|-------------|---------------------|-------------------|
-| `AttackOrder` | Issued attack command | — | — |
-| `MoveOrder` | Issued move command | — | — |
-| `GroupSelect` | Selected a control group | — | — |
-| `UseAbility` | Used a special ability | "Use ability 5 times" | — |
+| Action Name | Tier | Description | Objective Potential | Scoring Potential |
+|-------------|------|-------------|---------------------|-------------------|
+| `AttackOrder` | T3 | Issued attack command | — | — |
+| `MoveOrder` | T3 | Issued move command | — | — |
+| `GroupSelect` | T3 | Selected a control group | — | — |
+| `UseAbility` | T2 | Used a special ability | "Use ability 5 times" | — |
 
 ---
 
 ## 2. Search Keywords
+
+Selection and orders usually run through a cursor **ray pick** into the world plus the input bindings, and
+production / destruction through the engine's spawn and destroy calls — search those alongside the lists below.
 
 ### Units / Entities / Spawning
 ```

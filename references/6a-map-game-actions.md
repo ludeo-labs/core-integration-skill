@@ -73,15 +73,19 @@ Using the **search keywords** from the genre pattern file(s), grep the game's so
    - Utility/helper functions
    - Getters/setters for continuous state (these are tracking, not actions)
 
-**Key distinction:** You're looking for **discrete events** (something happened), not **state changes** (something is now X). A `OnPlayerKilled()` is an action. A `SetHealth(50)` is tracking. When in doubt, keep it — the mapping step will filter.
+**Key distinction:** You're looking for **discrete events** (something happened), not **state changes** (something is now X). A `OnPlayerKilled()` is an action. A `SetHealth(50)` is tracking. When in doubt, keep it — the mapping step's keep test (Step 4) filters.
 
 ### Step 4: Map Findings to Ludeo Actions
 
 For each found gameplay event function:
 1. Match it against the genre's **action catalog**
 2. Assign a Ludeo action name (PascalCase, following naming conventions in 02C)
-3. Assess objective and scoring potential
+3. Assess objective and scoring potential, starting from the catalog row's **Tier** (T1 capture · T2 only if scored
+   or notable here · T3 usually drop)
 4. If an event doesn't match any cataloged action but looks gameplay-relevant, add it as a game-specific action
+5. **Apply the keep test** (`game-patterns/INDEX.md` → **Action Tiers and the Keep Test**): would a viewer or an
+   objective care about this beat? Drop state and input noise, and record each drop and why in
+   `GAME_ACTIONS_MAP.md` so the call is reviewable. The non-gameplay trigger actions below are never dropped.
 
 Also check for **gaps**: review the genre action catalog for expected actions that were NOT found in the code. Flag these as:
 > "Expected `<ActionName>` for this genre but no matching code found. This may be named differently or handled in a non-obvious way. Manual review recommended."

@@ -5,7 +5,7 @@
 > stateful sequence* (phases/forms, an intro or transition cutscene, a locked arena, summoned adds, a
 > unique spawn trigger), not just a high-HP mob.
 >
-> **Load when:** the game has bosses — from the user's description (`phase 1`) or the entity census
+> **Load when:** the game has bosses — from the intake (`profile.hasBosses`, `phase 1`) or the entity census
 > (`phase 4`). Load this **in addition to** the genre file(s) — it is a **gameplay-structure** pattern,
 > orthogonal to genre and to the world-structural files (open-world / procedural).
 >
@@ -278,15 +278,16 @@ Boss-summoned adds are enemies, but **not every enemy is *an* enemy** for counti
 ## 7. Actions (`phase 6`)
 
 Boss beats are high-value Ludeo objectives/scoring. Send them with `LudeoManager::Get().SendAction(name)`
-(`06 §7.1`); apply phase 6's keep test; scope per the note below.
+(`06 §7.1`); read the Tier and apply the keep test ([INDEX.md](./INDEX.md), "Action Tiers and the Keep Test");
+scope per the note below.
 
-| Action Name | Description | Scope | Objective / Scoring |
-|-------------|-------------|-------|---------------------|
-| `BossKill` | Boss defeated (canonical name; matches `rpg.md`/`survival-sandbox.md`) | **global** — fire once | "Defeat the boss" / 1000 pts |
-| `BossPhaseTransition` | Boss entered a new phase/form | **global** | "Reach phase 2" / 200 pts |
-| `BossEncounterStart` | Fight began (arena locked) | **global** | — / — |
-| `BossEnrage` | Boss enraged / final phase | **global** | — / bonus |
-| `PlayerDeathToBoss` | Player died to the boss | **player-scoped** — guard on player as subject | inverse objective |
+| Action Name | Tier | Description | Scope | Objective / Scoring |
+|-------------|------|-------------|-------|---------------------|
+| `BossKill` | T1 | Boss defeated (canonical name; matches `rpg.md`/`survival-sandbox.md`) | **global** — fire once | "Defeat the boss" / 1000 pts |
+| `BossPhaseTransition` | T1 | Boss entered a new phase/form | **global** | "Reach phase 2" / 200 pts |
+| `BossEncounterStart` | T2 | Fight began (arena locked) | **global** | — / — |
+| `BossEnrage` | T2 | Boss enraged / final phase | **global** | — / bonus |
+| `PlayerDeathToBoss` | T2 | Player died to the boss | **player-scoped** — guard on player as subject | inverse objective |
 
 - **Most boss lifecycle actions are global** (fire once, no player-actor guard) — like `WaveComplete` /
   `MatchWin`. Only player-subject beats (death to boss) are player-scoped.
