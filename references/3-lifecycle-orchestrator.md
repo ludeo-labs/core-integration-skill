@@ -25,7 +25,7 @@ own behaviour changed.
 | 2 | Technical design | [`3b-create-tdd.md`](3b-create-tdd.md) | `CODE_MAP.json`, `SDK_INTEGRATION_POINTS.json`, intake | `TDD_<Game>.md` | artifact exists |
 | 3 | Plan the lifecycle | [`3c-plan-sdk-lifecycle.md`](3c-plan-sdk-lifecycle.md) | the above, intake (`launchModel`, `captureTimingRules`) | `SDK_LIFECYCLE_PLAN_<Game>.md` | **user reviews the plan** |
 | 4 | Implement the lifecycle | [`3d-implement-sdk-lifecycle.md`](3d-implement-sdk-lifecycle.md) | TDD + plan | `LudeoManager`, `LudeoConfig`, `ludeo.ini`, hooks | — (task 5 is its gate) |
-| 5 | **Build + run** | [`3e-compile-and-fix.md`](3e-compile-and-fix.md) | the edited project | clean builds, SDK on and off | **agent builds and fixes; integrator runs the game** and the log shows a gameplay session opening and beginning |
+| 5 | **Build + run** | [`3e-compile-and-fix.md`](3e-compile-and-fix.md) | the edited project | clean builds, SDK on and off | **agent builds and fixes, then runs the harness's `smoke` scenario** (`agent-test-harness.md`); the log shows a gameplay session opening and beginning, and the screenshots show gameplay |
 | 6 | Classify the save system | [`3f-classify-save-system.md`](3f-classify-save-system.md) | `CODE_MAP.json`, intake `saveSystem` | `GAME_ANALYSIS_SAVE_SYSTEM.md`, `CODE_MAP.save_system.group` | **user confirms** the classification and the per-entity matrix |
 
 Tasks 1–2 can run back to back. Stop at task 3's plan for review before writing code, and don't start task 6 until

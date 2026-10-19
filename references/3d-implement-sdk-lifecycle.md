@@ -155,6 +155,21 @@ After session creation and **before** session activation, the LudeoManager **mus
 
 **Reference for the registration code + handler responsibilities:** `ludeo-integration-docs/05-LIFECYCLE-MANAGEMENT.md` "Registering Notifications" (under §4). Copy the registration block verbatim and wire the handlers per the responsibility list there.
 
+### 3.6. Required: the agent test harness core + `smoke` scenario
+
+The run gate below is run by the agent ([`agent-test-harness.md`](agent-test-harness.md)). Build what it needs now,
+from the levers in `CODE_MAP.json → automation`:
+
+- If the game's own levers (launch arguments, console, bots) already reach gameplay and can quit, the `smoke`
+  scenario may be rung 1 only: extend the phase 1 runner script and read the SDK's log lines.
+- Otherwise — and in any case before phase 5, which needs state read back — add the **harness module** behind
+  `LUDEO_AGENT_HARNESS` (job argument, runner ticked from the per-frame hook, sampler, screenshots,
+  `result.json`, clean quit with an exit code). It lives in the integration's folder; the game gets one call
+  site. Make sure the define is **off** in the configuration phase 7 uploads.
+- `smoke`: boot → SDK activated → gameplay → room open → hold → pause / resume → exit to menu (room closed) → quit.
+
+Record the runner, the define and the scenario in `integration.json → harness`.
+
 ### 4. Verification (Pre-Compile)
 
 - [ ] `LudeoConfig.h` stub overwritten with full version
@@ -186,13 +201,16 @@ rm -rf src/core/ludeo/   # or wherever the plan specified
 
 This phase edited source files but **deliberately did not compile** — `phase 3 · task 5` is its exit gate, and it
 is **mandatory**, not optional. The integration is **not done** until it builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** Run `phase 3 · task 5` — **rebuild and confirm a clean build with `LUDEO_SDK_ENABLED=1`** (and, if used, `=0`);
    fix build errors with phase 3 · task 5's loop and read the build log.
 2. **Run the game** — confirm the lifecycle opens a gameplay session (the first end-to-end proof), with
    no SDK errors or crashes in the log.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word. **Do not advance until the build passes and the user confirms the run** (or explicitly skips).
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`smoke`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not advance until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word.

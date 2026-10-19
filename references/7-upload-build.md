@@ -130,7 +130,13 @@ Grep    "#ifdef NDEBUG|#ifndef NDEBUG|#if defined\(DEBUG\)|_DEBUG"              
 ```
 
 Ask the user what dev affordances exist and how each is gated. Anything reachable in Release: gate it at
-the read site, rebuild, re-check. Flag CI as the durable fix (guard layer 5) — a developer's local
+the read site, rebuild, re-check.
+
+**The agent test harness is one of these, and it must be absent** (`agent-test-harness.md`): confirm
+`LUDEO_AGENT_HARNESS` is off for the Release configuration, and that the shipped binary doesn't contain it
+(search the binary for the job argument's string, e.g. `--ludeo-agent-job`; it must not be there). Before
+this step, replay every `confirmed` Ludeo in `LUDEOS.md` on the harness build of the same commit; the Release
+build itself gets the outside-driven launch check in Step 4. Flag CI as the durable fix (guard layer 5) — a developer's local
 configuration switch should never be able to produce a shipping artifact.
 
 ### Step 3: Verify the build is self-contained
@@ -161,7 +167,7 @@ when you approve).
    resolves from the developer's paths), e.g. a temp folder.
 2. Write `run.bat` at its root (the template below), then launch it from a shell whose working directory is
    **somewhere else**, redirecting output: `<copy>\run.bat > out.txt 2>&1`.
-3. Ask the user to confirm the game reaches its menu / gameplay; check `out.txt` for the SDK's startup lines
+3. Confirm the game reaches its menu / gameplay yourself (`agent-test-harness.md` → *The release build*: drive it with its own launch arguments, take a screenshot and open it); check `out.txt` for the SDK's startup lines
    and for missing-DLL or file-not-found errors. Close the game.
 
 - **If validation FAILs, stop.** Fix per Step 3, then re-validate. Never upload a build that failed a gate.

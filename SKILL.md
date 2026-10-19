@@ -107,13 +107,19 @@ to call `ludeo-mcp` tools.
 - **Every code-writing task ends with a rebuild + run gate (hard requirement).** Phase 3 · task 4,
   phase 5 · tasks 1, 3 and 4, and phase 6 · task 2 edit source, so each ends with (1) a clean rebuild
   (with `LUDEO_SDK_ENABLED` on, and off if a no-SDK build ships) and (2) a run of the game to confirm it
-  still works. **The agent runs the build itself** — CMake / MSBuild / make work headless — and reads the
-  log; "the agent can't see the game" means it can't *play* it, not that it can't build it. Only the run
-  needs the integrator — whoever the intake recorded in `runnability.runsTheGame` — and beyond the run log the agent
-  relies on their word. If the build can't run
-  here (toolchain missing, IDE-only or license-gated build), say so and ask. Do not advance until the
-  build passes and the integrator confirms the run (or explicitly skips). The build-and-fix loop lives in
-  `phase 3 · task 5`; the gate cites it rather than repeating it.
+  still works. **The agent runs both itself** — CMake / MSBuild / make work headless, and the run goes through
+  the **agent test harness** ([`references/agent-test-harness.md`](references/agent-test-harness.md)): the
+  game's own launch arguments, console and bots first, a small test-only harness module where those don't
+  reach, OS-level input only for the overlay. The agent reads the log and the run's `result.json` and **opens
+  the screenshots**; it never declares a run passed by inspection of code. Do not advance until the build passes
+  and the run passes. The build-and-fix loop lives in `phase 3 · task 5`; the gate cites it rather than
+  repeating it.
+- **Don't ask the integrator to play.** A gate that seems to need someone at the keyboard is a harness gap —
+  build the lever. The integrator plays only when they chose to (`intake.runnability.runsTheGame:
+  "integrator"`), or for one named check the harness provably can't make (say what you tried). What stays with
+  them: turning a captured moment into a Ludeo (send the moment, get the id back — batch several), the wave
+  sign-off from the evidence bundle, approvals, and upload / assign. If the game can't run on this machine at all
+  (license-gated, hardware), say so in phase 1.
 - **Paths inside workflow files are relative to the workflow file itself.** A workflow at `references/<N>-*.md` says `ludeo-integration-docs/<file>.md` to reach the docs folder, which sits next to the workflow file inside `references/`.
 - **Critical requirements** live in `references/ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`. Review them before phase 1.
 - **Track objects as attributes by default, not blobs.** The SDK supports both attribute and blob state storage/reconstruction; Ludeo strongly prefers attribute integrations. When mapping and tracking objects (phase 4 and phase 5 · task 1), capture discrete typed attributes by default and do **not** ask the user which to use. Use blob/serialized storage only when the user explicitly asks or an entity is genuinely opaque/unmappable — see `references/ludeo-integration-docs/06-TRACKING-PATTERNS.md §1.4`.
@@ -202,6 +208,8 @@ learnings to the orchestrator, which writes them.
   was decided, the intake answers, the Ludeo platform record. Read it at the start of every session.
 - `references/know-your-game.md` — the kickoff intake (phase 1 Step 11): design, UX and launch decisions that can't
   be read from code, each feeding a check in a later step.
+- `references/agent-test-harness.md` — how the agent runs, captures, replays and fires actions itself: the
+  cheapest-lever ladder, the test-only harness module, the scenarios each gate runs, what a pass must show.
 - `references/ludeo-studio-mcp.md` — the `ludeo-mcp` touchpoints (environments, beta version name, invites,
   goals and constraints, Global Triggers, progress reporting) and the read/write policy.
 

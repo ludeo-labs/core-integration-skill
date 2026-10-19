@@ -196,7 +196,7 @@ For entities marked **reconciliation** in `GAME_ANALYSIS_SAVE_SYSTEM.md §8.1`: 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
 This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
    loop in `phase 3 · task 5` and read the build log.
@@ -205,8 +205,10 @@ log; only running the game needs the integrator:
    (and none were dropped). Check the log for `Expected type` (server-side type-locking;
    `11-TROUBLESHOOTING.md §1`). A clean build does **not** prove tracking works — the log is the evidence.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not offer to advance until the build passes and the user confirms the run** (or explicitly skips). Then
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`capture`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not offer to advance until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word. Then
 run `phase 5 · task 2`.

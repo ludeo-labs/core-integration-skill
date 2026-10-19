@@ -278,7 +278,7 @@ After all actions are inserted, output a summary:
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
 This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
    project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 3 · task 5` and read the build log.
@@ -286,13 +286,15 @@ log; only running the game needs the integrator:
    verify each action's `SendAction` log line appears **in both**, with no SDK errors or crashes. Make the run **pause once and enter a non-ludeoable area once** (if the game has one), so
    `PauseLudeo`/`ResumeLudeo` and `StartNoneLudeable`/`StopNoneLudeable` are sent and Studio Lab can list them.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not offer to advance until the build passes and the user confirms the run** (or explicitly skips). Also
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`actions`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not offer to advance until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word. Also
 review any skipped low-confidence actions manually before moving on.
 
-Once they confirm, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
+Once the run passes, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
 actions it needs. Then hand back to `6-actions-orchestrator.md` (when `current` is `8`, back to `8-polish.md` instead): if phase 5 still has waves outstanding it
 returns there; once every wave is green or deferred, phase 7 (`7-upload-build.md`) verifies the Release build and
 publishes it.

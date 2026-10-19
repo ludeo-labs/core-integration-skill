@@ -75,6 +75,20 @@ Execute these searches systematically before writing the CODE_MAP. Skip sections
 - If the code disagrees with the intake answer, flag it to the user now — the answer decides whether `phase 3` builds
   the SDK-readiness gate.
 
+### 10. Automation Levers (for the agent test harness)
+Every later run gate is run by the agent ([`agent-test-harness.md`](agent-test-harness.md)), so map what lets it
+drive the game without a person, cheapest first, each with `file:line`:
+- **Launch arguments** that skip menus, load a level, set the mode, count of bots / AI, window size, mute audio
+- **Console / cvars / boot scripts** (`+exec`, autoexec, a command registry) and **dev / cheat commands** (give, god,
+  kill, teleport, timescale, skip) — and how each is gated in builds
+- **AI control of the player** (an autopilot, a bot that can take the player's slot), **demo / replay playback**,
+  benchmark or timedemo modes
+- **Screenshot** command or framebuffer read, the **log file** path, a clean **quit** command
+- **Input layer** — the function the game's input reaches first, where a harness can inject actions without OS input
+- **Scripting VMs, property / telnet / HTTP servers** that expose game state
+
+Record them in `CODE_MAP.json` → `automation`. Where a gate's moment has no lever, say so — phase 3 builds it.
+
 ## Your Task
 
 Build a **structural map** of the game codebase for SDK integration planning.
@@ -98,6 +112,7 @@ Use the **Analysis Checklist** above to systematically search the codebase. Foll
    - `save_system` - Format classification (custom binary, JSON, XML, third-party, engine-provided, none) **and** the existing per-object state-capture system (interface, registry/manager, object-type list, stable id) flagged as the tracking/restoration backbone
    - `ai` - Whether AI/bots exist, spawn mechanism, controllability
    - `launch_model` - What the boot flow does (menu or straight into gameplay, auto-continue / debug auto-enter paths, launch arguments already parsed), each with `file:line`, and whether it matches `integration.json → intake.launchModel` (Analysis Checklist §9)
+   - `automation` - The levers the agent test harness can use (Analysis Checklist §10): `launch_args`, `console`, `dev_commands`, `player_ai`, `demo_playback`, `screenshot`, `log_file`, `quit`, `input_entry`, each with `file:line`, plus `gaps` (moments no lever reaches yet)
    - `threading` - Threading model and thread safety notes
    - `build_system` - Build files and dependencies
 

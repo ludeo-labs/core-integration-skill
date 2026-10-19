@@ -73,6 +73,15 @@ file records **where you are, what was decided, and what the user told you**, an
     "tdd": "ludeo-integration-plan/TDD_GameName.md"
   },
 
+  "harness": {
+    "runner": "ludeo-integration-plan/agent/run.ps1",
+    "define": "LUDEO_AGENT_HARNESS",
+    "scenarios": ["boot", "smoke", "capture", "replay"],
+    "captureHotkey": "Shift+F4 (from the SDK log, 2026-10-14)",
+    "playClick": "real | stand-in",
+    "healthyDuration": { "smoke": "40s", "replay": "55s" }
+  },
+
   "decisions": [
     { "step": "3f", "topic": "Save system", "decision": "Group 2 — checkpoint only",
       "rationale": "SaveCheckpoint() writes position + inventory, nothing else", "date": "2026-10-14" }
@@ -122,6 +131,11 @@ file records **where you are, what was decided, and what the user told you**, an
   `betaBranch`. `debugTarget` is the environment local runs reach (`phase 3 · task 4` Question 3).
 - **`intake`** — the answers to [`know-your-game.md`](know-your-game.md); later steps read these fields as
   pre-flight checks. Unknown answers are recorded as `"unknown"` and listed in `risks`.
+- **`harness`** — the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)): the runner script
+  every run gate calls, the compile define that fences it, the scenarios built so far, the capture hotkey as the
+  SDK logged it, whether replays press the overlay's real Play button or the stand-in, and each scenario's healthy
+  duration from its first good run (a run several times longer is a wrong setting, not a slow boot). Absent until
+  phase 1 Step 10's `boot` run.
 - **`decisions` / `findings`** — append-only. A decision the user made or confirmed goes in `decisions` with its
   rationale; a fact found in the code goes in `findings` with `file:line`.
 - **`risks`** — every `unknown` from the intake, and anything a step deferred, with the step that must resolve it.
