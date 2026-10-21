@@ -53,4 +53,6 @@ When a gate fails (build error, missing log line, wrong replay):
 ## Progress
 
 Report each phase's start and finish (and, in phase 5, each wave) per `ludeo-studio-mcp.md` → **Reporting
-progress**, from the orchestrator only — tell workers not to call `ludeo-mcp` tools.
+progress**, from the orchestrator only — tell workers not to call `ludeo-mcp` tools. `finished` goes out when the
+orchestrator marks the phase's last gate passed, not when someone later confirms it, and every report goes through
+the `ludeoPlatform.progress` queue, so a refused one is resent at the next boundary instead of lost.
