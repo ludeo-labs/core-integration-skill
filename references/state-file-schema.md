@@ -46,6 +46,16 @@ file records **where you are, what was decided, and what the user told you**, an
     "mcpServer": "ludeo-mcp | ludeo-mcp-staging | none",
     "gameId": "<Studio Lab → Game Options → Info: the game version uuid>",
     "progressReportingDisclosed": false,
+    "progress": {
+      "sent": [
+        { "phase": "sdk_set_up", "status": "started", "at": "2026-10-14T09:12:00Z" },
+        { "phase": "sdk_set_up", "status": "finished", "at": "2026-10-14T15:40:00Z" }
+      ],
+      "pending": [
+        { "phase": "mapping_code", "status": "started", "at": "2026-10-14T15:41:00Z",
+          "lastError": "this account cannot report on that Game Id" }
+      ]
+    },
     "debugTarget": "QA",
     "environments": [
       { "envId": "<id>", "name": "QA", "betaVersionName": "qa", "isDefault": false, "dialogValue": "qa",
@@ -120,6 +130,12 @@ file records **where you are, what was decided, and what the user told you**, an
   `integratorIsMember: null` = unknown. `steamBranch: ""` = Steam's default branch (what a user means by "public"),
   `null` = not asked. `invited` holds names, never emails. `name` is a display label only — it never goes into
   `betaBranch`. `debugTarget` is the environment local runs reach (`phase 3 · task 4` Question 3).
+- **`ludeoPlatform.progress`** — the delivery record for `report_integration_progress`
+  ([`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) → **Reporting progress**). Every report is appended to `pending`
+  before it is sent, and moves to `sent` only when the server answers `Recorded`; a refusal, an error, a rate limit
+  or a missing tool leaves it in `pending` with `lastError`. `pending` is flushed oldest first at every step boundary
+  and at session start. `at` is when the step actually started or finished, not when the report went out, so a late
+  report still says when the work happened. Never edit `sent` by hand.
 - **`intake`** — the answers to [`know-your-game.md`](know-your-game.md); later steps read these fields as
   pre-flight checks. Unknown answers are recorded as `"unknown"` and listed in `risks`.
 - **`decisions` / `findings`** — append-only. A decision the user made or confirmed goes in `decisions` with its

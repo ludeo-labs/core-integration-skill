@@ -107,6 +107,10 @@ the template:
 - `vcs` → run `detect_vcs`; record `type`, `commitPolicy` and the per-VCS block.
 - `wave` → build it from `OBJECT_TRACKING.md` → `## Wave Rollout` and the green waves' evidence.
 - `steps.8` → `not_started` (or per §3's evidence).
+- `ludeoPlatform.progress` → add `{ sent: [], pending: [] }`, then run `ludeo-studio-mcp.md` → **Reporting
+  progress** → *Reconcile on resume*. Every completed phase gets its `started`/`finished` queued, in phase order,
+  so the progress panel catches up with where the integration really is. Older versions dropped failed reports
+  silently, so assume none of them landed.
 - `intake` empty → run the intake.
 
 When a future change bumps `schemaVersion`, it adds its upgrade steps here as a new section.

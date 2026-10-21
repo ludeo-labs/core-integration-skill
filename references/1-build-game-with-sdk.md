@@ -99,7 +99,9 @@ the steps below. Copy the entries from `<skill-base-dir>/config/mcp_config.templ
 ### Step 0d: Ludeo environments, and who is in them
 Policy and touchpoints: [`ludeo-studio-mcp.md`](ludeo-studio-mcp.md) — **reads free, writes confirmed**.
 Record everything below in the state file's `ludeoPlatform` block ([`state-file-schema.md`](state-file-schema.md));
-if it is already filled, read it and update it. Once (a) records the Game ID, start **Reporting progress** there (`sdk_set_up` · `started`).
+if it is already filled, read it and update it. Once (a) records the Game ID, add `progress: { sent: [], pending: [] }`
+if it is missing, check with `list_games` that the signed-in account sees that Game ID, and start **Reporting
+progress** there (`sdk_set_up` · `started`).
 - **(a) Environments.** Ask the user for the Studio Lab **Game ID** (Studio Lab → **Game Options → Info**;
   the game **version** uuid, not the backend `gameId`) — phase 7 needs it either way. If
   `list_game_environments` is in your tool list, list the environments with it; otherwise ask which exist and

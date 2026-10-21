@@ -39,6 +39,7 @@ It is a **cache, not the truth** — the platform is the source of truth, so re-
 wherever the table below says to.
 
 - `mcpServer` — the deployment chosen above; `gameId`; `progressReportingDisclosed`; `debugTarget`.
+- `progress` — `{ sent: [], pending: [] }`, the delivery record for **Reporting progress** (below).
 - `environments[]` — `{ envId, name, betaVersionName, isDefault, dialogValue, integratorIsMember, steamBranch, invited }`.
   `isDefault` and `dialogValue` come **only** from the Studio Lab dialog check (Matching step 1); `null` = not yet
   checked. `integratorIsMember: null` = unknown. `steamBranch` is filled at `phase 3 · task 4` — `""` = Steam's
@@ -48,7 +49,7 @@ wherever the table below says to.
 
 | Touchpoint | Tool | R/W | Assert when | Manual fallback |
 | --- | --- | --- | --- | --- |
-| **Every phase** — start and finish | `report_integration_progress` | Telemetry | Per **Reporting progress** (below). | Skip it, and say nothing. |
+| **Every phase** — start and finish | `report_integration_progress` | Telemetry | Per **Reporting progress** (below). | Queue the report in `ludeoPlatform.progress.pending` and send it once the tool is back — never drop it. |
 | **`phase 1` Step 0d** — before any other studio call | `list_game_environments` | R | **Before every write, and at every gate that names an environment** — reads are free, and the record is a cache. Takes a required `gameVersionId` — the **Game ID** from Studio Lab → **Game Options → Info** (the game **version** uuid, not the backend `gameId`), which only the user has, so **ask for that first**. Record **every** environment it returns — name, `envId`, current Beta Version Name; update the record when a re-read differs, and take `old` in a write confirmation from the fresh read, using the environment's beta name as Matching step 1 defines it. **An integration can target more than one environment** (QA while you iterate, production at ship), so this resolves the *set*: the target is picked per write. **The tool reports no membership**, so the membership question still goes to the user. | Ask the user which environments exist and what Beta Version Name each carries; record them the same way. After that, with no tool, use the record and confirm only the target. |
 | **`phase 1` Step 0d** — once the environments are known | `invite_users_to_environment` | **W** | **On demand, per environment.** Until the game is live on Ludeo, only people in an environment can capture there — anyone else's attempt fails silently, the integrator included. **Membership is per environment**: an invite to one grants nothing in another, and no tool reports membership, so the integrator's own is always a question. Ask who else needs to make Ludeos, and in which environment; invites go by email, and accepting one grants whichever Ludeo account is signed in at the time — so the invitee accepts it signed in to Creator Lab with the Steam account they'll capture with. Ask again when new people appear or the target environment changes. | Ask the user to invite them to `<environment>` in Studio Lab. |
 | **`phase 3 · task 4` Question 3** — where `betaBranch` is written to `ludeo.ini` | `set_beta_version_name` | **W** | **Only when Matching a branch to an environment (below) says to write** — the target has no name and is recorded as not the default. Re-check whenever the branch or the target changes. Names are unique within one Game ID, so a name another environment uses is rejected. | Ask the user to set `<name>` on `<environment>` in Studio Lab; if `list_game_environments` is listed, re-read to confirm it landed; on a mismatch, show the difference and ask — don't pass the gate on it. |
@@ -128,9 +129,47 @@ invariant depends on local state is re-called whenever that state changes.
   `progressReportingDisclosed: true`, say *"I'll also report to Ludeo which phase we're in, against this Game ID —
   nothing from your project."* and set it.
 - **Report the phase you're in:** `started` as its work begins (a resumed session sends it again), `finished`
-  when the user confirms it's done — unless the table says otherwise. No Game ID yet → don't report. Never
-  suppress a repeat.
+  **in the same write that marks the phase's last step `completed`** in the state file — the moment its exit gate
+  passes. **Never wait for a separate user confirmation:** when the agent runs the gate itself, or the user has
+  pre-approved phases, nobody confirms, and a `finished` held for that is never sent. No Game ID yet → don't
+  report. Never suppress a repeat.
 - **Only from the top-level agent.** If you dispatch subagents, tell them not to call `ludeo-mcp` tools.
+
+### Every report goes through the queue — none is ever dropped
+
+The progress panel shows only what reached Ludeo. A report lost silently leaves an integration looking stalled
+at an early phase while it is really near the end, so delivery is tracked in the state file
+(`ludeoPlatform.progress`, [`state-file-schema.md`](state-file-schema.md)):
+
+1. **Queue, then send.** Append `{ phase, status, at }` to `pending`, write the state file, then call the tool.
+   On `Recorded`, move the entry to `sent`. On **anything else** — an error, a refusal, a rate limit, or the tool
+   missing from your tool list — leave it in `pending` and set its `lastError` to what came back.
+2. **Flush at every step boundary.** Whenever the state file is written at a step's start or completion, and at
+   the start of every session, send `pending` oldest first, **one at a time, at least 3 s apart** (the server
+   rate-limits progress reports, and a burst gets refused). Stop the flush at the first failure and keep the rest
+   queued: order matters, because the panel reads the latest report as the current phase.
+3. **Reconcile on resume.** At the start of every session, compare the state file with `sent`: every step
+   `completed` needs its phase's `started` and `finished`, and `current` needs its `started`. Queue whatever is
+   missing, in phase order, and flush. This also repairs an integration whose reports were lost before this rule
+   existed.
+4. **Say it once, not every time.** A queue that clears within a flush needs no mention. When a flush ends with
+   reports still pending, add one line to that phase's report to the user — *"N progress reports haven't reached
+   Ludeo yet (`<lastError>`); they'll be resent."* — and, for an account problem, the fix below.
+
+### The signed-in account must see the Game ID
+
+`ludeo-mcp` signs in **one** Ludeo account at a time. The Studio Lab account (the developer's, often a Google
+sign-in) sees the game and accepts its reports; a player account — the Steam sign-in Creator Lab uses — sees no
+Studio Lab games, so every report and every Studio Lab call is refused while it is signed in. Before the first
+report of each phase, call `list_games` (a free read) and check that the recorded `gameId` is in one of its
+`gameVersionIds`.
+
+- **It's there** → report as above.
+- **It's missing** → don't send; queue. Tell the user once: *"ludeo-mcp is signed in to an account that can't see
+  Game ID `<gameId>` — sign it in with the Studio Lab account that owns the game (Claude Code: `/mcp` →
+  `ludeo-mcp` → re-authenticate), then tell me."* After they do, re-check and flush. If someone switched the
+  sign-in on purpose (for example to create Ludeos from Creator Lab moments), the queue holds the reports until
+  they switch back. Nothing is lost.
 
 | Phase | `phase` |
 | --- | --- |
@@ -144,9 +183,12 @@ invariant depends on local state is re-called whenever that state changes.
 
 ## Rules
 
-- **`report_integration_progress` is exempt from every rule below except the tool-list gate:** no confirmation, narration,
-  sign-in prompt or hand-over; ignore its result and errors; never retry. Separately, a write whose row says
-  **No confirmation** skips the go-ahead: make it, then report it.
+- **`report_integration_progress` is exempt from every rule below except the tool-list gate:** no confirmation, and
+  no narration per report. Its result never changes what the integration does next. But **its delivery is tracked**:
+  a report that isn't `Recorded` stays queued and is resent at the next step boundary
+  (**Reporting progress** → the queue), and an account that can't see the Game ID gets the one sign-in line
+  above. Never retry it in a loop, and never drop it. Separately, a write whose row says **No confirmation** skips
+  the go-ahead: make it, then report it.
 - **Reads are free.** Call one instead of asking the user a question the platform can answer.
 - **Writes are outward-facing.** A write changes what everyone in that environment sees, and an invite reaches
   a real person. Before any write tool, show what it will change — `environment · old → new`, and for a beta

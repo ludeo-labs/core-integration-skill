@@ -53,7 +53,9 @@ capture, widens coverage as new waves through phases 4–6 if the user wants it,
 Where to start is decided by the state file, not assumed — see **Start here**. Complete one phase at a time and confirm with the user before advancing. Report each phase's start and
 finish from this top level, per **Reporting progress** in
 [`references/ludeo-studio-mcp.md`](references/ludeo-studio-mcp.md), and tell any subagent you dispatch not
-to call `ludeo-mcp` tools.
+to call `ludeo-mcp` tools. `finished` goes out when the phase's gate passes. Every report goes through the state
+file's `ludeoPlatform.progress` queue, so a refused report is resent at the next step boundary rather than lost.
+At session start, check that the signed-in `ludeo-mcp` account can still see the Game ID.
 
 | Phase | File | Purpose |
 | --- | --- | --- |
