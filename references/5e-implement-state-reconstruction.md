@@ -120,6 +120,15 @@ This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 alr
    - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — validation should have ignored that selection, so this is a **flow** bug: go back to `phase 5 · task 3` Step 2.
    Log `GetObjectsInfo`'s `objectsCount` to tell them apart. If counts are non-zero but *wrong*, that's a reconstruction bug — stay here.
 3. **No `Expected type` lines** (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`). A mismatch means the getter type doesn't match the `phase 5 · task 1` setter type for that attribute — fix the getter, not the capture (unless `phase 5 · task 1` is genuinely wrong).
+   - **The restore check reads zero mismatches — build it now, it is the wave's hard evidence.** Add a read-only check
+     (harness-only code is fine) that, for every object and attribute the read-back applied, reads the value back
+     **through the game's own getters** and compares it with the value read from the Ludeo — once right after the
+     apply and again after the settle, just before `OpenRoom` (a game's own spawn or run-start code can overwrite a
+     value in between). It logs one summary line per restore, `restore check: <N> fields compared against the Ludeo,
+     <M> mismatches`, and one line per mismatch (object, attribute, expected, actual). Pass: `M = 0`, and `N` at least
+     the wave's expected field count. Extend it with every wave. Every later gate reads this line — the wave gates,
+     phase 7's pre-upload replay and the phase 8 conformance suite (`agent-test-harness.md` → *What a pass must show*).
+     Without it a restore is judged by eye; in a four-game benchmark it was the only restore evidence that held up.
 4. **Confirm a cross-entity reference restored correctly** (two-pass exercised) — the resolved target is the right live instance, no fail-loud `id_map` miss.
 5. **Restore a second Ludeo back-to-back without quitting** — trigger restore again (another `--ludeo=<id>` / re-inject) in the same process and confirm the **second** Ludeo's state reconstructs fully. Freshly-spawned entities appearing at their spawn defaults (frozen, un-applied) on the **second** replay but not the first is the dropped-init-callback signature (`07 §3.1`, §9.14): the apply was hung on the entity's own init callback, which the engine skipped for entities created during the second level boot. The fix is to apply from the Pass-2 driver loop (Step 4), not to re-add an entity-side apply channel. *(Re-entry teardown itself is `phase 5 · task 3`'s; here you're verifying the **apply** survives a second restore.)*
 6. **Confirm the moment before and after Play from the harness evidence** — the `replay` scenario

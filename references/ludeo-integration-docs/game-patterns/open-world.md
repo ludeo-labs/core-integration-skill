@@ -34,7 +34,7 @@ Ludeo Session  ── activated at game launch, released at game shutdown ──
 | Load save (from menu) | ✅ Start | First live frame of a resumed run |
 | **Debug / editor auto-enter or session override** | ✅ Start | Drops straight into a run, **skipping the menu** — it still needs its `OpenRoom`. Easy to miss: it bypasses the obvious new-game path |
 | Resume / continue, or a scripted / NPC bypass into a run | ✅ Start | Another live-run entry that may skip the menu handler — still needs its `OpenRoom` (§3) |
-| Player death (permadeath) | ✅ End | Run is over |
+| Player death (permadeath) | ✅ End (Creator Flow; in Player Flow hold until the backend ends the Ludeo — CR-007 note) | Run is over |
 | Return to main menu | ✅ End | Player exited the run |
 | Quit to desktop | ✅ End | Process is leaving |
 | Load a *different* save while in-game | ✅ End-then-start | **End (abort) the current Gameplay Session** — `GameplaySession_End(isAbort=true)` → `RemovePlayer` → `Room_Close` — **then open a new room** for the new run |
@@ -123,7 +123,7 @@ Long sessions are fine. The Ludeo platform is designed for runs of any length; w
 | Game launch | `DaggerfallUnityApplication.SubsystemInit` → `GameManager.Awake` | `ludeo_Initialize` → `Session_Create` → `Session_Activate` |
 | New run begins | `StartGameBehaviour.OnNewGame` *or* `OnStartGame` (recommended bind point) | `Session_OpenRoom` |
 | World streamed in, player in control | `StateManager.ChangeState(Game)` | *(no SDK call — sampler gate opens)* |
-| Player dies (permadeath) | `PlayerDeath` → `StartMethod = TitleMenuFromDeath` | `GameplaySession_End(isAbort=false)` |
+| Player dies (permadeath) | `PlayerDeath` → `StartMethod = TitleMenuFromDeath` | `GameplaySession_End(isAbort=false)` — Creator Flow; Player Flow holds until the backend ends the Ludeo |
 | Return to menu | `StartMethods.TitleMenu` | `GameplaySession_End(isAbort=true)` |
 | Load different save while in-game | `StartMethods.LoadDaggerfallUnitySave` while in `Game` state | `GameplaySession_End(isAbort=true)` then `Session_OpenRoom` for new run |
 | Pause menu / inventory open | `StateManager.Paused` / `UI` | *(not a boundary)* — but emit `PauseLudeo` / `ResumeLudeo`: only the game can stop the objective timer |

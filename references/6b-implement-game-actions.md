@@ -131,7 +131,13 @@ belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
   never send `PauseLudeo` (the timer runs), and its later unpause would send an orphan `ResumeLudeo`. So:
   1. **Outside a session, touch no span** — only remember the game's own state.
   2. **When the gameplay session begins**, seed from that state: if the game is already paused (or inside a
-     non-ludeoable area), open the span now.
+     non-ludeoable area), open the span now. **The Ludeo's own freezes never count as "paused"** — the CR-010
+     restore freeze, the input hold and the pre-Play wait are not a pause the player sees, and Play lifts them a
+     few milliseconds after `Begin`. Keep them out of `m_in_span` (they live in their own freeze bits, CR-010), and
+     seed only **after** `Begin`'s unfreeze. Seeding from the restore freeze sends `PauseLudeo` at `Begin` and
+     `ResumeLudeo` ~17 ms later; when the overlay receives that pair reversed, its countdown stays paused and the
+     Ludeo ends only on a later action — or never, if the player is idle. Gate: the phase 8 "idle past the time
+     limit" replay ends on time (`8-polish.md`).
   3. **Before the gameplay session ends**, close any span still open, while the session is still active — or
      it stays open into the next run, whose first pause then hits the guard and is never reported. This
      matters most in games that play many rounds per process.
@@ -177,7 +183,8 @@ void LudeoManager::ReportSpan(LudeoSpan span, bool open)
     SendAction(open ? kOpen[i] : kClose[i]);
 }
 
-// Call right after the gameplay session begins (end of TryBeginGameplaySession): seed from the game's state.
+// Call right after the gameplay session begins (end of TryBeginGameplaySession, AFTER Begin's unfreeze in
+// Player Flow): seed from the game's own state. The restore freeze / input hold are NOT in m_in_span.
 void LudeoManager::SeedSpansOnGameplayBegin()
 {
     for (int i = 0; i < 2; ++i) {

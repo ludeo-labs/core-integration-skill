@@ -69,7 +69,7 @@ This separation allows SDK to remain active throughout the game's lifetime while
 | **Ludeo Session Active** | Game loaded | `ludeo_Session_Activate()` | Ready for gameplay |
 | **Gameplay Session Start** | Level/match loading | `ludeo_Session_OpenRoom()`, `ludeo_Room_AddPlayer()` | Preparing tracking |
 | **Gameplay Active** | Gameplay begins | `ludeo_GameplaySession_Begin()` | Full tracking active |
-| **Gameplay End** | Match/level ends | `ludeo_GameplaySession_End()` | Tracking stopped |
+| **Gameplay End** | Creator Flow: match/level ends. Player Flow: only a game interrupt (§6.11) — the backend ends a Ludeo | `ludeo_GameplaySession_End()` | Tracking stopped |
 | **Room Closed** | Return to menu | `ludeo_Room_Close()` | Cleanup |
 | **Shutdown** | Game exit | `ludeo_Session_Release()`, `ludeo_Shutdown()` | SDK terminated |
 
@@ -568,7 +568,10 @@ void OnGameplayBeginCallback(const LudeoGameplaySessionBeginCallbackParams* data
 
 ### 6.7 Ending Gameplay
 
-Call this when gameplay ends (level complete, match over, player dies, etc.).
+**Creator Flow:** call this when gameplay ends (level complete, match over, player dies, etc.).
+**Player Flow:** the game's own end does **not** call this — the backend ends a Ludeo, and the game holds the world
+until it does. Only a game interrupt (validated `LudeoSelected`, `BackToMenuRequest`, quit, error) calls it, with
+`isAbort=true` (§6.11).
 
 ```cpp
 void OnGameplayEnd(bool isAbort)
@@ -668,7 +671,13 @@ void LoadLevel(const char* levelId)
 void OnLevelEnd(bool playerQuit)
 {
 #if LUDEO_SDK_ENABLED
-    OnGameplayEnd(playerQuit);  // End gameplay, remove players, close room
+    if (LudeoManager::Instance().IsPlayerFlow() && !playerQuit) {
+        // A Ludeo is playing: the backend owns its end (§6.11). Hold the world on the end screen,
+        // keep the room open, and block restart / map vote / next level until PauseGameRequest.
+        LudeoManager::Instance().HoldForBackendEnd();
+        return;
+    }
+    OnGameplayEnd(playerQuit);  // Creator Flow, or a quit: End, remove players, close room
 #endif
 }
 ```
@@ -694,6 +703,14 @@ On the playback path the platform **withholds `RoomReady` until the viewer press
 |---|---|---|
 | **Backend ends the Ludeo** — timer hits 0, objective met/failed, or any backend-decided reason | **The backend** — the game does **NOT** detect end-of-moment and does **NOT** call `End` or "submit" | The backend sends **`PauseGameRequest`**; the game's handler just **pauses (freezes the sim)** and waits for further platform events (CR-011). Submission is the backend's job. There is **no game-facing "moment ended" callback** — `PauseGameRequest` is the universal end-of-moment cue. |
 | **Game-initiated interrupt** — another `LudeoSelected` mid-play, `BackToMenuRequest`, or the player quitting | **The game** calls `ludeo_GameplaySession_End(isAbort=true)` | Tear down: `End(isAbort=true) → RemovePlayer → CloseRoom` (§6.7–§6.9). The SDK `Session` stays alive. |
+| **The game's own end inside a Ludeo** — match over (frag/time limit), race finished, level complete, game over, intermission, map vote | **Nobody yet** — this is **not** an end path. The backend still ends the Ludeo on its timer, goal or constraint | **Hold the world**: keep the room and gameplay session open, stay on (or freeze at) the end screen, and **block** every follow-on the game would start by itself — map restart, map vote / next level, a respawn-limit restart, a Creator room for the next match. The goal check needs the session alive until the backend's `PauseGameRequest`. The hold is **not a pause**: no `PauseLudeo` (it would stop the objective timer and the backend would never end the Ludeo). |
+
+**Seen in the field (each ended Ludeos early and lost the timer goal):** a match end called `End` as an abort, then the
+map vote loaded the next map and opened a Creator room mid-Ludeo; a key press on the intermission scoreboard restarted
+the map; a finished race ended the session at the line ("Mission failed"), and freezing the finished race then asserted.
+Check each of these against the game in phase 3 and again in the phase 8 conformance suite (`8-polish.md`).
+
+**`HoldForBackendEnd()`** — the LudeoManager helper every game-own end hook calls in Player Flow: set a `m_holding_for_backend` flag that the game's restart, map-vote, next-level and Creator-room paths check and refuse; keep the room and gameplay session open; and, if the game would keep simulating something harmful on its end screen, freeze through a **freeze-only** path (its own bit, like the CR-010 restore freeze) — never the pause primitive, which reports `PauseLudeo` (`phase 6 · task 2`). Clear the flag with the other per-Ludeo flags in `EndCurrentLudeo()` (`phase 5 · task 3` Step 5).
 
 - On the **backend-ends** path, the failure is the game trying to detect end-of-moment itself, or calling `End`/submitting on the backend's behalf — it owns neither. The game's only job is to **freeze on `PauseGameRequest` and wait**. Don't look for a "playback ended" notification; there isn't one.
 - On the **interrupt** path, the failure is `End(isAbort=false)` (marks an aborted run as a real completion) or skipping `End` entirely before teardown.
@@ -824,7 +841,7 @@ bound runs out, log it and shut down anyway — never hang the game's exit.
 | **SDK Session Activate** | `ludeo_Session_Activate()` | After window/OpenGL context ready | Window handle must be available |
 | **SDK Tick** | `ludeo_Tick()` | Every frame, main game loop | Must be called consistently on main thread |
 | **Gameplay Session Start** | `ludeo_Session_OpenRoom()` | When level/match loading starts | **NOT when ready** - call when loading begins |
-| **Gameplay Session End** | `ludeo_GameplaySession_End()` | When gameplay ends, before map cleanup | Match over, level complete, before cleanup |
+| **Gameplay Session End** | `ludeo_GameplaySession_End()` | When gameplay ends, before map cleanup | Creator Flow: match over, level complete. Player Flow: interrupts only (§6.11) |
 | **SDK Shutdown** | `ludeo_Shutdown()` | Game exit, during shutdown | Before resource cleanup |
 
 **⚠️ CRITICAL - NOT game code integration points:** `ludeo_Room_AddPlayer()` (called from `OnRoomOpenedCallback`), `ludeo_GameplaySession_Begin()` (called from `TryBeginGameplaySession()`), `ludeo_Room_RemovePlayer()` (called from `OnGameplayEndedCallback`), `ludeo_Room_Close()` (called from `OnPlayerRemovedCallback`).
@@ -841,7 +858,7 @@ bound runs out, log it and shut down anyway — never hang the game's exit.
 | Player added | Track condition | `OnPlayerAddedCallback()` | 📞 SDK callback | Set `player_added = true` |
 | Room ready | Track condition | `OnRoomReadyCallback()` | 📞 SDK callback | Set `room_ready = true` |
 | Both conditions met | Begin gameplay | `ludeo_GameplaySession_Begin()` | 📞 SDK callback | Called from `TryBeginGameplaySession()` helper |
-| Gameplay ends | End gameplay | `ludeo_GameplaySession_End()` | 🎮 Game code | Match over, level complete |
+| Gameplay ends | End gameplay | `ludeo_GameplaySession_End()` | 🎮 Game code | Creator Flow: match over, level complete. Player Flow: interrupts only — the backend ends a Ludeo (§6.11) |
 | Gameplay session ended | Remove player(s) | `ludeo_Room_RemovePlayer()` | 📞 SDK callback | Remove ALL players |
 | All players removed | Close room | `ludeo_Room_Close()` | 📞 SDK callback | Final cleanup |
 | Game shutdown | Release & shutdown | `ludeo_Shutdown()` | 🎮 Game code | During exit |
@@ -1077,7 +1094,7 @@ Symptom → cause → fix. Check this table before debugging deeper; [11-TROUBLE
 | Player stands at the default spawn with nothing restored | Applied before active gameplay was reached, or the reader was still empty | `07 §2.3`; reader readiness `07 §2.2.1`; [11 §7](./11-TROUBLESHOOTING.md) |
 | Prior run's inventory, HUD, VFX or post-effects show up in the restored moment | Matched instances (player, singletons, managers) were not reset before the apply | Reset to the new-run baseline, then apply (CR-006) |
 | Restores perfectly but the rerun is not a scored replay | Playback room opened with `ludeoId = nullptr` | `OpenRoom(ludeoId)` after the settle (§6.2, §6.11) |
-| Game plays under the overlay | Pause/Resume notifications not registered or handler only blocks input | Register both at session creation; freeze the tick (CR-011) — cloud only, so test via a debug hook locally |
+| Game plays under the overlay | Pause/Resume notifications not registered or handler only blocks input | Register both at session creation; freeze the tick (CR-011) — overlay pause/resume is cloud only, so test via a debug hook locally (the end-of-Ludeo pause does arrive locally) |
 | Restored Ludeo loads but input is dead | A stale freeze bit or input hold carried over from a previous play | [11 §8](./11-TROUBLESHOOTING.md); reset the bits in `EndCurrentLudeo()` and at the commit |
 | Second Ludeo in one session hangs, opens a second room, or inherits the first one's state | The first play was not torn down at the commit, or an old restore's continuation still ran | `EndCurrentLudeo()` first, new restore only after the close completes; restore generation (CR-010 step 3) |
 | A notification (usually `RoomReady`) never arrives; log shows `unknown event_name` | SDK build too old for the backend | Update the SDK and rebuild clean ([11 §9](./11-TROUBLESHOOTING.md)) |

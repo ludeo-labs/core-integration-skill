@@ -69,6 +69,13 @@ A **runner script** (`ludeo-integration-plan/agent/run.ps1` or `.sh`) wraps one 
 build with its full path and arguments, wait with a hard timeout, **kill the process on timeout**, copy the logs
 out, print `result.json`. Every gate calls this script, so a run is one command the agent can repeat.
 
+**A kill must never cut a highlight upload.** A capture finishes uploading seconds after the hotkey — a highlight is
+several parts, the video the largest — and a process killed or a room closed mid-upload leaves a moment that fails
+processing and can never become a Ludeo. So before any timeout kill, the runner asks the game to quit cleanly and
+waits for the upload-confirmation lines first; a scenario that captured something has not finished until the SDK
+logged every part of every highlight as uploaded, and a run that hits its timeout with an upload in flight is
+**failed** (`upload incomplete`), not passed.
+
 ## Scenarios — what each gate runs
 
 Build them as the gates need them; each is small.
@@ -77,9 +84,22 @@ Build them as the gates need them; each is small.
 | --- | --- | --- | --- |
 | `boot` | phase 1 Step 10 (rung 1 only, no code) | launch the baseline build into gameplay with `levelLoadCommand`, wait, screenshot, quit | proves the agent can run the game before any SDK code exists |
 | `smoke` | phase 3 · task 4 | boot → SDK activated → gameplay → room open → hold N s → pause / resume → exit to menu (room closed) → quit | the phase 3 run gate |
-| `capture` | phase 5 · task 1 (wave 1), extended per wave | boot → reach the moment the wave tracks, **mid-run** → press the capture hotkey (rung 3) → confirm the capture in the SDK log → play on a few seconds → exit | gate 1 of every wave |
+| `capture` | phase 5 · task 1 (wave 1), extended per wave | boot → reach the moment the wave tracks, **mid-run** → press the capture hotkey (rung 3) → confirm the capture in the SDK log → keep playing, room open, until the SDK confirms **every part of the highlight uploaded** (timeout = failed run) → exit | gate 1 of every wave |
 | `replay` | phase 5 · task 3 | launch with `--ludeo=<id>` → wait for validate → pre-play frame frozen behind the overlay (screenshot) → Play (real button or stand-in) → sample N s → screenshot → exit; `replay-twice` re-selects a second Ludeo through the real path | 5d Step 6, gate 4 of every wave |
 | `actions` | phase 6 · task 2 | perform each mapped action at least once through the game's own paths, in a capture run and in a replay | the phase 6 run gate |
+| conformance set | phase 8 Step 4b | `soak` (every Ludeo back to back), `replay-cold` (each from a cold launch), `play-again` (×3), `replay-idle` (Play, then no input past the limit), `replay-matchend` (the game's own end before the timer), `replay-killnow` (constraint fails at Play), `cycle-menu`, `cycle-other`, `frozen-input`, `focus-fullscreen`, `creator-long`, `win-goal` (a human-paced driver wins the goal) | the phase 8 conformance suite (`8-polish.md` Step 4b) |
+
+**Test drivers must not leak into a capture.** A harness drives the game with things a player never has: an AI or
+autopilot controlling the player, handicaps or speed caps the game applies to AI, held inputs, god mode, test cvars,
+changed match limits. Classify every captured field as **game state** or **controller state**, and never capture
+controller state on a human-controlled entity, nor restore it onto one — a captured AI speed cap restored onto the
+player made a Ludeo unwinnable. Every scenario pins the settings it changes and restores them on exit (they must not
+persist into the game's config), and a capture meant to become a Ludeo is driven human-paced, through the player's
+own input path. Conformance row 12 (`win-goal`) proves it.
+
+**Room closes wait for uploads too.** The same rule as the runner's: a match end, map change or quit that closes the
+Creator room while a highlight is still uploading loses that highlight. The game's own close path waits for the
+upload confirmations before `Room_Close` (bounded, logged), and `creator-long` proves it across several matches.
 
 **Capture specifics.** Read the live capture binding from the SDK / overlay log on the first run, not from the docs
 — an environment can override the default — and record it in `integration.json → harness.captureHotkey`. Send it
@@ -100,9 +120,16 @@ capture schema (phase 5 → *Re-capture every wave*). Phase 7 replays every `con
 A verdict of `passed` is not the proof. Read the evidence:
 
 - **The right Ludeo** — the id in the restore log is the one you meant.
-- **The values came back** — compare restored values against the Ludeo's recorded ones (read from the reader, or
-  the capture run's sampler at capture time). A game's own run-start setup can grant defaults on top of a restore
-  and still let a shallow check pass.
+- **The values came back** — the harness's **restore check** compares every applied attribute, read back through
+  the game's own getters, against the value read from the Ludeo, right after the apply and again after the settle,
+  and logs one line per restore: `restore check: <N> fields compared against the Ludeo, <M> mismatches` (plus one
+  line per mismatch naming object, attribute, expected and actual). A pass needs `M = 0` **and** `N` at least the
+  wave's expected field count — a check that compared nothing passes nothing. A game's own run-start setup can grant
+  defaults on top of a restore and still let a shallow check pass; this catches it (`5e` Step 7, the restore check).
+- **The SDK's lines, not the harness's word** — a step passes on the SDK's or the game's own log line (the key
+  landed, Play reached `RoomReady`, the backend ended the Ludeo), never on the harness reporting that it sent
+  something. A key sender can report success while the key never arrived (a held modifier turns Space into
+  Alt+Space). Match log lines in any order where the SDK's order varies.
 - **The game runs** — clock advancing, not paused, input live, no unexpected blocking screen, no SDK errors.
 - **The player sees it** — **open the screenshots and look**: HUD counters, the player's position, what is on
   screen. A model can be right while the HUD reads stale values.

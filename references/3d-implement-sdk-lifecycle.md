@@ -135,7 +135,9 @@ Follow the plan's hook points. Example modifications (actual files vary by game)
 | Init | Game startup | `LudeoManager::Get().Initialize()` |
 | Tick | Main loop | `LudeoManager::Get().Tick()` |
 | Session start | Level load | `LudeoManager::Get().OpenRoom(levelId)` |
-| Session end | Level end/disconnect | `LudeoManager::Get().EndGameplaySession(isAbort)` |
+| Session end (Creator Flow) | Level end/disconnect | `LudeoManager::Get().EndGameplaySession(isAbort)` |
+| Game's own end (Player Flow) | Level end, match over, race finish, intermission, map vote | `LudeoManager::Get().HoldForBackendEnd()` — **no** `End`; hold the world and block restart / next level / a new room until the backend's `PauseGameRequest` (CR-007 note, `05 §6.11`) |
+| Interrupt (Player Flow) | Back to menu, validated `LudeoSelected`, quit | `LudeoManager::Get().EndGameplaySession(true)` |
 | Shutdown | Game exit | `LudeoManager::Get().Shutdown()` |
 
 **CRITICAL:** Wrap ALL Ludeo code in `#if LUDEO_SDK_ENABLED ... #endif`
@@ -178,7 +180,8 @@ Record the runner, the define and the scenario in `integration.json → harness`
 - [ ] All modifications have `#if LUDEO_SDK_ENABLED` guards
 - [ ] `.bak` backups exist for all modified files
 - [ ] **All five required session notifications registered** (LudeoSelected, RoomReady, PauseGameRequest, ResumeGameRequest, BackToMenuRequest) — §3.5
-- [ ] **`OnPauseGameRequestCallback` actually freezes the simulation tick** (not just input) — CR-011. The SDK only sends this request in a cloud Player-Flow session, so check it locally by calling the handler directly; the real overlay check is the cloud run after `phase 7`
+- [ ] **Every game-own end hook (match over, race finish, level complete, intermission, map vote) branches on Player Flow** and holds instead of calling `End` — CR-007 note, `05 §6.11`
+- [ ] **`OnPauseGameRequestCallback` actually freezes the simulation tick** (not just input) — CR-011. The SDK sends the overlay's pause request only in a cloud Player-Flow session (locally it arrives only once, when the backend ends a Ludeo), so check the overlay path locally by calling the handler directly; the real overlay check is the cloud run after `phase 7`
 
 ## Output
 

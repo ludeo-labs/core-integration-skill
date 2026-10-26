@@ -77,7 +77,9 @@ moments into Ludeos and send back the ids (one ask for both). Track them in `LUD
 All of these, on a Ludeo captured mid-run with wave N's attributes:
 
 - **The cumulative set restores** — `5e` Step 7: the frozen frame behind the overlay is the captured moment for
-  everything waves 1…N track; two-pass counts non-zero; cross-references resolved.
+  everything waves 1…N track; two-pass counts non-zero; cross-references resolved; and the **restore check**
+  (`5e` Step 7, the restore check) reads `0 mismatches` over at least the fields waves 1…N track — after the apply **and** after
+  the settle. Gate 4 is not passed on screenshots alone.
 - **Placement sanity** — from the `replay` run's screenshots, which you open and look at: does anything sit in
   empty space, fall through the floor, or appear far from the level's geometry? A yes is a displaced-world-frame
   bug. If the screenshots can't show it (a camera that can't see the restored entities), add a sampler check
