@@ -110,9 +110,9 @@ EXAMPLE:
 
 <!--
 
-DESCRIPTION: Segments that should never become a Ludeo (shops, NPC dialogue, tutorials, safe zones, in-game menus). NOT a capture concern — tracking runs through them. They are marked by the standard StartNoneLudeable/StopNoneLudeable actions, connected to a Non-Ludeoable Area Global Trigger. List the enter/exit hooks here so phase 6 can emit the actions. See 06 §7.3.
+DESCRIPTION: Segments that should never become a Ludeo — every span where live gameplay is paused, suspended or disabled while a UI screen is open (06 §7.3: death/respawn, scoreboard, results, countdown, pause and in-game menus, loading, cutscenes, spectate), plus shops, NPC dialogue, tutorials, safe zones. NOT a capture concern — tracking runs through them. They are marked by the standard StartNoneLudeable/StopNoneLudeable actions, connected to a Non-Ludeoable Area Global Trigger. List the enter/exit hooks here so phase 6 can emit the actions. See 06 §7.3.
 
-EXAMPLE: Shop open → StartNoneLudeable, shop close (every path) → StopNoneLudeable; same pair for NPC dialogue, in-game menu, tutorial
+EXAMPLE: Death screen open → StartNoneLudeable, respawn (every path) → StopNoneLudeable; pause menu open → PauseLudeo + nested StartNoneLudeable, close → StopNoneLudeable + ResumeLudeo; shop open → StartNoneLudeable, shop close (every path) → StopNoneLudeable
 
 -->
 

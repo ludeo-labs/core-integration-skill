@@ -219,6 +219,7 @@ never on the harness's report of what it sent.
 | 10 | Focus loss in fullscreen, frozen and mid-play | no minimize, keeps rendering (the cloud stream) |
 | 11 | A long Creator session over several levels or matches | rooms opened = closed, every capture's upload confirmed before its room closed |
 | 12 | Each Ludeo's main goal can be won | a human-paced driver wins it inside the time limit — proves no test or AI state leaked into the capture (`agent-test-harness.md`) |
+| 13 | Every UI screen in the `phase 6` non-ludeoable census, in both flows | each one sends `StartNoneLudeable` on open and `StopNoneLudeable` on close, paired in the SDK log; none still open at `End`; pause screens send both pairs, nested (`06 §7.3`) |
 
 A row that fails is a bug: fix it through its owning phase and re-run the rows it touches. A row that cannot run here
 (no Ludeo with a constraint, a cloud-only path) is recorded as **not covered**, with what is needed, never as a pass.
@@ -311,7 +312,7 @@ TDD completion section:
 - <earlier Open Questions / known gaps resolved>
 
 ### Conformance suite and audit (Step 4b)
-- <row | result | run id> for rows 1–12; rows not covered and why
+- <row | result | run id> for rows 1–13; rows not covered and why
 - Audit: <confirmed violations and their fixes | none confirmed>
 
 ### Accepted gaps (deliberately not captured)

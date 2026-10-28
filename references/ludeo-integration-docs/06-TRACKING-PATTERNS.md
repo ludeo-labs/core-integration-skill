@@ -1158,10 +1158,23 @@ so per-area names (`ShopEntered`, `DialogueStarted`, …) would leave all but on
 
 | Trigger type | Start action | End action | Objective timer | Backend keeps the span's data | Use for |
 | --- | --- | --- | --- | --- | --- |
-| Non-Ludeoable Area | `StartNoneLudeable` | `StopNoneLudeable` | keeps running | yes | shops, NPC dialogue, tutorials, safe zones, in-game menus — play continues but must not become a Ludeo |
+| Non-Ludeoable Area | `StartNoneLudeable` | `StopNoneLudeable` | keeps running | yes | **every span where live gameplay is paused, suspended or disabled while a UI screen of any kind is open** (the rule below), plus areas where play continues but must not become a Ludeo — shops, NPC dialogue, tutorials, safe zones |
 | Pause/Resume | `PauseLudeo` | `ResumeLudeo` | **stopped** | no | **every** pause: pause menu, cutscenes, loading screens, focus loss, **and the SDK's overlay pause (CR-011)** |
 
-Pick the pair by **what should happen to the clock**. Both pairs belong in every integration. Note the
+**The rule — any UI screen that suspends gameplay is non-ludeoable.** If the player is not playing live because a
+screen of any kind is up — a death or respawn screen, a killcam, a game-over or "you failed" screen, a scoreboard,
+an intermission, a results screen, a map vote, a start countdown, a pause menu, any in-game menu or console, a
+loading screen over a live level, a cutscene, a replay viewer, spectating, the Ludeo overlay's pause — that span is
+non-ludeoable: `StartNoneLudeable` when the screen opens or play stops, `StopNoneLudeable` when live play resumes,
+on **every** exit path. It is a rule, not a list: the examples are where to start looking, and the census in
+`phase 6 · task 1` is the game's own list of such screens. A moment captured on a death screen or a scoreboard is a
+Ludeo nobody can play.
+
+Pick the pair by **what should happen to the clock** — and a screen that also **pauses** the game (pause menu,
+overlay pause, a cutscene that freezes the simulation) sends **both**: `PauseLudeo` first, `StartNoneLudeable`
+nested inside, closed in reverse order. A screen that suspends play while the clock must keep running sends only the
+non-ludeoable pair — notably the Player-Flow end-screen hold (`05 §6.11`), where `PauseLudeo` would stop the
+objective timer and the backend would never end the Ludeo. Both pairs belong in every integration. Note the
 spelling `StartNoneLudeable` — it is the platform's, do not "correct" it.
 
 - **Non-ludeoable areas do not pause tracking** — capture keeps running through them (§8.5); the backend
@@ -1187,7 +1200,7 @@ Tracking should be paused during:
 - Cutscenes or cinematics playing (scripted/cosmetic motion, not gameplay state)
 - Loading screens or transitions
 
-These are **local capture-hygiene** pauses tied to the gameplay-session lifecycle. The same pause must **also** emit `PauseLudeo`/`ResumeLudeo` (§7.3) — pausing local tracking does not stop the backend's objective timer. They are a different thing from **non-ludeoable areas** (shops, NPC dialogue, tutorials, safe zones, in-game menus): those are backend-controlled, do **not** pause tracking, and are marked with `StartNoneLudeable`/`StopNoneLudeable` — see §7.3 and `phase 6`.
+These are **local capture-hygiene** pauses tied to the gameplay-session lifecycle. The same pause must **also** emit `PauseLudeo`/`ResumeLudeo` (§7.3) — pausing local tracking does not stop the backend's objective timer. The **non-ludeoable** marking (every UI screen that suspends gameplay, plus shops, NPC dialogue, tutorials, safe zones — §7.3) is a separate, backend-controlled thing: the `StartNoneLudeable`/`StopNoneLudeable` pair does **not** itself pause tracking. A screen that also freezes the simulation (pause menu, a freezing cutscene, loading) keeps this tracking pause and `PauseLudeo` **and** opens a nested `StartNoneLudeable` span; one that suspends play while the sim keeps running gets only the non-ludeoable pair — see §7.3 and `phase 6`.
 
 ### 8.2 Tracking State Manager
 
@@ -1310,7 +1323,7 @@ void CutsceneManager::OnCutsceneComplete()
 
 ### 8.5 Non-ludeoable areas are NOT a tracking concern
 
-"Non-ludeoable areas" — shops, NPC dialogue, tutorials, safe zones, in-game menus — are **backend-controlled**. They do **not** pause or alter local tracking: capture keeps running through them. You mark their **boundaries** with the standard actions `StartNoneLudeable` / `StopNoneLudeable`, connected to a Non-Ludeoable Area **Global Trigger** in each environment; the backend then excludes those time windows from Ludeo creation. This is an *actions* task — see §7.3 and phases `phase 6`. Do **not** implement it with the local tracking-pause flags above.
+"Non-ludeoable areas" — every span where gameplay is suspended while a UI screen is up (death and respawn screens, scoreboards, results, countdowns, pause and in-game menus, loading, cutscenes — §7.3), plus shops, NPC dialogue, tutorials, safe zones — are **backend-controlled**. The non-ludeoable marking does **not** itself pause or alter local tracking — capture keeps running through a span that only carries `StartNoneLudeable`; a screen that also freezes the simulation still takes the §8.1 tracking pause and `PauseLudeo`, with the non-ludeoable span nested inside. You mark their **boundaries** with the standard actions `StartNoneLudeable` / `StopNoneLudeable`, connected to a Non-Ludeoable Area **Global Trigger** in each environment; the backend then excludes those time windows from Ludeo creation. This is an *actions* task — see §7.3 and phases `phase 6`. Do **not** implement it with the local tracking-pause flags above.
 
 ---
 
@@ -1723,7 +1736,7 @@ Use the SDK's own telemetry (see `03-SDK-FUNDAMENTALS.md` and `12-SDK-API-REFERE
 **Tracking State:**
 - [ ] Tracking pauses when game paused
 - [ ] Tracking suspends during cutscenes
-- [ ] Non-ludeoable area boundaries (shop/NPC/menu/tutorial/safe-zone) emit `StartNoneLudeable`/`StopNoneLudeable` (§7.3, `phase 6`) — tracking is *not* paused for them
+- [ ] Every UI screen that suspends gameplay (death/respawn, scoreboard, results, countdown, pause and in-game menus, loading, cutscene, spectate, overlay pause) and every shop/NPC/tutorial/safe-zone boundary emits `StartNoneLudeable`/`StopNoneLudeable` (§7.3, `phase 6`) — tracking is *not* paused for them
 - [ ] Every pause, the SDK's overlay pause included, emits `PauseLudeo`/`ResumeLudeo` once per transition
 
 **Performance:**

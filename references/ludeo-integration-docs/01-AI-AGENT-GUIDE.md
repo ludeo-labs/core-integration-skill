@@ -357,9 +357,11 @@ Does it happen once at a moment in time?
 Is this a cutscene, a loading screen, or a true (sim-frozen) game pause?
 ├─ Yes → Is gameplay still simulating in the background?
 │         ├─ Yes → Continue tracking
-│         └─ No  → Pause tracking (local capture hygiene) + emit PauseLudeo / ResumeLudeo
+│         └─ No  → Pause tracking (local capture hygiene) + emit PauseLudeo / ResumeLudeo,
+│                   with StartNoneLudeable / StopNoneLudeable nested inside (06 §7.3)
 │
-└─ No → Is this a shop / NPC dialogue / tutorial / in-game menu / safe zone?
+└─ No → Is any UI screen suspending play (death/respawn, scoreboard, results, countdown,
+        in-game menu, …), or is this a shop / NPC dialogue / tutorial / safe zone?
           ├─ Yes → Do NOT pause. It is a non-ludeoable AREA, not a tracking pause:
           │         keep tracking and emit StartNoneLudeable / StopNoneLudeable, connected to
           │         a Global Trigger on the platform (06 §7.3, phase 6).

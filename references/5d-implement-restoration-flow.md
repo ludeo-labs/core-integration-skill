@@ -131,7 +131,7 @@ Do **not** wire to `ludeo_GameplaySession_AddNotifyPlayerReady` (doesn't exist) 
 **The game's own end is not an end path.** A match, race or level that ends by itself during a replay (frag or time
 limit, finish line, level complete, game over), and everything the game starts after it (intermission input, map
 restart, map vote, next level, a Creator room for the next match), must **hold**: keep the room and gameplay session
-open, stay on or freeze at the end screen (a freeze-only path — the hold must not send `PauseLudeo`, or the timer stops and the backend never ends the Ludeo), block the follow-ons, and let the backend end the Ludeo on its timer
+open, stay on or freeze at the end screen (a freeze-only path — the hold must not send `PauseLudeo`, or the timer stops and the backend never ends the Ludeo; it does open a `StartNoneLudeable` span, since an end screen is a UI screen that suspends play — `06 §7.3`), block the follow-ons, and let the backend end the Ludeo on its timer
 (`05 §6.11`, CR-007 note). Find every such hook in the game now — they are usually in game-mode code the restore never
 touches — and branch them on `m_is_player_flow_replay`. The phase 8 conformance suite replays a Ludeo through a
 natural end to prove it (`8-polish.md`).

@@ -113,8 +113,12 @@ They are session/area events: no player guard, and they fire in **both** flows. 
 session-state guard (`06 §7.1`) already drops them outside an active gameplay session, which is where they
 belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
 
-- **Non-ludeoable areas** — report `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
-  **exit** site, through the span helper below. Tracking keeps running; the backend excludes the window
+- **Non-ludeoable areas** — every entry in the `phase 6 · task 1` census: each UI screen that suspends gameplay
+  (death/respawn, killcam, game over, scoreboard, intermission, results, map vote, countdown, pause and in-game
+  menus, console, loading, cutscene, replay viewer, spectate, the overlay pause), and each shop, dialogue, tutorial
+  or safe zone. Report `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
+  **exit** site, through the span helper below. A screen that also pauses sends both pairs (`PauseLudeo` first,
+  `StartNoneLudeable` nested inside, closed in reverse) — route the pause primitive's UI callers through both. Tracking keeps running; the backend excludes the window
   (`06 §7.3`). **Every `StartNoneLudeable` needs a reachable `StopNoneLudeable` on all exit paths**, early
   returns included — a dangling open span keeps Ludeo creation off for the rest of the run.
 - **Pause/resume** — emit `PauseLudeo` at **every** pause and `ResumeLudeo` at its end, at the game's **pause
