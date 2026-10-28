@@ -130,7 +130,13 @@ Grep    "#ifdef NDEBUG|#ifndef NDEBUG|#if defined\(DEBUG\)|_DEBUG"              
 ```
 
 Ask the user what dev affordances exist and how each is gated. Anything reachable in Release: gate it at
-the read site, rebuild, re-check. Flag CI as the durable fix (guard layer 5) — a developer's local
+the read site, rebuild, re-check.
+
+**The agent test harness is one of these, and it must be absent** (`agent-test-harness.md`): confirm
+`LUDEO_AGENT_HARNESS` is off for the Release configuration, and that the shipped binary doesn't contain it
+(search the binary for the job argument's string, e.g. `--ludeo-agent-job`; it must not be there). Before
+this step, replay every `confirmed` Ludeo in `LUDEOS.md` on the harness build of the same commit; the Release
+build itself gets the outside-driven launch check in Step 4. Flag CI as the durable fix (guard layer 5) — a developer's local
 configuration switch should never be able to produce a shipping artifact.
 
 ### Step 3: Verify the build is self-contained
@@ -161,7 +167,7 @@ when you approve).
    resolves from the developer's paths), e.g. a temp folder.
 2. Write `run.bat` at its root (the template below), then launch it from a shell whose working directory is
    **somewhere else**, redirecting output: `<copy>\run.bat > out.txt 2>&1`.
-3. Ask the user to confirm the game reaches its menu / gameplay; check `out.txt` for the SDK's startup lines
+3. Confirm the game reaches its menu / gameplay yourself (`agent-test-harness.md` → *The release build*: drive it with its own launch arguments, take a screenshot and open it); check `out.txt` for the SDK's startup lines
    and for missing-DLL or file-not-found errors. Close the game.
 
 - **If validation FAILs, stop.** Fix per Step 3, then re-validate. Never upload a build that failed a gate.
@@ -192,6 +198,34 @@ when you approve).
     keep the pipe intact, the template ends with `& exit /b %ERRORLEVEL%`.
   - A GUI-subsystem executable on bare Windows has no console attached, so verify locally by redirecting
     (`run.bat > out.txt 2>&1`) rather than expecting console output.
+
+### Step 4b: Cloud-parity gate — run it the way the cloud will (REQUIRED)
+
+Every gate before this one ran a warm, windowed, dev-argument build. The cloud runs none of that: it cold-launches
+`run.bat` from the build folder, fullscreen, behind a streaming client, with a load timeout. Bugs that live only on
+that path — a windowed build, an engine left off after a cold launch, a clock that restores to the machine's time,
+a Ludeo that never loads in time — pass every earlier gate and reach the player. So, on the **staged copy** from
+Step 4 (not the build output) — except item 4, which needs the harness build:
+
+1. **Fullscreen at the desktop resolution is forced by the launch line.** `run.bat` passes the game's own fullscreen
+   arguments (borderless or exclusive, whichever renders correctly — check the engine screenshot, desktop grabs of a
+   fullscreen GL window often come back blank), applied **after** any saved config, so a stale windowed setting can't
+   win. Dev builds may stay windowed; the staged one may not.
+2. **No minimize on focus loss.** The cloud stream and the overlay take focus; a game that minimizes or stops
+   rendering on focus loss streams a black screen. Focus another window while frozen and mid-play; the game keeps
+   rendering at full size.
+3. **Cold-start time to activation, measured.** Time `run.bat` → the SDK's session-activated line, cold (fresh
+   process, nothing cached the game can skip). Tell the integrator the number and that the environment's **Ludeo load
+   timeout** must exceed it with margin — a timeout shorter than the boot leaves every cloud Ludeo stuck on "securing
+   your spot". Record it in `decisions`.
+4. **One Ludeo per wave, restored from a cold launch** of the **harness build of the same commit** (the restore check
+   is harness code, compiled out of Release), started like the cloud starts it — `run.bat`'s exact arguments plus the
+   Ludeo id, fullscreen, from its own folder: the restore check reads
+   `0 mismatches` (`5e` Step 7, the restore check), and the game is played on for several seconds after Play — game start scripts
+   and clocks that run on a cold launch can overwrite restored state (engine state, time of day) after the check.
+5. **An engine screenshot of the overlay** on the fullscreen frame, opened and looked at.
+
+Any failure is fixed through its owning phase, then this step re-runs. Do not upload a build that has not passed it.
 
 ### Step 5: Locate the CLI and authenticate
 
@@ -309,7 +343,7 @@ ludeo builds get  --game-id <GAME_ID> --build-id <NEW_BUILD_ID>               # 
 Confirm status **`success`** and that `game-version`, `sdk-version`, build type and `exec-path` (the
 `run.bat`) are what you intended.
 
-> **The cloud run is also the first place the overlay pause runs.** `PauseGameRequest` / `ResumeGameRequest` only
+> **The cloud run is also the first place the overlay pause runs.** The overlay's `PauseGameRequest` / `ResumeGameRequest` only
 > fire in a cloud Player-Flow session (CR-011), so when the user plays the build in the cloud, ask them to open and
 > close the overlay mid-play once and confirm the game freezes and resumes — and that the objective timer stops while
 > it is open (that needs the Pause/Resume trigger).
@@ -395,6 +429,9 @@ Studio Lab) that the environment now shows this build.
       configuration, none reachable in Release; audited and confirmed with the user.
 - [ ] **Build is self-contained** — the whole ThirdParty runtime folder shipped, deps resolved durably.
 - [ ] **Self-contained launch PASS** — `validate-build`, or Step 4's manual check (launches from its own folder).
+- [ ] **Cloud-parity gate PASS (Step 4b)** — fullscreen forced by `run.bat`, no minimize on focus loss, cold-start
+      time measured and handed to the integrator for the Ludeo load timeout, one Ludeo per wave restored from a cold
+      launch with `0 mismatches` and played on, overlay screenshot opened.
 - [ ] **`ludeo` CLI reachable** (`--help`) and authenticated (`auth status`).
 - [ ] **Build type correct** — major on the first build, minor otherwise (with `--major-build-id`).
 - [ ] **`--sdk-version` confirmed with the user**, not inferred from the SDK folder name.
@@ -424,6 +461,8 @@ Studio Lab) that the environment now shows this build.
 - **Auto-fixing debug config instead of failing loud** — mutating config hides the mistake and dirties
   source; assert and fail, allowlisting legitimate non-default values.
 - **Uploading a build that failed `validate-build`** — fix and re-validate first.
+- **Skipping the cloud-parity gate because the dev build passed** — windowed cloud builds, a too-short Ludeo load
+  timeout and cold-launch-only restore bugs each cost a re-upload; Step 4b catches all three before the first one.
 - **Registering the `.exe` as `--exec-path`** instead of the relative `run.bat`.
 - **Hand-copying a missing DLL into the build folder** — discarded on the next rebuild; fix durably.
 - **Cherry-picking ThirdParty DLLs** — copy the whole folder; the missing one crashes on launch.

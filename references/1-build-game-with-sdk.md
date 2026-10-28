@@ -207,6 +207,13 @@ Follow **Section 8.2** of `04-BUILD-INTEGRATION.md`:
 - Check for ludeo symbols (`dumpbin /EXPORTS` or `nm`) in SDK-enabled build only
 - Record the SDK in the state file's `sdk` block — source, version, path, and the **version line** the SDK logs at
   startup (`LudeoSDK v…`)
+- **The agent runs these launches itself** — the `boot` scenario of
+  [`agent-test-harness.md`](agent-test-harness.md), rung 1 only, no new code: launch each build by its full path
+  straight into gameplay with the game's own arguments (a level-load argument, a console script, bots), wait,
+  take a screenshot, quit through the game's own quit path, and read the log. **Open the screenshot and check it
+  shows gameplay.** Write the commands into the runner script (`ludeo-integration-plan/agent/run.ps1` / `.sh`) and
+  create the state file's `harness` block. If the game can't reach gameplay this way, note what's missing — phase 2
+  finds the lever and phase 3 builds it. Ask the integrator only if the game can't run on this machine at all.
 
 ### Step 11: Know your game — the kickoff intake
 Run [`know-your-game.md`](know-your-game.md) with the user (20–30 minutes): the game and Ludeo profile, visible

@@ -120,15 +120,27 @@ This is the gate that closes phase 5 · task 4. `phase 5 · task 3`'s Step 6 alr
    - (b) the apply ran on an **empty / not-yet-populated reader** (`objectsCount == 0` on an early `GetLudeo` cycle — `07 §2.2.1`, mistake #13, `11-TROUBLESHOOTING §7`) — validation should have ignored that selection, so this is a **flow** bug: go back to `phase 5 · task 3` Step 2.
    Log `GetObjectsInfo`'s `objectsCount` to tell them apart. If counts are non-zero but *wrong*, that's a reconstruction bug — stay here.
 3. **No `Expected type` lines** (no attribute type-lock mismatches — `11-TROUBLESHOOTING §1`). A mismatch means the getter type doesn't match the `phase 5 · task 1` setter type for that attribute — fix the getter, not the capture (unless `phase 5 · task 1` is genuinely wrong).
+   - **The restore check reads zero mismatches — build it now, it is the wave's hard evidence.** Add a read-only check
+     (harness-only code is fine) that, for every object and attribute the read-back applied, reads the value back
+     **through the game's own getters** and compares it with the value read from the Ludeo — once right after the
+     apply and again after the settle, just before `OpenRoom` (a game's own spawn or run-start code can overwrite a
+     value in between). It logs one summary line per restore, `restore check: <N> fields compared against the Ludeo,
+     <M> mismatches`, and one line per mismatch (object, attribute, expected, actual). Pass: `M = 0`, and `N` at least
+     the wave's expected field count. Extend it with every wave. Every later gate reads this line — the wave gates,
+     phase 7's pre-upload replay and the phase 8 conformance suite (`agent-test-harness.md` → *What a pass must show*).
+     Without it a restore is judged by eye; in a four-game benchmark it was the only restore evidence that held up.
 4. **Confirm a cross-entity reference restored correctly** (two-pass exercised) — the resolved target is the right live instance, no fail-loud `id_map` miss.
 5. **Restore a second Ludeo back-to-back without quitting** — trigger restore again (another `--ludeo=<id>` / re-inject) in the same process and confirm the **second** Ludeo's state reconstructs fully. Freshly-spawned entities appearing at their spawn defaults (frozen, un-applied) on the **second** replay but not the first is the dropped-init-callback signature (`07 §3.1`, §9.14): the apply was hung on the entity's own init callback, which the engine skipped for entities created during the second level boot. The fix is to apply from the Pass-2 driver loop (Step 4), not to re-add an entity-side apply channel. *(Re-entry teardown itself is `phase 5 · task 3`'s; here you're verifying the **apply** survives a second restore.)*
-6. **Hand off to the player to confirm the moment before and after Play.** Tell the user:
-   > "**Before** pressing **Play**, confirm the frozen frame behind the overlay is the captured mid-level moment — player at the captured position with captured health/inventory/state. **Not** a level-start cinematic, **not** a default spawn point, **not** a loading cover (07 §9.11). Then press **Play** and confirm:
-   > - The game resumes **instantly** from that frame — no load, no snap.
-   > - The restored state survives a few seconds of play (no respawn / teleport / scripted reset clobbers it).
-   > - Gameplay proceeds normally without drift."
+6. **Confirm the moment before and after Play from the harness evidence** — the `replay` scenario
+   ([`agent-test-harness.md`](agent-test-harness.md) → *What a pass must show*). Open the screenshots and read the
+   samples:
+   - **Before** Play: the frozen frame behind the overlay is the captured mid-level moment — player at the captured
+     position with the captured health / inventory / state. **Not** a level-start cinematic, **not** a default spawn
+     point, **not** a loading cover (07 §9.11). Compare the sampled values with the Ludeo's recorded ones.
+   - **After** Play: the game resumes **instantly** from that frame — no load, no snap; the restored state survives
+     the sampled seconds (no respawn / teleport / scripted reset clobbers it); the clock advances without drift.
 
-Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
+Step 6 must pass on the harness evidence before declaring phase 5 · task 4 done. If state restores wrong, flag against `07 §10` and go back to the relevant step — do not move on.
 
 **If the game crashes during steps 1–4:** do **not** retry blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame, then classify against `11-TROUBLESHOOTING §6` — for this phase the likely culprits are **`EnterObject`/`LeaveObject` mismatch** (didn't use the scope), **stale `id_map` deref**, **pointer-as-reference**, or **use-after-`ObjectsInfo_Release`**. Fix at the root — don't paper over with null checks or try/catch — then rerun from step 1.
 
@@ -191,7 +203,7 @@ Wait for the player's confirmation on step 6 before declaring phase 5 · task 4 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not finish without it)
 
 This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
    loop in `3e-compile-and-fix.md` and read the build log.
@@ -201,12 +213,14 @@ log; only running the game needs the integrator:
    `07-RESTORATION-PATTERNS.md §10`. This is the payoff check: a playable Ludeo that reconstructs the
    captured moment.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not move on until the build passes and the user confirms the run** (or explicitly skips).
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`replay`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not move on until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word.
 
-Once they confirm, hand back to the phase-5 orchestrator for gate 4's remaining checks and the
+Once the run passes, hand back to the phase-5 orchestrator for gate 4's remaining checks and the
 "widen to the next wave?" question. After **wave 1** is green the player flow is proven — phase 6
 (`6-actions-orchestrator.md`) may start: actions come last precisely because they can only be verified
 against a flow that already replays.

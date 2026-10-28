@@ -122,13 +122,19 @@ Complete this questionnaire to identify:
 
 | Area | Enter hook (file:function) — emits `StartNoneLudeable` | Exit hook(s) (file:function) — emit `StopNoneLudeable` on every path |
 |------|----------------------------|----------------------------|
+| Death / respawn screen, killcam | | |
+| Game over / "you failed" screen | | |
+| Scoreboard, intermission, results screen | | |
+| Map vote, start countdown | | |
+| Pause menu (also `PauseLudeo`, nested) | | |
+| Console, loading over a live level, cutscene, replay viewer, spectate | | |
 | Shop / stall | | |
 | NPC dialogue | | |
 | In-game menu | | |
 | Tutorial | | |
 | Safe zone / hub | | |
 
-> Main menu, lobby, and loading screens are **not** non-ludeoable areas — they sit outside any gameplay session, so nothing tracks them and no action is needed. Cutscenes are handled as a local **capture-hygiene** pause (§8.2), separate from this.
+> The rule (`06 §7.3`): every span where live gameplay is paused, suspended or disabled while a UI screen is open is non-ludeoable. Main menu, lobby, and loading **between** sessions are not — they sit outside any gameplay session, so nothing tracks them and no action is needed. A loading screen over a live level and a cutscene **are** non-ludeoable; when they freeze the sim they also take the local capture-hygiene pause (§8.2) and `PauseLudeo`, with the non-ludeoable span nested inside.
 
 ---
 
@@ -164,7 +170,7 @@ Function/Event:
 [ ] Orders/build queue  
 [ ] Other:
 
-> Note: dialogue, inventory, map, and shop screens are usually **non-ludeoable areas** (§8.1), handled by `StartNoneLudeable`/`StopNoneLudeable` — not tracking pauses. Only flag something here if it freezes the simulation (true pause) or is a cutscene; those pause local tracking **and** emit `PauseLudeo`/`ResumeLudeo` (06 §7.3) — the action is what stops the objective timer.
+> Note: dialogue, inventory, map, and shop screens are usually **non-ludeoable areas** (§8.1), handled by `StartNoneLudeable`/`StopNoneLudeable` — not tracking pauses. Only flag something here if it freezes the simulation (true pause) or is a cutscene; those pause local tracking **and** emit `PauseLudeo`/`ResumeLudeo` (06 §7.3) — the action is what stops the objective timer — **and** open a nested `StartNoneLudeable` span, since a UI screen is up.
 
 **How to detect when game is truly paused vs just UI overlay?**  
 Check:  
@@ -186,8 +192,10 @@ File:
 ```
 Is the game truly paused (sim frozen) or in a cutscene?
 ├─ Yes → Pause tracking (local capture hygiene; resume after) AND emit PauseLudeo / ResumeLudeo
+│         AND StartNoneLudeable / StopNoneLudeable nested inside (06 §7.3)
 │
-└─ No → Is this a non-ludeoable area (shop / NPC dialogue / tutorial / menu / safe zone)?
+└─ No → Is any UI screen suspending play (death, scoreboard, results, countdown, menu, …),
+        or is this a shop / NPC dialogue / tutorial / safe zone?
     ├─ Yes → KEEP TRACKING. Do not stop tracking or end the session.
     │         Emit StartNoneLudeable / StopNoneLudeable; the backend excludes the window (06 §7.3).
     │

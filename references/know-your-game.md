@@ -197,15 +197,21 @@ the game's own auto-start suppressed (§4); `autoEnterPaths` are run boundaries 
 |----|----------|
 | `RUN-1` | Can a level be played **without the game's live/online backend**? If not, is there (or must there be) an offline switch? |
 | `RUN-2` | What is the exact way to load a given level from a cold start (command-line argument, console command, a state-machine call)? |
-| `RUN-3` | Who will run the game during the integration's run checks — you, or someone else on the team? |
+| `RUN-3` | Not a question about who plays — **the agent runs every run check itself** through the agent test harness. Tell the user that, then ask: *"Do you want to play any of the checks yourself? And are there debug or cheat commands, a console, bots, or a demo mode I should know about?"* |
+| `RUN-4` | Can the game run on **this** machine at all — license, hardware, platform? (Answer from the phase 1 builds and the Step 10 `boot` run where you can.) |
 
 ```json
 "runnability": { "offlineBackend": "works | switch-exists:<flag> | switch-needed",
-                 "levelLoadCommand": "--level=<id>", "runsTheGame": "integrator" }
+                 "levelLoadCommand": "--level=<id>", "runsTheGame": "agent",
+                 "integratorPlays": [], "devCommands": "console: `give`, `god`; bots via `addbot`" }
 ```
 
-**→ Feeds:** every rebuild + run gate (who to ask — `SKILL.md`'s gate rule); `phase 5 · task 2` / `task 3` (reaching a
-captured level from a cold start uses `levelLoadCommand`); `switch-needed` is a **blocker** — record it in `risks` against `phase 3 · task 4`.
+`runsTheGame` is `"agent"` unless RUN-4 is no (then `"integrator"`, with the reason in `risks`). `integratorPlays`
+lists the checks the user chose to play themselves (default empty).
+
+**→ Feeds:** every rebuild + run gate (`agent-test-harness.md`); `phase 2` §10 (the automation levers, seeded by
+`devCommands`); `phase 5 · task 2` / `task 3` (reaching a captured level from a cold start uses `levelLoadCommand`);
+`switch-needed` is a **blocker** — record it in `risks` against `phase 3 · task 4`.
 
 ---
 

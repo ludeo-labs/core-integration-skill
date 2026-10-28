@@ -113,8 +113,12 @@ They are session/area events: no player guard, and they fire in **both** flows. 
 session-state guard (`06 §7.1`) already drops them outside an active gameplay session, which is where they
 belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
 
-- **Non-ludeoable areas** — report `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
-  **exit** site, through the span helper below. Tracking keeps running; the backend excludes the window
+- **Non-ludeoable areas** — every entry in the `phase 6 · task 1` census: each UI screen that suspends gameplay
+  (death/respawn, killcam, game over, scoreboard, intermission, results, map vote, countdown, pause and in-game
+  menus, console, loading, cutscene, replay viewer, spectate, the overlay pause), and each shop, dialogue, tutorial
+  or safe zone. Report `StartNoneLudeable` at every **enter** site and `StopNoneLudeable` at every
+  **exit** site, through the span helper below. A screen that also pauses sends both pairs (`PauseLudeo` first,
+  `StartNoneLudeable` nested inside, closed in reverse) — route the pause primitive's UI callers through both. Tracking keeps running; the backend excludes the window
   (`06 §7.3`). **Every `StartNoneLudeable` needs a reachable `StopNoneLudeable` on all exit paths**, early
   returns included — a dangling open span keeps Ludeo creation off for the rest of the run.
 - **Pause/resume** — emit `PauseLudeo` at **every** pause and `ResumeLudeo` at its end, at the game's **pause
@@ -131,7 +135,13 @@ belong — a pause in the main menu or while waiting for a Ludeo sends nothing.
   never send `PauseLudeo` (the timer runs), and its later unpause would send an orphan `ResumeLudeo`. So:
   1. **Outside a session, touch no span** — only remember the game's own state.
   2. **When the gameplay session begins**, seed from that state: if the game is already paused (or inside a
-     non-ludeoable area), open the span now.
+     non-ludeoable area), open the span now. **The Ludeo's own freezes never count as "paused"** — the CR-010
+     restore freeze, the input hold and the pre-Play wait are not a pause the player sees, and Play lifts them a
+     few milliseconds after `Begin`. Keep them out of `m_in_span` (they live in their own freeze bits, CR-010), and
+     seed only **after** `Begin`'s unfreeze. Seeding from the restore freeze sends `PauseLudeo` at `Begin` and
+     `ResumeLudeo` ~17 ms later; when the overlay receives that pair reversed, its countdown stays paused and the
+     Ludeo ends only on a later action — or never, if the player is idle. Gate: the phase 8 "idle past the time
+     limit" replay ends on time (`8-polish.md`).
   3. **Before the gameplay session ends**, close any span still open, while the session is still active — or
      it stays open into the next run, whose first pause then hits the guard and is never reported. This
      matters most in games that play many rounds per process.
@@ -177,7 +187,8 @@ void LudeoManager::ReportSpan(LudeoSpan span, bool open)
     SendAction(open ? kOpen[i] : kClose[i]);
 }
 
-// Call right after the gameplay session begins (end of TryBeginGameplaySession): seed from the game's state.
+// Call right after the gameplay session begins (end of TryBeginGameplaySession, AFTER Begin's unfreeze in
+// Player Flow): seed from the game's own state. The restore freeze / input hold are NOT in m_in_span.
 void LudeoManager::SeedSpansOnGameplayBegin()
 {
     for (int i = 0; i < 2; ++i) {
@@ -278,7 +289,7 @@ After all actions are inserted, output a summary:
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
 This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** via the build system and confirm a **clean build with `LUDEO_SDK_ENABLED=1`** (and, if the
    project ships a no-SDK build, `=0`) — run the build-and-fix loop in `phase 3 · task 5` and read the build log.
@@ -286,13 +297,15 @@ log; only running the game needs the integrator:
    verify each action's `SendAction` log line appears **in both**, with no SDK errors or crashes. Make the run **pause once and enter a non-ludeoable area once** (if the game has one), so
    `PauseLudeo`/`ResumeLudeo` and `StartNoneLudeable`/`StopNoneLudeable` are sent and Studio Lab can list them.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not offer to advance until the build passes and the user confirms the run** (or explicitly skips). Also
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`actions`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not offer to advance until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word. Also
 review any skipped low-confidence actions manually before moving on.
 
-Once they confirm, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
+Once the run passes, do **Step 6** (Global Triggers and goals) if it is still open — the run just sent the
 actions it needs. Then hand back to `6-actions-orchestrator.md` (when `current` is `8`, back to `8-polish.md` instead): if phase 5 still has waves outstanding it
 returns there; once every wave is green or deferred, phase 7 (`7-upload-build.md`) verifies the Release build and
 publishes it.

@@ -252,15 +252,25 @@ for (each object) {
 
 **Every way to leave active gameplay MUST call `ludeo_GameplaySession_End()`.**
 
+> **Player Flow exception — the game's own end does NOT end a Ludeo.** While a selected Ludeo is playing, the
+> backend owns its end (timer, goal, constraint). A natural match/race/level end, an intermission, a map vote, a
+> game-over screen or a death the game would answer with a restart is **not** an exit path: the game **holds the
+> world** (frozen or idling on its end screen), keeps the room open, blocks anything that would load another level
+> or open a Creator room, and waits for the backend's `PauseGameRequest` (`05 §6.11`). The hold is **not a pause**:
+> it must not send `PauseLudeo` (that stops the objective timer and the backend never ends the Ludeo) — freeze through
+> a freeze-only path, never through the game's pause primitive. Only the game's own
+> interrupts end a playback session — a validated mid-run `LudeoSelected`, `BackToMenuRequest`, quit, or an error —
+> always with `isAbort=true`. Rows marked *Creator Flow* below apply to recording sessions only.
+
 **🚨 AUDIT ALL OF THESE (common exit paths):**
 
 | Exit Path | Example | Must Call EndGameplaySession |
 |-----------|---------|------------------------------|
-| Level complete / win | `OnLevelComplete()` | ✅ YES |
-| Level failed / loss | `OnPlayerDied()`, `OnGameOver()` | ✅ YES |
+| Level complete / win | `OnLevelComplete()` | ✅ YES — *Creator Flow*. ❌ NO in Player Flow: hold the world until the backend ends the Ludeo |
+| Level failed / loss | `OnPlayerDied()`, `OnGameOver()` | ✅ YES — *Creator Flow*. ❌ NO in Player Flow: hold the world until the backend ends the Ludeo |
 | Player quits to menu | `OnQuitToMenu()`, `OnEscapePressed()` | ✅ YES |
 | Player quits to desktop | `OnQuitGame()`, `OnAltF4()` | ✅ YES |
-| Level restart | `OnRestartLevel()` | ✅ YES |
+| Level restart | `OnRestartLevel()` | ✅ YES — *Creator Flow*. In Player Flow block the game's own restart (a key on the end screen must not reload the level) |
 | Network disconnect | `OnDisconnected()` | ✅ YES (multiplayer) |
 | Error recovery | `OnFatalError()` | ✅ YES |
 | Mid-run `LudeoSelected` — a **validated** selection while a Ludeo is playing or still restoring (another Ludeo from the overlay, "play again") | `CommitAndRestore()` → `EndCurrentLudeo()` | ✅ YES — `isAbort=true` (only if `Begin` ran) → `RemovePlayer` → `CloseRoom`, then reset the `Begin` gates and the freeze bits (the CR-011 bit only if no overlay is actually open) **before** the new restore starts (CR-010 step 3, `07 §2.1`). **Not** in `OnLudeoSelected()` — an unvalidated selection touches nothing |
@@ -268,21 +278,27 @@ for (each object) {
 
 **Required Pattern:**
 ```cpp
-// ✅ CORRECT - Centralized exit point
-void EndCurrentGameplay(bool isAbort) {
+// ✅ CORRECT - Centralized exit point. gameOwnEnd = the game ended the level/match by itself
+// (complete, died, game over, restart) rather than the player leaving it.
+void EndCurrentGameplay(bool isAbort, bool gameOwnEnd = false) {
 #if LUDEO_SDK_ENABLED
-    if (LudeoManager::Instance().IsGameplayActive()) {
-        LudeoManager::Instance().EndGameplaySession(isAbort);
+    auto& ludeo = LudeoManager::Instance();
+    if (gameOwnEnd && ludeo.IsPlayerFlow()) {
+        ludeo.HoldForBackendEnd();   // a Ludeo is playing: the backend ends it (05 §6.11) — no End here
+        return;                      // the caller must also skip its own restart / next-level step
+    }
+    if (ludeo.IsGameplayActive()) {
+        ludeo.EndGameplaySession(isAbort);
     }
 #endif
 }
 
 // Hook into EVERY exit path:
-void OnLevelComplete() { EndCurrentGameplay(false); /* ... */ }
-void OnPlayerDied()    { EndCurrentGameplay(false); /* ... */ }
-void OnQuitToMenu()    { EndCurrentGameplay(true);  /* ... */ }
-void OnRestartLevel()  { EndCurrentGameplay(true);  /* ... */ }
-void OnQuitGame()      { EndCurrentGameplay(true);  /* ... */ }
+void OnLevelComplete() { EndCurrentGameplay(false, true); /* ... */ }
+void OnPlayerDied()    { EndCurrentGameplay(false, true); /* ... */ }
+void OnQuitToMenu()    { EndCurrentGameplay(true);        /* ... */ }
+void OnRestartLevel()  { EndCurrentGameplay(true, true);  /* ... */ }
+void OnQuitGame()      { EndCurrentGameplay(true);        /* ... */ }
 ```
 
 **Forbidden:**
@@ -296,7 +312,8 @@ void OnLevelComplete() {
 
 **Validation Checklist:**
 - [ ] List ALL functions that exit gameplay state
-- [ ] Each one calls `EndGameplaySession()` (directly or via helper)
+- [ ] Each one calls `EndGameplaySession()` (directly or via helper) — in Creator Flow; in Player Flow the game's own ends hold for the backend instead, and only interrupts call it
+- [ ] Test: replay a Ludeo through the game's own end (match/race/level ends before the timer) → the game holds, no restart or next level, and the backend ends the Ludeo on its timer
 - [ ] Test: quit mid-level → Ludeo still created
 - [ ] Test: restart level → Ludeo still created
 - [ ] Test: disconnect (multiplayer) → Ludeo still created
@@ -609,9 +626,16 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 > wired, these handlers must reach the same pause report as every other pause: route them through the game's
 > pause primitive, which emits `PauseLudeo`/`ResumeLudeo` once per transition (`phase 6 · task 2` Step 5).
 > In `phase 3 · task 4` the handlers only freeze; the report is added in phase 6.
+>
+> **Only pauses during play are spans.** The CR-010 restore freeze, the input hold and the pre-Play wait are the
+> Ludeo's own, not a pause: never report them as `PauseLudeo`/`ResumeLudeo`, and never seed a span from them at
+> `Begin` (`phase 6 · task 2`). A Pause at `Begin` followed by a Resume at Play's unfreeze can reach the overlay in
+> reverse order and leave its countdown paused — the Ludeo then ends only on a later action, or never.
 
-> ⚠️ **Cloud Player Flow only — these requests never fire in a local build** (and never in Creator Flow). So this
-> contract **cannot be exercised locally**: opening the overlay on a local build does not call the handlers, and a
+> ⚠️ **Overlay pause/resume is cloud Player Flow only — those requests never fire in a local build** (and never in
+> Creator Flow). The one exception is the backend's **end-of-Ludeo** `PauseGameRequest`, which does arrive in a local
+> Player-Flow run and is the local proof that the backend ended the Ludeo. So the overlay half of this contract
+> **cannot be exercised locally**: opening the overlay on a local build does not call the handlers, and a
 > clean local run is no evidence they work. Locally, verify registration and call the handlers directly from a debug
 > hook; the real check is the cloud run after `phase 7`.
 >
@@ -625,6 +649,7 @@ ludeo_Session_AddNotifyResumeGameRequest(session, &p, ctx, OnResumeGameRequest);
 - [ ] **In the cloud (after `phase 7`):** opening the overlay mid-playback freezes the game; closing it resumes.
 - [ ] The game's own pause key is gated on the overlay bit, not on Player Flow.
 - [ ] After phase 6: the overlay pause sends `PauseLudeo` and its close sends `ResumeLudeo`, once each.
+- [ ] No `PauseLudeo`/`ResumeLudeo` is sent around `Begin` or Play for the restore freeze; a replay left idle past its time limit is ended by the backend on time.
 
 #### CR-010 and CR-011 are INDEPENDENT — do not collapse them into one `m_paused` boolean
 
@@ -716,7 +741,7 @@ Before considering integration complete, verify these critical requirements:
 ### CR-011: Paused While Overlay Is Active Mid-Play (⚠️ #1 MID-PLAY FAILURE)
 - [ ] `ludeo_Session_AddNotifyPauseGameRequest` and `ludeo_Session_AddNotifyResumeGameRequest` are both registered at session creation
 - [ ] The pause handler **freezes the simulation tick** (not just input), the resume handler resumes — checked locally by calling them directly, idempotent across toggles
-- [ ] The requests only fire in a **cloud** Player-Flow session — the real overlay check happens after `phase 7`
+- [ ] The overlay pause/resume requests only fire in a **cloud** Player-Flow session — the real overlay check happens after `phase 7` (the backend's end-of-Ludeo `PauseGameRequest` does fire locally)
 - [ ] The game's own pause key is gated on the overlay bit, not on Player Flow
 
 ---

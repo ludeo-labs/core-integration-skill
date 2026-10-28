@@ -28,8 +28,8 @@ and on the open transition, drive the game's pause primitive, so one detector re
 ## The pause menu is always on the list
 
 When listing non-gameplay segments, include the in-game pause menu alongside frontend menus, loading screens and
-cutscenes. Classify it correctly: it is a **pause** — `PauseLudeo` / `ResumeLudeo` in either flow, with the local
-tracking pause of `06 §8.1` — **not** a non-ludeoable area (`StartNoneLudeable` keeps the timer running, `06 §8.5`).
+cutscenes. Classify it correctly: it is a **pause and** a non-ludeoable span — `PauseLudeo` / `ResumeLudeo` in either flow, with
+the local tracking pause of `06 §8.1`, and `StartNoneLudeable` / `StopNoneLudeable` nested inside (`06 §7.3`).
 
 ## Pause support is not optional
 

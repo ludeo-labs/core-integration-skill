@@ -47,7 +47,7 @@ for N in waves:
 | # | Task | Brief | Cadence | Produces | Gate (yours) |
 |---|------|-------|---------|----------|--------------|
 | 0 | Deep-scope the wave | [`5a-deep-scope-wave.md`](5a-deep-scope-wave.md) | per wave | wave N's `## Entity` blocks appended to `OBJECT_TRACKING.md` | user reviews and approves wave N's rows |
-| 1 | Capture | [`5b-implement-object-tracking.md`](5b-implement-object-tracking.md) | per wave, additive | registration + capture for N's types | **agent builds** (SDK on and off); **integrator runs and captures a Ludeo** containing wave N's attributes; registration in the log, no `Expected type` / result errors |
+| 1 | Capture | [`5b-implement-object-tracking.md`](5b-implement-object-tracking.md) | per wave, additive | registration + capture for N's types | **agent builds** (SDK on and off) **and captures** with the harness's `capture` scenario (`agent-test-harness.md`) a moment containing wave N's attributes; the integrator turns it into a Ludeo and sends the id; registration in the log, no `Expected type` / result errors |
 | 2 | Plan the restore | [`5c-plan-state-restoration.md`](5c-plan-state-restoration.md) | per wave, append | wave N's rows in `RESTORATION_PLAN.md` | user reviews and approves the rows |
 | 3 | Restore flow | [`5d-implement-restoration-flow.md`](5d-implement-restoration-flow.md) | **once, wave 1** | the `LudeoSelected` → validate → commit → apply → settle → `OpenRoom` → `Begin` flow, read-back stubbed | `5d` Step 6: the captured level held frozen behind the overlay before Play, instant resume on Play, a bad selection ignored (replay→replay is checked at gate 4) |
 | 4 | Reconstruction | [`5e-implement-state-reconstruction.md`](5e-implement-state-reconstruction.md) | per wave, additive | wave N's types read back in `RestoreTwoPass` / `RestoreEnvironment` / `ApplyDeferred` | `5e` Step 7 for wave N's **cumulative** set, plus the checks below |
@@ -60,8 +60,10 @@ task's status under its step id (`5a`–`5e`) for the current wave.
 ### Capture before replay
 
 Tasks 3 and 4 can't be verified without a **real captured Ludeo** — you can't replay what was never captured. So
-each wave's task-1 gate is not "capture builds and runs": the integrator must **actually play and capture at least
-one Ludeo containing that wave's attributes — ideally two**, for the replay-twice check. Make that ask explicit.
+each wave's task-1 gate is not "capture builds and runs": **at least one real capture containing that wave's
+attributes — ideally two**, for the replay-twice check. The agent makes them with the harness's `capture` scenario
+([`agent-test-harness.md`](agent-test-harness.md)), then asks the integrator for one thing only: turn *these* named
+moments into Ludeos and send back the ids (one ask for both). Track them in `LUDEOS.md`.
 
 - **Re-capture every wave.** Each wave adds attributes to the capture schema, which **invalidates Ludeos captured
   in earlier waves** (`07 §2.2` corollary). The Ludeo used at a wave's gate 4 must contain that wave's attributes —
@@ -75,11 +77,18 @@ one Ludeo containing that wave's attributes — ideally two**, for the replay-tw
 All of these, on a Ludeo captured mid-run with wave N's attributes:
 
 - **The cumulative set restores** — `5e` Step 7: the frozen frame behind the overlay is the captured moment for
-  everything waves 1…N track; two-pass counts non-zero; cross-references resolved.
-- **Placement sanity** — ask the integrator directly: *"On the restored frame, does anything sit in empty space,
-  fall through the floor, or appear far from the level's geometry?"* A yes is a displaced-world-frame bug.
+  everything waves 1…N track; two-pass counts non-zero; cross-references resolved; and the **restore check**
+  (`5e` Step 7, the restore check) reads `0 mismatches` over at least the fields waves 1…N track — after the apply **and** after
+  the settle. Gate 4 is not passed on screenshots alone.
+- **Placement sanity** — from the `replay` run's screenshots, which you open and look at: does anything sit in
+  empty space, fall through the floor, or appear far from the level's geometry? A yes is a displaced-world-frame
+  bug. If the screenshots can't show it (a camera that can't see the restored entities), add a sampler check
+  against the level's geometry, or list it as an open item for the sign-off.
 - **Replay twice** in one session — the second Ludeo's state shows, nothing leaks from the first (`07 §2.6`).
-- **Play it to completion**, not just the first frame — drive the moment to its win or lose condition. Win
+- **Evidence bundle, then sign-off** — the integrator answers *"wave N restores — widen?"* from the bundle
+  (`agent-test-harness.md` → *The wave sign-off*), not by replaying it.
+- **Play it to completion**, not just the first frame — the harness drives the moment to its win or lose condition
+  (the game's own bots / AI, dev commands, or scripted input). Win
   conditions ride on derived counters (alive enemies, objectives left — `07 §11.2`) that a first-frame check can't
   see. For a state-heavy wave, add a temporary **heartbeat** log — redundant state vs ground truth every few seconds
   (e.g. "enemies remaining" vs the actual alive count) — and remove it once the wave is green.

@@ -29,9 +29,11 @@ the state file and the plan files are what make that safe.
 
 - **Every gate is the orchestrator's.** A worker never declares its own task done.
 - **Build gates: the agent builds.** CMake / MSBuild / make run headless — build with the SDK on (and off if a no-SDK
-  build ships), read the log, fix (`3e-compile-and-fix.md`). **Run gates: the integrator runs** — whoever
-  `integration.json → intake.runnability.runsTheGame` names. The agent reads the run log afterwards; beyond the log
-  it relies on their word. Never declare a run gate passed by inspection.
+  build ships), read the log, fix (`3e-compile-and-fix.md`). **Run gates: the agent runs** through the harness
+  (`agent-test-harness.md`) — one runner-script call per run, then `result.json`, the logs and the screenshots,
+  opened and looked at. The integrator runs a gate only when `intake.runnability.runsTheGame` is `"integrator"`;
+  beyond the log the agent then relies on their word. Never declare a run gate passed by inspection. A worker that
+  needs a run asks the orchestrator for it; it never asks the user to play.
 - **Review gates** (a plan the user must approve) stop the phase until the user has approved the specific rows.
 - Update the state file at every gate (`state-file-schema.md`): the step's status, decisions, findings.
 

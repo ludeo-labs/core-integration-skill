@@ -16,9 +16,9 @@ puzzle, save/load, …).
 
 ## Why it helps
 
-Phase 6 must mark non-gameplay UI with the standard actions, by trigger type (`06 §7.3`): a screen that **pauses** the
-game takes `PauseLudeo` / `ResumeLudeo`; a browsable overlay that leaves play running (inventory, shop) takes
-`StartNoneLudeable` / `StopNoneLudeable`. Asked to cover "the pause menu and the inventory", hunting for a separate
+Phase 6 must mark non-gameplay UI with the standard actions, by trigger type (`06 §7.3`): **every** non-gameplay screen takes
+`StartNoneLudeable` / `StopNoneLudeable`, and a screen that also **pauses** the game takes `PauseLudeo` / `ResumeLudeo`
+around it (pause first, non-ludeoable nested inside). Asked to cover "the pause menu and the inventory", hunting for a separate
 flag per overlay is fragile — each lives in a different widget, and you won't know them all.
 
 If the game already collapses "which full-screen UI is up" into one value, that value is a complete signal: **non-
@@ -29,8 +29,8 @@ resting means an overlay is open**, including overlays you never enumerated.
 ```cpp
 // Polled each frame by the integration
 const int screen = hud.CurrentActiveScreen();
-const bool pausingScreenUp  = screen != kGameplayScreen && IsPausingScreen(screen);    // → PauseLudeo / ResumeLudeo
-const bool browsingScreenUp = screen != kGameplayScreen && !IsPausingScreen(screen);   // → StartNoneLudeable / StopNoneLudeable
+const bool anyScreenUp     = screen != kGameplayScreen;                                // → StartNoneLudeable / StopNoneLudeable
+const bool pausingScreenUp = anyScreenUp && IsPausingScreen(screen);                   // → PauseLudeo / ResumeLudeo, opened first
 ```
 
 Map **each enumerator** to its trigger type, report only transitions (one start and one end per span, on every exit

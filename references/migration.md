@@ -108,6 +108,12 @@ the template:
 - `wave` → build it from `OBJECT_TRACKING.md` → `## Wave Rollout` and the green waves' evidence.
 - `steps.8` → `not_started` (or per §3's evidence).
 - `intake` empty → run the intake.
+- `harness` → the agent test harness (`agent-test-harness.md`) is newer than this integration. Tell the user the
+  agent now runs the run gates itself, and ask RUN-3 / RUN-4 again (`know-your-game.md`); set
+  `intake.runnability.runsTheGame` from the answer — an old `"integrator"` was the only option then, not a choice.
+  Build the harness at the next run gate: the `boot` run first (phase 1 Step 10, if phase 1 is done, run it now),
+  the `CODE_MAP.json → automation` levers (phase 2 §10) if phase 2 is done, then the scenario that gate needs.
+  Completed steps are not re-opened for it.
 
 When a future change bumps `schemaVersion`, it adds its upgrade steps here as a new section.
 

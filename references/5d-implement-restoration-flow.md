@@ -24,7 +24,7 @@ Proprietary C++ engines only. If the game uses Unity or Unreal, stop — use the
 ## Prerequisites
 
 **From the intake** (`ludeo-integration-plan/integration.json` → `intake`; [`know-your-game.md`](know-your-game.md)) — `runnability.levelLoadCommand` is how Step 4 reaches the captured level from a cold
-start, and `runnability.runsTheGame` is who to ask for the Step 6 run.
+start. The Step 6 run is the agent's: the harness's `replay` scenario ([`agent-test-harness.md`](agent-test-harness.md)), built here.
 
 > **REQUIRED:** These must be complete before running this command:
 > 1. `phase 3 · task 4` complete — LudeoManager exists and SDK lifecycle works
@@ -128,6 +128,14 @@ Do **not** wire to `ludeo_GameplaySession_AddNotifyPlayerReady` (doesn't exist) 
 
 **Playback end** (`05 §6.11`) — two paths, do not conflate them. **Backend ends the Ludeo** (timer hits 0, objective met/failed, or any backend-decided reason): the backend sends **`PauseGameRequest`** (CR-011), so the game just **freezes and waits** for the next platform event. The game does **NOT** detect end-of-moment, **NOT** call `End`, and **NOT** submit — the backend owns submission, and `PauseGameRequest` is the universal end-of-moment cue. **Game-initiated interrupt** (a validated `LudeoSelected` mid-play, `BackToMenuRequest`, or quit): the **game** calls `ludeo_GameplaySession_End(isAbort=true)` then `RemovePlayer → CloseRoom`. Calling `End` on the backend-ends path, or with `isAbort=false` on the interrupt path, are both bugs.
 
+**The game's own end is not an end path.** A match, race or level that ends by itself during a replay (frag or time
+limit, finish line, level complete, game over), and everything the game starts after it (intermission input, map
+restart, map vote, next level, a Creator room for the next match), must **hold**: keep the room and gameplay session
+open, stay on or freeze at the end screen (a freeze-only path — the hold must not send `PauseLudeo`, or the timer stops and the backend never ends the Ludeo; it does open a `StartNoneLudeable` span, since an end screen is a UI screen that suspends play — `06 §7.3`), block the follow-ons, and let the backend end the Ludeo on its timer
+(`05 §6.11`, CR-007 note). Find every such hook in the game now — they are usually in game-mode code the restore never
+touches — and branch them on `m_is_player_flow_replay`. The phase 8 conformance suite replays a Ludeo through a
+natural end to prove it (`8-polish.md`).
+
 ### Step 5: Clean Reset at Every End-of-Ludeo Path
 
 Each exit from a Ludeo (`BackToMenuRequest`, the player quitting, the backend ending the Ludeo, **and** a validated `LudeoSelected` mid-play) must reset *every* piece of Ludeo-lifecycle state back to its "no Ludeo active" baseline before the next play starts: `m_is_restoring → false`, `m_restore_in_progress → false`, `m_room_ready → false`, `m_player_added → false`, `m_applied → false`, `m_pending_reader → null`, `m_pending_ludeo_id → ""`, `m_is_player_flow_replay → false` (the session-scoped capture gate — `06 §7`, `07 §2.3`), `m_freeze_restore → false` and the input hold (CR-010), `m_freeze_overlay → false` (CR-011 — only if no overlay is actually open at that moment), `m_pending_local_ludeo_id → ""` (the Step 3 launch-arg cache), `m_launching_into_ludeo → false` (the preselected-launch flag — `ludeo-integration-docs/LAUNCH-AND-READINESS.md` §4; also cleared at the commit and when a selection is ignored). Centralize the cleanup in a single `EndCurrentLudeo(then)` helper called from every exit path — otherwise a stuck flag from one play silently corrupts the next. It also **bumps `m_restore_generation`**, so the pending continuations of an interrupted restore no-op, and runs `then` once its teardown has completed. It does **not** touch the candidate id/reader: a newly validated selection holds its own copy through the teardown, and only `StartRestore` sets the pending state afterwards.
@@ -147,15 +155,20 @@ This is the gate that closes phase 5 · task 3. With Step 3 wired and the flow i
    - Only **then** `OpenRoom` **with the `ludeoId`** → `AddPlayer` → `OnPlayerAdded`.
    - On screen: the **captured level, frozen**, with the overlay's Play button — not the menu, not a loading cover. (State is still default — the stubs write nothing.)
 3. **Press Play → `RoomReady` → `Begin` → unfreeze.** Confirm in the log that nothing loaded or applied after `RoomReady`, and that `Begin` fired once all three gates were set.
-4. **Hand off to the player to confirm (flow only).** Tell the user:
-   > "Before pressing **Play**, confirm the game is showing the **captured level**, frozen, behind the Ludeo overlay. After pressing **Play**, confirm:
-   > - The game **resumed instantly** on that level — no load, no menu, no crash.
-   > - **State is not restored yet** (the player may be at a default spawn / default state) — that's expected in this phase; `phase 5 · task 4` adds the state read-back.
-   > - The game is running normally (ticking), not frozen."
+4. **Confirm the flow from the harness evidence (flow only).** Build the harness's `replay` scenario now
+   ([`agent-test-harness.md`](agent-test-harness.md)) and run steps 1–3 and 5 through it. From its screenshots and
+   samples, confirm yourself:
+   - Before Play: the screenshot shows the **captured level**, frozen, behind the Ludeo overlay (the sampler shows
+     the clock not advancing).
+   - After Play (the overlay's real button, or the stand-in that enters the same `RoomReady` path — record which in
+     `harness.playClick`): the game **resumed instantly** on that level — no load, no menu, no crash — and is
+     ticking, not frozen.
+   - **State is not restored yet** (default spawn / default state) — expected in this phase; `phase 5 · task 4`
+     adds the read-back.
 5. **Bad-selection check.** Launch once with an id that doesn't exist (or a Ludeo from another game) and confirm the selection is **ignored**: the log says why, and the menu (or the running game) is untouched — no teardown, no freeze, no room.
-6. **Overlay pause/resume — what can and can't be tested locally (CR-011).** The SDK sends `PauseGameRequest`/`ResumeGameRequest` **only in a cloud Player-Flow session — never in a local build**, so opening the overlay locally does **not** exercise these handlers, and a clean local run is no evidence they work. Locally, confirm instead: (a) both notifications are **registered at session creation** (log line per registration); (b) if the game has a debug hook, invoking the two handlers directly **freezes the simulation** (not just input) and **resumes** it, twice in a row. The real check is the cloud run after `phase 7`.
+6. **Overlay pause/resume — what can and can't be tested locally (CR-011).** The SDK sends the overlay's `PauseGameRequest`/`ResumeGameRequest` **only in a cloud Player-Flow session — never in a local build** (the end-of-Ludeo `PauseGameRequest` does arrive locally — CR-011), so opening the overlay locally does **not** exercise these handlers, and a clean local run is no evidence they work. Locally, confirm instead: (a) both notifications are **registered at session creation** (log line per registration); (b) if the game has a debug hook, invoking the two handlers directly **freezes the simulation** (not just input) and **resumes** it, twice in a row. The real check is the cloud run after `phase 7`.
 
-Wait for the player's confirmation on steps 4 and 5 before declaring phase 5 · task 3 done. If any step fails, flag against `07 §2` / CR-010 / CR-011 and go back to the relevant earlier step — do not move on.
+Steps 4 and 5 must pass on the harness evidence before declaring phase 5 · task 3 done. If any step fails, flag against `07 §2` / CR-010 / CR-011 and go back to the relevant earlier step — do not move on.
 
 **If the game crashes during steps 1–3:** do **not** retry the launch blindly. Capture the stack trace and the last several log lines, identify the `ludeo_*` call on the failing frame and the thread it crashed on, then classify against `11-TROUBLESHOOTING §6` — for this phase the likely culprits are **wrong-thread SDK call** (didn't marshal off the notification thread), **SDK call before `Activate`** (the launch-arg dispatch fired too early — §6.7), or **null `DataReader` deref** (applied before validating populated). Fix at the root — don't paper over with null checks or try/catch — then rerun the full smoke test from step 1.
 
@@ -192,7 +205,7 @@ Wait for the player's confirmation on steps 4 and 5 before declaring phase 5 · 
 ## ✅ Exit gate — rebuild + run (REQUIRED — do not advance without it)
 
 This phase edited source files, so it is **not done** until the game still builds and runs. **The agent runs the build itself** (CMake / MSBuild / make work headless) and reads the
-log; only running the game needs the integrator:
+log, and **runs the game itself** through the agent test harness ([`agent-test-harness.md`](agent-test-harness.md)):
 
 1. **Rebuild — the agent, not the integrator.** **Rebuild** and confirm a **clean build with `LUDEO_SDK_ENABLED=1` and `=0`** — run the build-and-fix
    loop in `3e-compile-and-fix.md` and read the build log.
@@ -202,8 +215,10 @@ log; only running the game needs the integrator:
    `phase 5 · task 4`, so fully-restored state isn't expected yet — you're confirming the flow fires and
    the game doesn't break.
 
-The agent verifies the build itself — show the build command and its result. If it cannot build here
-(toolchain missing, IDE-only or license-gated build), say so and ask the integrator to build. It
-**cannot truly verify** a live run on its own — beyond the run log it relies on the integrator's word, and if they confirm without checking,
-that's their call. **Do not offer to advance until the build passes and the user confirms the run** (or explicitly skips). Then
+The agent verifies both itself — show the build command and its result, and the harness run (scenario
+`replay`): its command, `result.json`'s verdict, the log lines that prove it, and the screenshots you opened.
+If it cannot build here (toolchain missing, IDE-only or license-gated build), say so and ask the integrator to
+build. **Do not offer to advance until the build and the run both pass.** Only when `intake.runnability.runsTheGame` is
+`"integrator"` (or this check is in `integratorPlays`) does the integrator run it, and then beyond the log the
+agent relies on their word. Then
 run `5e-implement-state-reconstruction.md` to fill the apply seam.

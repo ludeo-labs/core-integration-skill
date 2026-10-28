@@ -197,9 +197,46 @@ builds; the integrator replays a fresh Ludeo and watches it. A clean build never
 action-guard audit too — actions still fire in **both** flows (`06 §7`), and every listener this phase added is
 unbound in the teardown path.
 
+### Step 4b: Conformance suite and critical-requirements audit (REQUIRED before Finalize)
+
+Wave gates prove each restore; they do not prove the **lifecycle** a player and the data pipeline go through. Before
+finalizing, the agent runs this fixed suite through the agent test harness (scenario names in
+[`agent-test-harness.md`](agent-test-harness.md) → *Scenarios*, the conformance set) on the **current build with
+every Ludeo it has**, then a fresh-context audit. Each row passes only on the SDK's or the game's own log lines,
+never on the harness's report of what it sent.
+
+| # | Scenario | Passes when |
+| --- | --- | --- |
+| 1 | Every Ludeo back to back, one process | each ends by the backend (end-of-Ludeo `PauseGameRequest`), the restore check reads `0 mismatches` (`5e` Step 7, the restore check), no retries, process memory flat |
+| 2 | Every Ludeo from a cold launch | same as 1, restore check identical to the one-process run |
+| 3 | Play Again ×3 on one Ludeo | identical restore check and object counts every round, nothing leaks |
+| 4 | Idle past the time limit — Play, then no input | the backend ends it within ~1 s of its time limit (catches pause spans seeded from the restore freeze, CR-011) |
+| 5 | Natural game end before the timer (match/race/level ends first) | the game holds; the backend ends the Ludeo on its timer; no restart, map vote, next level or Creator room (CR-007 note, `05 §6.11`) |
+| 6 | A constraint fails within 1 s of Play | a clean loss screen, no hang, the next selection restores normally |
+| 7 | Back to menu mid-Ludeo, then the same Ludeo | nothing left open at the menu; the second restore check identical |
+| 8 | Another Ludeo selected mid-play | the first ends as an abort and closes; the second restores |
+| 9 | The game's pause or menu key, and held inputs, during the pre-Play freeze | still frozen; nothing carries over after Play |
+| 10 | Focus loss in fullscreen, frozen and mid-play | no minimize, keeps rendering (the cloud stream) |
+| 11 | A long Creator session over several levels or matches | rooms opened = closed, every capture's upload confirmed before its room closed |
+| 12 | Each Ludeo's main goal can be won | a human-paced driver wins it inside the time limit — proves no test or AI state leaked into the capture (`agent-test-harness.md`) |
+| 13 | Every UI screen in the `phase 6` non-ludeoable census, in both flows | each one sends `StartNoneLudeable` on open and `StopNoneLudeable` on close, paired in the SDK log; none still open at `End`; pause screens send both pairs, nested (`06 §7.3`) |
+
+A row that fails is a bug: fix it through its owning phase and re-run the rows it touches. A row that cannot run here
+(no Ludeo with a constraint, a cloud-only path) is recorded as **not covered**, with what is needed, never as a pass.
+Record the table, run ids included, in the TDD completion section.
+
+**Critical-requirements audit.** Then dispatch a **fresh-context** reviewer (no conversation history) on the diff
+from the integration's base, excluding the vendored SDK, against `ludeo-integration-docs/00-CRITICAL-REQUIREMENTS.md`
+— scoped to correctness and the stated requirements only, never style — returning each candidate violation with
+`file:line` and its evidence. Verify every candidate yourself in the source, then take the confirmed ones through the
+fix loop (`orchestration.md` → **Fix loop**: propose, confirm, then change), re-run the suite rows they touch, and
+record the confirmed findings and their fixes in `decisions`. In a four-game benchmark this
+audit found a violation in every integration that every gate had passed: code left active in the SDK-off build (in a
+script VM and in window handling), a teardown skipped on the exception exit, and state written after Play.
+
 ### Step 5: Finalize
 
-When the user confirms nothing material remains:
+When the user confirms nothing material remains — and Step 4b passed:
 
 1. **No outstanding waves.** Every appended wave is `green`, or moved to `wave.deferred` with the user's sign-off in
    `decisions`. A deferred wave's partial capture and read-back are finished or removed before the re-upload — phase 7
@@ -274,6 +311,10 @@ TDD completion section:
 ### Bugs fixed
 - <earlier Open Questions / known gaps resolved>
 
+### Conformance suite and audit (Step 4b)
+- <row | result | run id> for rows 1–13; rows not covered and why
+- Audit: <confirmed violations and their fixes | none confirmed>
+
 ### Accepted gaps (deliberately not captured)
 - <state + rationale: cosmetic only, out of scope, write volume>
 
@@ -293,6 +334,8 @@ TDD completion section:
 - [ ] **New actions landed through phase 6** — approved in the map, in the log in both flows.
 - [ ] **Polish and earlier bugs addressed** through the phase-5 patterns; any unplayable-restore timing sent back to
       its owning wave as core.
+- [ ] **Conformance suite (Step 4b) run on the final build** — every row passed or recorded as not covered with the
+      reason; the fresh-context critical-requirements audit run, every candidate verified, confirmed ones fixed.
 - [ ] **Re-uploaded** through phase 7 when the build changed; captures re-recorded.
 - [ ] **Completion recorded** in the TDD and the state file, and the integration declared complete **at the
       user-agreed scope** — nothing stopped silently.

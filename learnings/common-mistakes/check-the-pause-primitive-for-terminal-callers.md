@@ -21,11 +21,13 @@ the rest of the run. The pause menu used the function symmetrically, but the dea
 put the pair where the pause is genuinely a pause and genuinely symmetric — here, the live pause manager's own
 `Pause()`/`Unpause()`, not the shared primitive underneath.
 
-## One window, one meaning
+## Decide per window whether the clock stops
 
-The same log showed the death screen emitting **both** span pairs at once. They mean opposite things to the backend
-(`06 §7.3`): **non-ludeoable** keeps the objective timer running; **pause** stops it. Decide per window which it is (a
-death sequence is non-ludeoable) and emit exactly one pair.
+The same log showed the death screen emitting **both** span pairs at once, because it was wired to the pause primitive.
+The pairs mean different things to the backend (`06 §7.3`): **non-ludeoable** keeps the objective timer running;
+**pause** stops it. A death sequence suspends play while the clock must keep running, so it sends **only** the
+non-ludeoable pair — no `PauseLudeo`. A screen that genuinely freezes the simulation (the pause menu, the overlay pause)
+sends **both**, nested: `PauseLudeo` first, `StartNoneLudeable` inside, closed in reverse (`06 §7.3`).
 
 ## Three more things that bit on the same work
 
